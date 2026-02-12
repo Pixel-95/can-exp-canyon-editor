@@ -1,0 +1,66 @@
+{
+  "name": "can-exp-canyon-editor",
+  "version": "0.1.0",
+  "description": "Electron Mapbox walking route generator with GeoJSON export",
+  "main": "dist/electron/main.js",
+  "author": "Canyon Route Editor Contributors",
+  "license": "MIT",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron:build\" \"npm:dev:electron:run\"",
+    "dev:renderer": "vite --config renderer/vite.config.ts",
+    "dev:electron:build": "tsc -p electron/tsconfig.json --watch --preserveWatchOutput",
+    "dev:electron:run": "wait-on tcp:5173 dist/electron/main.js && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 nodemon --watch dist/electron --ext js --exec \"electron .\"",
+    "build": "npm run build:renderer && npm run build:electron",
+    "build:renderer": "vite build --config renderer/vite.config.ts",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "package": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "mapbox-gl": "^3.10.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^22.13.4",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8",
+    "nodemon": "^3.1.9",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.canexp.canyoneditor",
+    "productName": "Canyon Route Editor",
+    "files": [
+      "dist/electron/**/*",
+      "dist/renderer/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.utilities"
+    },
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false
+    }
+  }
+}
