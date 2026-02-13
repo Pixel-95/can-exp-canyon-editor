@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { Menu, app, BrowserWindow, dialog, ipcMain } from "electron";
 import { existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -31,6 +31,7 @@ function createWindow(): void {
     height: 820,
     minWidth: 960,
     minHeight: 640,
+    autoHideMenuBar: true,
     ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -40,6 +41,7 @@ function createWindow(): void {
   });
 
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.setMenuBarVisibility(false);
 
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
     console.error("Renderer process gone:", details);
@@ -109,6 +111,7 @@ ipcMain.handle(
 );
 
 void app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   createWindow();
 
   app.on("activate", () => {

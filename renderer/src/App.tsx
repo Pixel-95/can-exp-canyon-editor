@@ -71,8 +71,52 @@ type DirectionsResponse = {
   routes?: DirectionsRoute[];
 };
 
+type RouteElevations = {
+  startM: number;
+  endM: number;
+};
+
 const ROUTE_SOURCE_ID = "walking-route-source";
 const ROUTE_LAYER_ID = "walking-route-layer";
+const TERRAIN_TILE_ZOOM = 14;
+const TERRAIN_TILE_SIZE = 512;
+
+function projectLngLatToTilePixel(lng: number, lat: number, zoom: number): {
+  tileX: number;
+  tileY: number;
+  pixelX: number;
+  pixelY: number;
+} {
+  const clampedLat = Math.max(-85.05112878, Math.min(85.05112878, lat));
+  const latRadians = (clampedLat * Math.PI) / 180;
+  const scale = 2 ** zoom;
+
+  const x = ((lng + 180) / 360) * scale;
+  const y =
+    ((1 - Math.log(Math.tan(latRadians) + 1 / Math.cos(latRadians)) / Math.PI) / 2) * scale;
+
+  const tileX = Math.floor(x);
+  const tileY = Math.floor(y);
+  const pixelX = Math.floor((x - tileX) * TERRAIN_TILE_SIZE);
+  const pixelY = Math.floor((y - tileY) * TERRAIN_TILE_SIZE);
+
+  return { tileX, tileY, pixelX, pixelY };
+}
+
+function decodeTerrainElevationMeters(
+  imageData: ImageData,
+  pixelX: number,
+  pixelY: number,
+): number {
+  const x = Math.max(0, Math.min(imageData.width - 1, pixelX));
+  const y = Math.max(0, Math.min(imageData.height - 1, pixelY));
+  const index = (y * imageData.width + x) * 4;
+  const r = imageData.data[index] ?? 0;
+  const g = imageData.data[index + 1] ?? 0;
+  const b = imageData.data[index + 2] ?? 0;
+
+  return -10000 + (r * 256 * 256 + g * 256 + b) * 0.1;
+}
 
 function formatCoordinate(value: Coordinate | null): string {
   if (!value) {
@@ -233,6 +277,8 @@ export function App(): JSX.Element {
   const [routeFeature, setRouteFeature] = useState<RouteFeature | null>(null);
   const [contextMenu, setContextMenu] = useState<MapContextMenuState>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<ContextMenuSubmenu | null>(null);
+  const [routeElevations, setRouteElevations] = useState<RouteElevations | null>(null);
+  const [routeElevationError, setRouteElevationError] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [statusText, setStatusText] = useState("Ready");
 
@@ -536,6 +582,98 @@ export function App(): JSX.Element {
   }, [drawRoute, routeFeature]);
 
   useEffect(() => {
+    if (!routeFeature || !mapboxToken) {
+      setRouteElevations(null);
+      setRouteElevationError("");
+      return;
+    }
+
+    const abortController = new AbortController();
+
+    setRouteElevations(null);
+    setRouteElevationError("");
+
+    async function resolveRouteElevations(): Promise<void> {
+      try {
+        const tileCache = new Map<string, Promise<ImageData>>();
+        const loadTileImageData = async (tileX: number, tileY: number): Promise<ImageData> => {
+          const key = `${TERRAIN_TILE_ZOOM}/${tileX}/${tileY}`;
+          const cached = tileCache.get(key);
+          if (cached) {
+            return cached;
+          }
+
+          const promise = (async () => {
+            const url = `https://api.mapbox.com/v4/mapbox.terrain-rgb/${TERRAIN_TILE_ZOOM}/${tileX}/${tileY}@2x.pngraw?access_token=${encodeURIComponent(mapboxToken)}`;
+            const response = await fetch(url, { signal: abortController.signal });
+            if (!response.ok) {
+              throw new Error(`Terrain request failed (${response.status}).`);
+            }
+
+            const blob = await response.blob();
+            const bitmap = await createImageBitmap(blob);
+            const canvas = document.createElement("canvas");
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+
+            const context = canvas.getContext("2d");
+            if (!context) {
+              bitmap.close();
+              throw new Error("Could not create 2D canvas context for terrain decoding.");
+            }
+
+            context.drawImage(bitmap, 0, 0);
+            bitmap.close();
+            return context.getImageData(0, 0, canvas.width, canvas.height);
+          })();
+
+          tileCache.set(key, promise);
+          return promise;
+        };
+
+        const getElevationAt = async (coordinate: Coordinate): Promise<number> => {
+          const tilePoint = projectLngLatToTilePixel(
+            coordinate[0],
+            coordinate[1],
+            TERRAIN_TILE_ZOOM,
+          );
+          const tileImage = await loadTileImageData(tilePoint.tileX, tilePoint.tileY);
+          return decodeTerrainElevationMeters(tileImage, tilePoint.pixelX, tilePoint.pixelY);
+        };
+
+        const [startElevationM, endElevationM] = await Promise.all([
+          getElevationAt(routeFeature.properties.start),
+          getElevationAt(routeFeature.properties.end),
+        ]);
+
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        setRouteElevations({
+          startM: Math.round(startElevationM),
+          endM: Math.round(endElevationM),
+        });
+        setRouteElevationError("");
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        console.error("Failed to resolve route elevations:", error);
+        setRouteElevations(null);
+        setRouteElevationError("Elevation unavailable for this route.");
+      }
+    }
+
+    void resolveRouteElevations();
+
+    return () => {
+      abortController.abort();
+    };
+  }, [mapboxToken, routeFeature]);
+
+  useEffect(() => {
     if (!mapboxToken) {
       return;
     }
@@ -795,10 +933,22 @@ export function App(): JSX.Element {
     setRouteFeature(null);
     setContextMenu(null);
     setActiveSubmenu(null);
+    setRouteElevations(null);
+    setRouteElevationError("");
     setStatusText("Cleared.");
   };
 
   const canSave = Boolean(routeFeature && !isSaving);
+  const routeSummary = useMemo(() => {
+    if (!routeFeature) {
+      return null;
+    }
+
+    return {
+      distanceKm: (routeFeature.properties.distance_m / 1000).toFixed(2),
+      durationMin: Math.round(routeFeature.properties.duration_s / 60),
+    };
+  }, [routeFeature]);
 
   const sortableIds = useMemo(() => routePoints.map((point) => point.id), [routePoints]);
   const hasStartAndEnd = useMemo(
@@ -866,6 +1016,31 @@ export function App(): JSX.Element {
             Clear
           </button>
         </div>
+
+        <section className="route-summary">
+          <h2>Route Summary</h2>
+          {routeSummary ? (
+            <>
+              <p>
+                <strong>Distance:</strong> {routeSummary.distanceKm} km
+              </p>
+              <p>
+                <strong>Walk Time:</strong> {routeSummary.durationMin} min
+              </p>
+              <p>
+                <strong>Start Elevation:</strong>{" "}
+                {routeElevations ? `${routeElevations.startM} m` : routeElevationError ? "Unavailable" : "Loading..."}
+              </p>
+              <p>
+                <strong>End Elevation:</strong>{" "}
+                {routeElevations ? `${routeElevations.endM} m` : routeElevationError ? "Unavailable" : "Loading..."}
+              </p>
+              {routeElevationError ? <p className="route-summary-error">{routeElevationError}</p> : null}
+            </>
+          ) : (
+            <p className="route-summary-empty">No route yet.</p>
+          )}
+        </section>
 
         <section className="route-points-panel">
           <h2>Route Points</h2>

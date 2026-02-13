@@ -61,9 +61,32 @@ button {
   cursor: not-allowed;
 }
 
-.coord-list p {
-  margin: 0 0 8px;
-  font-size: 0.95rem;
+.route-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.route-summary h2 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.route-summary p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.route-summary-empty {
+  color: #475569;
+}
+
+.route-summary-error {
+  color: #9f1239;
 }
 
 .route-points-panel {
