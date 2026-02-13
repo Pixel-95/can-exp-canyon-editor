@@ -61,6 +61,62 @@ button {
   cursor: not-allowed;
 }
 
+.coordinate-input-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.coordinate-input-panel h2 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.coordinate-input-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.coordinate-input-form input,
+.coordinate-input-form select,
+.coordinate-input-form button {
+  font: inherit;
+}
+
+.coordinate-input-form input,
+.coordinate-input-form select {
+  width: 100%;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.coordinate-input-form button {
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f1f5f9;
+  cursor: pointer;
+}
+
+.coordinate-input-form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.coordinate-input-error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #9f1239;
+}
+
 .route-summary {
   display: flex;
   flex-direction: column;
@@ -168,6 +224,30 @@ button {
   font-size: 0.82rem;
   color: #334155;
   word-break: break-word;
+}
+
+.route-point-segment-mode {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.route-point-segment-mode span {
+  font-size: 0.78rem;
+  color: #334155;
+  flex: 0 0 auto;
+}
+
+.route-point-segment-mode select {
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
+  padding: 4px 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.8rem;
 }
 
 .route-point-delete {
@@ -288,6 +368,32 @@ button {
 
 .route-point-marker-label {
   line-height: 1;
+}
+
+.segment-mode-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.segment-mode-popup-select {
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
+  padding: 5px 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.82rem;
+}
+
+.segment-mode-popup-remove {
+  border: 1px solid #fda4af;
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: #fff1f2;
+  color: #9f1239;
+  cursor: pointer;
+  text-align: center;
 }
 
 @media (max-width: 900px) {

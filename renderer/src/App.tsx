@@ -28,12 +28,26 @@ import type { Feature, FeatureCollection, LineString } from "geojson";
 
 type Coordinate = [number, number];
 type RoutePointType = "start" | "waypoint" | "end";
+type SegmentMode = "route" | "straight";
 type ContextMenuSubmenu = "set" | "insert";
 
 type RoutePoint = {
   id: string;
   type: RoutePointType;
   coordinates: Coordinate;
+  segmentMode?: SegmentMode;
+};
+
+type MarkerEntry = {
+  marker: mapboxgl.Marker;
+  element: HTMLDivElement;
+  label: HTMLSpanElement;
+};
+
+type CachedRouteSegment = {
+  distance: number;
+  duration: number;
+  coordinates: Coordinate[];
 };
 
 type MapContextMenuState = {
@@ -47,6 +61,17 @@ type SaveGeoJSONResult = {
   filePath?: string;
 };
 
+type RouteSegmentSummary = {
+  index: number;
+  from: Coordinate;
+  to: Coordinate;
+  mode: SegmentMode;
+  distance_m: number;
+  duration_s: number;
+  failed: boolean;
+  error?: string;
+};
+
 type RouteProperties = {
   distance_m: number;
   duration_s: number;
@@ -54,6 +79,7 @@ type RouteProperties = {
   start: Coordinate;
   end: Coordinate;
   waypoints: Coordinate[];
+  segments: RouteSegmentSummary[];
   generated_at: string;
 };
 
@@ -76,10 +102,36 @@ type RouteElevations = {
   endM: number;
 };
 
+type InsertMenuOption = {
+  key: string;
+  label: string;
+  insertionIndex: number;
+};
+
+type ManualCoordinateActionOption =
+  | {
+      key: string;
+      label: string;
+      mode: "boundary";
+      target: "start" | "end";
+    }
+  | {
+      key: string;
+      label: string;
+      mode: "insert";
+      insertionIndex: number;
+    };
+
 const ROUTE_SOURCE_ID = "walking-route-source";
 const ROUTE_LAYER_ID = "walking-route-layer";
 const TERRAIN_TILE_ZOOM = 14;
 const TERRAIN_TILE_SIZE = 512;
+const MAX_ROUTED_SEGMENT_CACHE_ENTRIES = 400;
+
+const EMPTY_ROUTE_GEOJSON: FeatureCollection<LineString> = {
+  type: "FeatureCollection",
+  features: [],
+};
 
 function projectLngLatToTilePixel(lng: number, lat: number, zoom: number): {
   tileX: number;
@@ -116,6 +168,92 @@ function decodeTerrainElevationMeters(
   const b = imageData.data[index + 2] ?? 0;
 
   return -10000 + (r * 256 * 256 + g * 256 + b) * 0.1;
+}
+
+function parseCoordinateInput(rawValue: string): { coordinate: Coordinate | null; error: string } {
+  const trimmed = rawValue.trim();
+  if (!trimmed) {
+    return {
+      coordinate: null,
+      error: "Coordinate is required.",
+    };
+  }
+
+  const parts = trimmed.split(",").map((part) => part.trim());
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return {
+      coordinate: null,
+      error: "Use format: lng, lat (e.g. 9.1951612, 48.2951951).",
+    };
+  }
+
+  const lng = Number.parseFloat(parts[0]);
+  const lat = Number.parseFloat(parts[1]);
+  if (Number.isNaN(lng) || Number.isNaN(lat)) {
+    return {
+      coordinate: null,
+      error: "Longitude and latitude must be valid numbers.",
+    };
+  }
+
+  if (lng < -180 || lng > 180) {
+    return {
+      coordinate: null,
+      error: "Longitude must be between -180 and 180.",
+    };
+  }
+
+  if (lat < -90 || lat > 90) {
+    return {
+      coordinate: null,
+      error: "Latitude must be between -90 and 90.",
+    };
+  }
+
+  return {
+    coordinate: [Number(lng.toFixed(6)), Number(lat.toFixed(6))],
+    error: "",
+  };
+}
+
+function isSameCoordinate(a: Coordinate, b: Coordinate): boolean {
+  return a[0] === b[0] && a[1] === b[1];
+}
+
+function appendCoordinate(target: Coordinate[], candidate: Coordinate): void {
+  const last = target[target.length - 1];
+  if (!last || !isSameCoordinate(last, candidate)) {
+    target.push(candidate);
+  }
+}
+
+function appendCoordinates(target: Coordinate[], candidates: Coordinate[]): void {
+  for (const candidate of candidates) {
+    appendCoordinate(target, candidate);
+  }
+}
+
+function haversineDistanceMeters(a: Coordinate, b: Coordinate): number {
+  const toRadians = (value: number): number => (value * Math.PI) / 180;
+  const earthRadiusM = 6371000;
+  const lat1 = toRadians(a[1]);
+  const lat2 = toRadians(b[1]);
+  const dLat = lat2 - lat1;
+  const dLng = toRadians(b[0] - a[0]);
+
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+  const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+
+  return earthRadiusM * c;
+}
+
+function calculateStraightSegmentDurationSeconds(distanceM: number, deltaElevationM: number): number {
+  const distanceKm = distanceM / 1000;
+  const durationHours =
+    distanceKm / 5 + Math.max(deltaElevationM, 0) / 600 + Math.max(-deltaElevationM, 0) / 1000;
+  return Math.max(0, durationHours * 3600);
 }
 
 function formatCoordinate(value: Coordinate | null): string {
@@ -160,19 +298,31 @@ function normalizeRoutePoints(points: RoutePoint[]): RoutePoint[] {
 
   if (points.length === 1) {
     const onlyPoint = points[0];
-    return [{ ...onlyPoint, type: onlyPoint.type === "end" ? "end" : "start" }];
+    const type: RoutePointType = onlyPoint.type === "end" ? "end" : "start";
+    return [{ id: onlyPoint.id, type, coordinates: onlyPoint.coordinates }];
   }
 
   return points.map((point, index) => {
+    const basePoint: RoutePoint = {
+      id: point.id,
+      type: "waypoint",
+      coordinates: point.coordinates,
+    };
+
     if (index === 0) {
-      return { ...point, type: "start" };
+      basePoint.type = "start";
+      return basePoint;
     }
 
     if (index === points.length - 1) {
-      return { ...point, type: "end" };
+      basePoint.type = "end";
+      basePoint.segmentMode = point.segmentMode ?? "route";
+      return basePoint;
     }
 
-    return { ...point, type: "waypoint" };
+    basePoint.type = "waypoint";
+    basePoint.segmentMode = point.segmentMode ?? "route";
+    return basePoint;
   });
 }
 
@@ -193,24 +343,65 @@ function getRoutePointLabel(points: RoutePoint[], index: number): string {
   return `Waypoint ${index}`;
 }
 
-function createRoutePointMarkerElement(point: RoutePoint, routePointIndex: number): HTMLDivElement {
+function getRoutePointMarkerLabel(point: RoutePoint, routePointIndex: number): string {
+  if (point.type === "start") {
+    return "S";
+  }
+
+  if (point.type === "end") {
+    return "E";
+  }
+
+  return String(routePointIndex);
+}
+
+function syncRoutePointMarkerElement(
+  element: HTMLDivElement,
+  label: HTMLSpanElement,
+  point: RoutePoint,
+  routePointIndex: number,
+): void {
+  element.dataset.type = point.type;
+  label.textContent = getRoutePointMarkerLabel(point, routePointIndex);
+}
+
+function createRoutePointMarkerElement(
+  point: RoutePoint,
+  routePointIndex: number,
+): { element: HTMLDivElement; label: HTMLSpanElement } {
   const element = document.createElement("div");
   element.className = "route-point-marker";
-  element.dataset.type = point.type;
 
   const label = document.createElement("span");
   label.className = "route-point-marker-label";
+  syncRoutePointMarkerElement(element, label, point, routePointIndex);
+  element.append(label);
+  return { element, label };
+}
 
-  if (point.type === "start") {
-    label.textContent = "S";
-  } else if (point.type === "end") {
-    label.textContent = "E";
-  } else {
-    label.textContent = String(routePointIndex);
+function areRoutePointsEqual(a: RoutePoint[], b: RoutePoint[]): boolean {
+  if (a.length !== b.length) {
+    return false;
   }
 
-  element.append(label);
-  return element;
+  for (let index = 0; index < a.length; index += 1) {
+    const left = a[index];
+    const right = b[index];
+    if (
+      left.id !== right.id ||
+      left.type !== right.type ||
+      left.segmentMode !== right.segmentMode ||
+      !isSameCoordinate(left.coordinates, right.coordinates)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function createRouteSegmentCacheKey(from: Coordinate, to: Coordinate): string {
+  return `${from[0]},${from[1]}|${to[0]},${to[1]}`;
 }
 
 type RoutePointListItemProps = {
@@ -219,6 +410,7 @@ type RoutePointListItemProps = {
   label: string;
   coordinateLabel: string;
   onDelete: (id: string) => void;
+  onSegmentModeChange: (id: string, mode: SegmentMode) => void;
 };
 
 function RoutePointListItem({
@@ -227,6 +419,7 @@ function RoutePointListItem({
   label,
   coordinateLabel,
   onDelete,
+  onSegmentModeChange,
 }: RoutePointListItemProps): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: point.id,
@@ -252,6 +445,18 @@ function RoutePointListItem({
       <div className="route-point-meta">
         <p className="route-point-title">{label}</p>
         <p className="route-point-coordinate">{coordinateLabel}</p>
+        {index > 0 ? (
+          <label className="route-point-segment-mode">
+            <span>Segment</span>
+            <select
+              value={point.segmentMode ?? "route"}
+              onChange={(event) => onSegmentModeChange(point.id, event.target.value as SegmentMode)}
+            >
+              <option value="route">Along road</option>
+              <option value="straight">Straight line</option>
+            </select>
+          </label>
+        ) : null}
       </div>
       <button
         type="button"
@@ -269,14 +474,20 @@ export function App(): JSX.Element {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
-  const pointMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const segmentModePopupRef = useRef<mapboxgl.Popup | null>(null);
+  const pointMarkersRef = useRef<Map<string, MarkerEntry>>(new Map());
+  const routedSegmentCacheRef = useRef<Map<string, CachedRouteSegment>>(new Map());
   const routeAbortControllerRef = useRef<AbortController | null>(null);
+  const suppressMapMenuUntilRef = useRef(0);
 
   const [mapboxToken, setMapboxToken] = useState<string>("");
   const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
   const [routeFeature, setRouteFeature] = useState<RouteFeature | null>(null);
   const [contextMenu, setContextMenu] = useState<MapContextMenuState>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<ContextMenuSubmenu | null>(null);
+  const [coordinateInput, setCoordinateInput] = useState("");
+  const [coordinateInputError, setCoordinateInputError] = useState("");
+  const [manualCoordinateActionKey, setManualCoordinateActionKey] = useState("");
   const [routeElevations, setRouteElevations] = useState<RouteElevations | null>(null);
   const [routeElevationError, setRouteElevationError] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
@@ -324,6 +535,10 @@ export function App(): JSX.Element {
     };
   }, []);
 
+  useEffect(() => {
+    routedSegmentCacheRef.current.clear();
+  }, [mapboxToken]);
+
   const drawRoute = useCallback((geometry: LineString | null): void => {
     const map = mapRef.current;
 
@@ -336,15 +551,32 @@ export function App(): JSX.Element {
       return;
     }
 
-    if (map.getLayer(ROUTE_LAYER_ID)) {
-      map.removeLayer(ROUTE_LAYER_ID);
+    if (!map.getSource(ROUTE_SOURCE_ID)) {
+      map.addSource(ROUTE_SOURCE_ID, {
+        type: "geojson",
+        data: EMPTY_ROUTE_GEOJSON as GeoJSON.FeatureCollection,
+      });
     }
 
-    if (map.getSource(ROUTE_SOURCE_ID)) {
-      map.removeSource(ROUTE_SOURCE_ID);
+    if (!map.getLayer(ROUTE_LAYER_ID)) {
+      map.addLayer({
+        id: ROUTE_LAYER_ID,
+        type: "line",
+        source: ROUTE_SOURCE_ID,
+        paint: {
+          "line-color": "#f97316",
+          "line-width": 5,
+        },
+      });
+    }
+
+    const source = map.getSource(ROUTE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+    if (!source) {
+      return;
     }
 
     if (!geometry) {
+      source.setData(EMPTY_ROUTE_GEOJSON as GeoJSON.FeatureCollection);
       return;
     }
 
@@ -353,29 +585,11 @@ export function App(): JSX.Element {
       geometry,
       properties: {},
     };
-
-    map.addSource(ROUTE_SOURCE_ID, {
-      type: "geojson",
-      data: routeGeoJson as GeoJSON.Feature,
-    });
-
-    map.addLayer({
-      id: ROUTE_LAYER_ID,
-      type: "line",
-      source: ROUTE_SOURCE_ID,
-      paint: {
-        "line-color": "#f97316",
-        "line-width": 5,
-      },
-    });
+    source.setData(routeGeoJson as GeoJSON.Feature);
   }, []);
 
   const generateRoute = useCallback(
     async (points: RoutePoint[]): Promise<void> => {
-      if (!mapboxToken) {
-        return;
-      }
-
       if (points.length < 2 || points[0]?.type !== "start" || points[points.length - 1]?.type !== "end") {
         setRouteFeature(null);
         return;
@@ -388,21 +602,221 @@ export function App(): JSX.Element {
       setStatusText("Updating walking route...");
 
       try {
-        const coordinatesParam = points
-          .map((point) => `${point.coordinates[0]},${point.coordinates[1]}`)
-          .join(";");
-        const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${coordinatesParam}?geometries=geojson&overview=full&access_token=${encodeURIComponent(mapboxToken)}`;
+        const fullCoordinates: Coordinate[] = [];
+        const segments: RouteSegmentSummary[] = [];
+        const segmentErrors: string[] = [];
+        const terrainTileCache = new Map<string, Promise<ImageData>>();
+        const terrainElevationCache = new Map<string, Promise<number>>();
+        let totalDistanceM = 0;
+        let totalDurationS = 0;
 
-        const response = await fetch(url, { signal: controller.signal });
-        const payload = (await response.json()) as DirectionsResponse;
+        const loadTerrainTileImageData = async (tileX: number, tileY: number): Promise<ImageData> => {
+          const key = `${TERRAIN_TILE_ZOOM}/${tileX}/${tileY}`;
+          const cached = terrainTileCache.get(key);
+          if (cached) {
+            return cached;
+          }
 
-        if (!response.ok) {
-          throw new Error(payload.message || `Directions API request failed (${response.status}).`);
+          const promise = (async () => {
+            if (!mapboxToken) {
+              throw new Error("Missing Mapbox token for terrain lookup.");
+            }
+
+            const url = `https://api.mapbox.com/v4/mapbox.terrain-rgb/${TERRAIN_TILE_ZOOM}/${tileX}/${tileY}@2x.pngraw?access_token=${encodeURIComponent(mapboxToken)}`;
+            const response = await fetch(url, { signal: controller.signal });
+            if (!response.ok) {
+              throw new Error(`Terrain request failed (${response.status}).`);
+            }
+
+            const blob = await response.blob();
+            const bitmap = await createImageBitmap(blob);
+            const canvas = document.createElement("canvas");
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+
+            const context = canvas.getContext("2d");
+            if (!context) {
+              bitmap.close();
+              throw new Error("Could not create 2D canvas context for terrain decoding.");
+            }
+
+            context.drawImage(bitmap, 0, 0);
+            bitmap.close();
+            return context.getImageData(0, 0, canvas.width, canvas.height);
+          })();
+
+          terrainTileCache.set(key, promise);
+          return promise;
+        };
+
+        const getCoordinateElevationMeters = async (coordinate: Coordinate): Promise<number> => {
+          const key = `${coordinate[0]},${coordinate[1]}`;
+          const cached = terrainElevationCache.get(key);
+          if (cached) {
+            return cached;
+          }
+
+          const promise = (async () => {
+            const tilePoint = projectLngLatToTilePixel(
+              coordinate[0],
+              coordinate[1],
+              TERRAIN_TILE_ZOOM,
+            );
+            const tileImage = await loadTerrainTileImageData(tilePoint.tileX, tilePoint.tileY);
+            return decodeTerrainElevationMeters(tileImage, tilePoint.pixelX, tilePoint.pixelY);
+          })();
+
+          terrainElevationCache.set(key, promise);
+          return promise;
+        };
+
+        const getStraightSegmentDurationSeconds = async (
+          from: Coordinate,
+          to: Coordinate,
+          distanceM: number,
+        ): Promise<number> => {
+          try {
+            const [fromElevationM, toElevationM] = await Promise.all([
+              getCoordinateElevationMeters(from),
+              getCoordinateElevationMeters(to),
+            ]);
+            return calculateStraightSegmentDurationSeconds(distanceM, toElevationM - fromElevationM);
+          } catch {
+            return calculateStraightSegmentDurationSeconds(distanceM, 0);
+          }
+        };
+
+        appendCoordinate(fullCoordinates, points[0].coordinates);
+
+        for (let index = 1; index < points.length; index += 1) {
+          const previousPoint = points[index - 1];
+          const currentPoint = points[index];
+          const mode: SegmentMode = currentPoint.segmentMode ?? "route";
+
+          if (mode === "straight") {
+            const straightDistanceM = haversineDistanceMeters(
+              previousPoint.coordinates,
+              currentPoint.coordinates,
+            );
+            const straightDurationS = await getStraightSegmentDurationSeconds(
+              previousPoint.coordinates,
+              currentPoint.coordinates,
+              straightDistanceM,
+            );
+            appendCoordinates(fullCoordinates, [previousPoint.coordinates, currentPoint.coordinates]);
+            totalDistanceM += straightDistanceM;
+            totalDurationS += straightDurationS;
+            segments.push({
+              index,
+              from: previousPoint.coordinates,
+              to: currentPoint.coordinates,
+              mode: "straight",
+              distance_m: straightDistanceM,
+              duration_s: straightDurationS,
+              failed: false,
+            });
+            continue;
+          }
+
+          try {
+            if (!mapboxToken) {
+              throw new Error("Missing Mapbox token for routed segment.");
+            }
+
+            const cacheKey = createRouteSegmentCacheKey(
+              previousPoint.coordinates,
+              currentPoint.coordinates,
+            );
+            const cachedSegment = routedSegmentCacheRef.current.get(cacheKey);
+            if (cachedSegment) {
+              appendCoordinates(fullCoordinates, cachedSegment.coordinates);
+              totalDistanceM += cachedSegment.distance;
+              totalDurationS += cachedSegment.duration;
+              segments.push({
+                index,
+                from: previousPoint.coordinates,
+                to: currentPoint.coordinates,
+                mode: "route",
+                distance_m: cachedSegment.distance,
+                duration_s: cachedSegment.duration,
+                failed: false,
+              });
+              continue;
+            }
+
+            const coordinatesParam = `${previousPoint.coordinates[0]},${previousPoint.coordinates[1]};${currentPoint.coordinates[0]},${currentPoint.coordinates[1]}`;
+            const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${coordinatesParam}?geometries=geojson&overview=full&access_token=${encodeURIComponent(mapboxToken)}`;
+            const response = await fetch(url, { signal: controller.signal });
+            const payload = (await response.json()) as DirectionsResponse;
+
+            if (!response.ok) {
+              throw new Error(payload.message || `Directions API request failed (${response.status}).`);
+            }
+
+            const route = payload.routes?.[0];
+            if (!route || !route.geometry?.coordinates?.length) {
+              throw new Error("No route found for this segment.");
+            }
+
+            const segmentCoordinates = route.geometry.coordinates.map(
+              (coordinate) => [coordinate[0], coordinate[1]] as Coordinate,
+            );
+            if (routedSegmentCacheRef.current.size >= MAX_ROUTED_SEGMENT_CACHE_ENTRIES) {
+              routedSegmentCacheRef.current.clear();
+            }
+            routedSegmentCacheRef.current.set(cacheKey, {
+              distance: route.distance,
+              duration: route.duration,
+              coordinates: segmentCoordinates,
+            });
+            appendCoordinates(fullCoordinates, segmentCoordinates);
+
+            totalDistanceM += route.distance;
+            totalDurationS += route.duration;
+            segments.push({
+              index,
+              from: previousPoint.coordinates,
+              to: currentPoint.coordinates,
+              mode: "route",
+              distance_m: route.distance,
+              duration_s: route.duration,
+              failed: false,
+            });
+          } catch (segmentError) {
+            if (controller.signal.aborted) {
+              return;
+            }
+
+            const fallbackDistanceM = haversineDistanceMeters(
+              previousPoint.coordinates,
+              currentPoint.coordinates,
+            );
+            const fallbackDurationS = await getStraightSegmentDurationSeconds(
+              previousPoint.coordinates,
+              currentPoint.coordinates,
+              fallbackDistanceM,
+            );
+            appendCoordinates(fullCoordinates, [previousPoint.coordinates, currentPoint.coordinates]);
+            totalDistanceM += fallbackDistanceM;
+            totalDurationS += fallbackDurationS;
+            segments.push({
+              index,
+              from: previousPoint.coordinates,
+              to: currentPoint.coordinates,
+              mode: "route",
+              distance_m: fallbackDistanceM,
+              duration_s: fallbackDurationS,
+              failed: true,
+              error: formatError(segmentError),
+            });
+            segmentErrors.push(
+              `Segment ${index} fallback to straight line: ${formatError(segmentError)}`,
+            );
+          }
         }
 
-        const route = payload.routes?.[0];
-        if (!route || !route.geometry?.coordinates?.length) {
-          throw new Error("No route found for the selected points.");
+        if (fullCoordinates.length < 2) {
+          throw new Error("Route geometry could not be generated.");
         }
 
         const start = points[0].coordinates;
@@ -411,14 +825,18 @@ export function App(): JSX.Element {
 
         const feature: RouteFeature = {
           type: "Feature",
-          geometry: route.geometry,
+          geometry: {
+            type: "LineString",
+            coordinates: fullCoordinates,
+          },
           properties: {
-            distance_m: route.distance,
-            duration_s: route.duration,
+            distance_m: totalDistanceM,
+            duration_s: totalDurationS,
             profile: "walking",
             start,
             end,
             waypoints,
+            segments,
             generated_at: new Date().toISOString(),
           },
         };
@@ -428,7 +846,11 @@ export function App(): JSX.Element {
         }
 
         setRouteFeature(feature);
-        setStatusText("Route ready.");
+        if (segmentErrors.length > 0) {
+          setStatusText(`Route ready with warnings: ${segmentErrors.join(" | ")}`);
+        } else {
+          setStatusText("Route ready.");
+        }
       } catch (error) {
         if (controller.signal.aborted) {
           return;
@@ -462,6 +884,10 @@ export function App(): JSX.Element {
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
     const openMenuForEvent = (event: mapboxgl.MapMouseEvent & mapboxgl.EventData): void => {
+      if (Date.now() < suppressMapMenuUntilRef.current) {
+        return;
+      }
+
       const coordinate: Coordinate = [
         Number(event.lngLat.lng.toFixed(6)),
         Number(event.lngLat.lat.toFixed(6)),
@@ -488,8 +914,16 @@ export function App(): JSX.Element {
       event.preventDefault();
     };
 
+    const onMapMoveStart = (): void => {
+      setContextMenu(null);
+      setActiveSubmenu(null);
+      segmentModePopupRef.current?.remove();
+      segmentModePopupRef.current = null;
+    };
+
     map.on("click", onMapClick);
     map.on("contextmenu", onMapContextMenu);
+    map.on("movestart", onMapMoveStart);
     map.getCanvasContainer().addEventListener("contextmenu", onCanvasContextMenu);
 
     mapRef.current = map;
@@ -497,10 +931,14 @@ export function App(): JSX.Element {
     return () => {
       map.off("click", onMapClick);
       map.off("contextmenu", onMapContextMenu);
+      map.off("movestart", onMapMoveStart);
       map.getCanvasContainer().removeEventListener("contextmenu", onCanvasContextMenu);
 
-      for (const marker of pointMarkersRef.current.values()) {
-        marker.remove();
+      segmentModePopupRef.current?.remove();
+      segmentModePopupRef.current = null;
+
+      for (const markerEntry of pointMarkersRef.current.values()) {
+        markerEntry.marker.remove();
       }
       pointMarkersRef.current.clear();
 
@@ -530,52 +968,6 @@ export function App(): JSX.Element {
       window.removeEventListener("pointerdown", onWindowPointerDown);
     };
   }, [contextMenu]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) {
-      return;
-    }
-
-    try {
-      for (const marker of pointMarkersRef.current.values()) {
-        marker.remove();
-      }
-      pointMarkersRef.current.clear();
-
-      routePoints.forEach((point, index) => {
-        const element = createRoutePointMarkerElement(point, index);
-        const marker = new mapboxgl.Marker({ element, anchor: "bottom", draggable: true })
-          .setLngLat(point.coordinates)
-          .addTo(map);
-
-        marker.on("dragend", () => {
-          const lngLat = marker.getLngLat();
-          const coordinate: Coordinate = [
-            Number(lngLat.lng.toFixed(6)),
-            Number(lngLat.lat.toFixed(6)),
-          ];
-
-          setRouteFeature(null);
-          setRoutePoints((current) =>
-            normalizeRoutePoints(
-              current.map((currentPoint) =>
-                currentPoint.id === point.id
-                  ? { ...currentPoint, coordinates: coordinate }
-                  : currentPoint,
-              ),
-            ),
-          );
-          setStatusText("Point moved.");
-        });
-
-        pointMarkersRef.current.set(point.id, marker);
-      });
-    } catch (error) {
-      setStatusText(`Map marker error: ${formatError(error)}`);
-      console.error("Failed to update map markers:", error);
-    }
-  }, [routePoints]);
 
   useEffect(() => {
     drawRoute(routeFeature?.geometry ?? null);
@@ -674,10 +1066,6 @@ export function App(): JSX.Element {
   }, [mapboxToken, routeFeature]);
 
   useEffect(() => {
-    if (!mapboxToken) {
-      return;
-    }
-
     if (routePoints.length < 2) {
       routeAbortControllerRef.current?.abort();
       routeAbortControllerRef.current = null;
@@ -686,7 +1074,7 @@ export function App(): JSX.Element {
     }
 
     void generateRoute(routePoints);
-  }, [generateRoute, mapboxToken, routePoints]);
+  }, [generateRoute, routePoints]);
 
   useEffect(() => {
     return () => {
@@ -697,12 +1085,272 @@ export function App(): JSX.Element {
 
   const applyRoutePointUpdate = useCallback(
     (updater: (current: RoutePoint[]) => RoutePoint[], nextStatusText: string): void => {
-      setRouteFeature(null);
-      setRoutePoints((current) => normalizeRoutePoints(updater(current)));
+      setRoutePoints((current) => {
+        const next = normalizeRoutePoints(updater(current));
+        return areRoutePointsEqual(current, next) ? current : next;
+      });
       setStatusText(nextStatusText);
     },
     [],
   );
+
+  const onDeletePoint = useCallback(
+    (id: string): void => {
+      applyRoutePointUpdate((current) => current.filter((point) => point.id !== id), "Point deleted.");
+    },
+    [applyRoutePointUpdate],
+  );
+
+  const onSegmentModeChange = useCallback((id: string, mode: SegmentMode): void => {
+    applyRoutePointUpdate(
+      (current) =>
+        current.map((point, index) => {
+          if (index === 0 || point.id !== id) {
+            return point;
+          }
+
+          if ((point.segmentMode ?? "route") === mode) {
+            return point;
+          }
+
+          return {
+            ...point,
+            segmentMode: mode,
+          };
+        }),
+      mode === "route" ? "Segment mode set to along road." : "Segment mode set to straight line.",
+    );
+  }, [applyRoutePointUpdate]);
+
+  const openSegmentModePopup = useCallback((pointId: string): void => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    const pointIndex = routePoints.findIndex((point) => point.id === pointId);
+    if (pointIndex < 0) {
+      return;
+    }
+
+    const point = routePoints[pointIndex];
+    if (!point) {
+      return;
+    }
+
+    segmentModePopupRef.current?.remove();
+    segmentModePopupRef.current = null;
+
+    const container = document.createElement("div");
+    container.className = "segment-mode-popup";
+
+    if (pointIndex > 0) {
+      const select = document.createElement("select");
+      select.className = "segment-mode-popup-select";
+      select.innerHTML = `
+        <option value="route">Along road</option>
+        <option value="straight">Straight line</option>
+      `;
+      select.value = point.segmentMode ?? "route";
+      container.append(select);
+      select.addEventListener("change", () => {
+        onSegmentModeChange(pointId, select.value as SegmentMode);
+        popup.remove();
+      });
+    }
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "segment-mode-popup-remove";
+    removeButton.textContent = "Remove";
+    container.append(removeButton);
+
+    const popup = new mapboxgl.Popup({
+      closeButton: true,
+      closeOnClick: true,
+      offset: 18,
+    })
+      .setLngLat(point.coordinates)
+      .setDOMContent(container)
+      .addTo(map);
+
+    removeButton.addEventListener("click", () => {
+      onDeletePoint(pointId);
+      popup.remove();
+    });
+
+    popup.on("close", () => {
+      if (segmentModePopupRef.current === popup) {
+        segmentModePopupRef.current = null;
+      }
+    });
+
+    segmentModePopupRef.current = popup;
+  }, [onDeletePoint, onSegmentModeChange, routePoints]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    try {
+      segmentModePopupRef.current?.remove();
+      segmentModePopupRef.current = null;
+
+      const routePointIds = new Set(routePoints.map((point) => point.id));
+      for (const [markerId, markerEntry] of pointMarkersRef.current) {
+        if (routePointIds.has(markerId)) {
+          continue;
+        }
+
+        markerEntry.marker.remove();
+        pointMarkersRef.current.delete(markerId);
+      }
+
+      routePoints.forEach((point, index) => {
+        const existingMarkerEntry = pointMarkersRef.current.get(point.id);
+        if (existingMarkerEntry) {
+          existingMarkerEntry.marker.setLngLat(point.coordinates);
+          syncRoutePointMarkerElement(existingMarkerEntry.element, existingMarkerEntry.label, point, index);
+          return;
+        }
+
+        const { element, label } = createRoutePointMarkerElement(point, index);
+        const marker = new mapboxgl.Marker({ element, anchor: "bottom", draggable: true })
+          .setLngLat(point.coordinates)
+          .addTo(map);
+
+        element.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (Date.now() < suppressMapMenuUntilRef.current) {
+            return;
+          }
+          openSegmentModePopup(point.id);
+        });
+
+        marker.on("dragstart", () => {
+          suppressMapMenuUntilRef.current = Date.now() + 350;
+          setContextMenu(null);
+          setActiveSubmenu(null);
+        });
+
+        marker.on("dragend", () => {
+          suppressMapMenuUntilRef.current = Date.now() + 350;
+          const lngLat = marker.getLngLat();
+          const coordinate: Coordinate = [
+            Number(lngLat.lng.toFixed(6)),
+            Number(lngLat.lat.toFixed(6)),
+          ];
+
+          applyRoutePointUpdate(
+            (current) =>
+              current.map((currentPoint) =>
+                currentPoint.id === point.id
+                  ? { ...currentPoint, coordinates: coordinate }
+                  : currentPoint,
+              ),
+            "Point moved.",
+          );
+        });
+
+        pointMarkersRef.current.set(point.id, { marker, element, label });
+      });
+    } catch (error) {
+      setStatusText(`Map marker error: ${formatError(error)}`);
+      console.error("Failed to update map markers:", error);
+    }
+  }, [applyRoutePointUpdate, openSegmentModePopup, routePoints]);
+
+  const setBoundaryPointAtCoordinate = useCallback((target: "start" | "end", coordinate: Coordinate): void => {
+    applyRoutePointUpdate(
+      (current) => {
+        if (target === "start") {
+          if (current.length === 0) {
+            return [
+              {
+                id: createRoutePointId(),
+                type: "start",
+                coordinates: coordinate,
+              },
+            ];
+          }
+
+          if (current.length === 1 && current[0].type === "end") {
+            return [
+              {
+                id: createRoutePointId(),
+                type: "start",
+                coordinates: coordinate,
+              },
+              current[0],
+            ];
+          }
+
+          const next = [...current];
+          next[0] = { ...next[0], coordinates: coordinate };
+          return next;
+        }
+
+        if (current.length === 0) {
+          return [
+            {
+              id: createRoutePointId(),
+              type: "end",
+              coordinates: coordinate,
+            },
+          ];
+        }
+
+        if (current.length === 1 && current[0].type === "start") {
+          return [
+            ...current,
+            {
+              id: createRoutePointId(),
+              type: "end",
+              coordinates: coordinate,
+            },
+          ];
+        }
+
+        if (current.length === 1 && current[0].type === "end") {
+          return [{ ...current[0], coordinates: coordinate }];
+        }
+
+        const next = [...current];
+        const lastIndex = next.length - 1;
+        next[lastIndex] = { ...next[lastIndex], coordinates: coordinate };
+        return next;
+      },
+      target === "start" ? "Start point set." : "End point set.",
+    );
+  }, [applyRoutePointUpdate]);
+
+  const insertPointAt = useCallback((insertionIndex: number, coordinate: Coordinate): boolean => {
+    const safeInsertionIndex = Math.min(Math.max(insertionIndex, 0), routePoints.length);
+    const previousPoint = routePoints[safeInsertionIndex - 1];
+    const nextPoint = routePoints[safeInsertionIndex];
+
+    if (
+      (previousPoint && isSameCoordinate(previousPoint.coordinates, coordinate)) ||
+      (nextPoint && isSameCoordinate(nextPoint.coordinates, coordinate))
+    ) {
+      setStatusText("Cannot insert duplicate consecutive points.");
+      return false;
+    }
+
+    const next = [...routePoints];
+    next.splice(safeInsertionIndex, 0, {
+      id: createRoutePointId(),
+      type: "waypoint",
+      coordinates: coordinate,
+    });
+
+    setRoutePoints(normalizeRoutePoints(next));
+    setStatusText("Point inserted.");
+    return true;
+  }, [routePoints]);
 
   const onSetBoundaryPointFromContextMenu = useCallback(
     (target: "start" | "end"): void => {
@@ -718,73 +1366,12 @@ export function App(): JSX.Element {
       }
 
       const coordinate = contextMenu.coordinate;
-
-      applyRoutePointUpdate(
-        (current) => {
-          if (target === "start") {
-            if (current.length === 0) {
-              return [
-                {
-                  id: createRoutePointId(),
-                  type: "start",
-                  coordinates: coordinate,
-                },
-              ];
-            }
-
-            if (current.length === 1 && current[0].type === "end") {
-              return [
-                {
-                  id: createRoutePointId(),
-                  type: "start",
-                  coordinates: coordinate,
-                },
-                current[0],
-              ];
-            }
-
-            const next = [...current];
-            next[0] = { ...next[0], coordinates: coordinate };
-            return next;
-          }
-
-          if (current.length === 0) {
-            return [
-              {
-                id: createRoutePointId(),
-                type: "end",
-                coordinates: coordinate,
-              },
-            ];
-          }
-
-          if (current.length === 1 && current[0].type === "start") {
-            return [
-              ...current,
-              {
-                id: createRoutePointId(),
-                type: "end",
-                coordinates: coordinate,
-              },
-            ];
-          }
-
-          if (current.length === 1 && current[0].type === "end") {
-            return [{ ...current[0], coordinates: coordinate }];
-          }
-
-          const next = [...current];
-          const lastIndex = next.length - 1;
-          next[lastIndex] = { ...next[lastIndex], coordinates: coordinate };
-          return next;
-        },
-        target === "start" ? "Start point set." : "End point set.",
-      );
+      setBoundaryPointAtCoordinate(target, coordinate);
 
       setContextMenu(null);
       setActiveSubmenu(null);
     },
-    [applyRoutePointUpdate, contextMenu],
+    [contextMenu, setBoundaryPointAtCoordinate],
   );
 
   const onSetPointFromContextMenu = useCallback(
@@ -842,34 +1429,12 @@ export function App(): JSX.Element {
       }
 
       const coordinate = contextMenu.coordinate;
-
-      applyRoutePointUpdate(
-        (current) => {
-          const next = [...current];
-          const safeInsertionIndex = Math.min(Math.max(insertionIndex, 0), next.length);
-
-          next.splice(safeInsertionIndex, 0, {
-            id: createRoutePointId(),
-            type: "waypoint",
-            coordinates: coordinate,
-          });
-
-          return next;
-        },
-        "Point inserted.",
-      );
+      insertPointAt(insertionIndex, coordinate);
 
       setContextMenu(null);
       setActiveSubmenu(null);
     },
-    [applyRoutePointUpdate, contextMenu],
-  );
-
-  const onDeletePoint = useCallback(
-    (id: string): void => {
-      applyRoutePointUpdate((current) => current.filter((point) => point.id !== id), "Point deleted.");
-    },
-    [applyRoutePointUpdate],
+    [contextMenu, insertPointAt],
   );
 
   const onDragEnd = useCallback(
@@ -928,11 +1493,16 @@ export function App(): JSX.Element {
   const onClear = (): void => {
     routeAbortControllerRef.current?.abort();
     routeAbortControllerRef.current = null;
+    segmentModePopupRef.current?.remove();
+    segmentModePopupRef.current = null;
 
     setRoutePoints([]);
     setRouteFeature(null);
     setContextMenu(null);
     setActiveSubmenu(null);
+    setCoordinateInput("");
+    setCoordinateInputError("");
+    setManualCoordinateActionKey("");
     setRouteElevations(null);
     setRouteElevationError("");
     setStatusText("Cleared.");
@@ -978,8 +1548,8 @@ export function App(): JSX.Element {
     }));
   }, [hasStartAndEnd, routePoints]);
 
-  const insertMenuOptions = useMemo(() => {
-    const options: Array<{ key: string; label: string; insertionIndex: number }> = [
+  const insertMenuOptions = useMemo<InsertMenuOption[]>(() => {
+    const options: InsertMenuOption[] = [
       { key: "before-start", label: "before Start", insertionIndex: 0 },
       { key: "after-start", label: "after Start", insertionIndex: 1 },
     ];
@@ -1005,6 +1575,91 @@ export function App(): JSX.Element {
     return options;
   }, [routePoints]);
 
+  const manualCoordinateOptions = useMemo<ManualCoordinateActionOption[]>(() => {
+    if (!hasStartAndEnd) {
+      return [
+        {
+          key: "manual-set-start",
+          label: "Set as Start",
+          mode: "boundary",
+          target: "start",
+        },
+        {
+          key: "manual-set-end",
+          label: "Set as End",
+          mode: "boundary",
+          target: "end",
+        },
+      ];
+    }
+
+    return insertMenuOptions.map((option) => ({
+      key: `manual-${option.key}`,
+      label: option.label,
+      mode: "insert" as const,
+      insertionIndex: option.insertionIndex,
+    }));
+  }, [hasStartAndEnd, insertMenuOptions]);
+
+  useEffect(() => {
+    if (manualCoordinateOptions.length === 0) {
+      setManualCoordinateActionKey("");
+      return;
+    }
+
+    if (manualCoordinateOptions.some((option) => option.key === manualCoordinateActionKey)) {
+      return;
+    }
+
+    setManualCoordinateActionKey(manualCoordinateOptions[0].key);
+  }, [manualCoordinateActionKey, manualCoordinateOptions]);
+
+  const onInsertCoordinateFromInput = useCallback((): void => {
+    if (!mapRef.current) {
+      setStatusText("Map is not ready yet.");
+      return;
+    }
+
+    const parsed = parseCoordinateInput(coordinateInput);
+    if (!parsed.coordinate) {
+      setCoordinateInputError(parsed.error);
+      return;
+    }
+
+    const selectedAction =
+      manualCoordinateOptions.find((option) => option.key === manualCoordinateActionKey) ??
+      manualCoordinateOptions[0];
+
+    if (!selectedAction) {
+      setCoordinateInputError("No insertion option available.");
+      return;
+    }
+
+    setCoordinateInputError("");
+
+    if (selectedAction.mode === "boundary") {
+      setBoundaryPointAtCoordinate(selectedAction.target, parsed.coordinate);
+      setCoordinateInput("");
+      return;
+    }
+
+    const inserted = insertPointAt(selectedAction.insertionIndex, parsed.coordinate);
+    if (!inserted) {
+      setCoordinateInputError("Cannot insert duplicate consecutive points.");
+      return;
+    }
+
+    setCoordinateInput("");
+  }, [
+    coordinateInput,
+    insertPointAt,
+    manualCoordinateActionKey,
+    manualCoordinateOptions,
+    setBoundaryPointAtCoordinate,
+  ]);
+
+  const canInsertCoordinate = coordinateInput.trim().length > 0 && manualCoordinateOptions.length > 0;
+
   return (
     <div className="app-shell">
       <aside className="control-panel">
@@ -1016,6 +1671,45 @@ export function App(): JSX.Element {
             Clear
           </button>
         </div>
+
+        <section className="coordinate-input-panel">
+          <h2>Insert Coordinate</h2>
+          <form
+            className="coordinate-input-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onInsertCoordinateFromInput();
+            }}
+          >
+            <input
+              type="text"
+              value={coordinateInput}
+              onChange={(event) => {
+                setCoordinateInput(event.target.value);
+                if (coordinateInputError) {
+                  setCoordinateInputError("");
+                }
+              }}
+              placeholder="lng, lat (e.g. 9.1951612, 48.2951951)"
+              aria-label="Coordinate input"
+            />
+            <select
+              value={manualCoordinateActionKey}
+              onChange={(event) => setManualCoordinateActionKey(event.target.value)}
+              aria-label="Coordinate insertion position"
+            >
+              {manualCoordinateOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <button type="submit" disabled={!canInsertCoordinate}>
+              Insert Coordinate
+            </button>
+          </form>
+          {coordinateInputError ? <p className="coordinate-input-error">{coordinateInputError}</p> : null}
+        </section>
 
         <section className="route-summary">
           <h2>Route Summary</h2>
@@ -1058,6 +1752,7 @@ export function App(): JSX.Element {
                       label={getRoutePointLabel(routePoints, index)}
                       coordinateLabel={formatCoordinate(point.coordinates)}
                       onDelete={onDeletePoint}
+                      onSegmentModeChange={onSegmentModeChange}
                     />
                   ))}
                 </ul>
