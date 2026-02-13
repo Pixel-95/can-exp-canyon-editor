@@ -1,9 +1,46 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import mapboxgl from "mapbox-gl";
-import type { Feature, FeatureCollection, LineString, Position } from "geojson";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import type { Feature, FeatureCollection, LineString } from "geojson";
 
-type ClickMode = "start" | "end" | null;
 type Coordinate = [number, number];
+type RoutePointType = "start" | "waypoint" | "end";
+type ContextMenuSubmenu = "set" | "insert";
+
+type RoutePoint = {
+  id: string;
+  type: RoutePointType;
+  coordinates: Coordinate;
+};
+
+type MapContextMenuState = {
+  x: number;
+  y: number;
+  coordinate: Coordinate;
+} | null;
 
 type SaveGeoJSONResult = {
   canceled: boolean;
@@ -16,6 +53,7 @@ type RouteProperties = {
   profile: "walking";
   start: Coordinate;
   end: Coordinate;
+  waypoints: Coordinate[];
   generated_at: string;
 };
 
@@ -63,25 +101,151 @@ function createFilenameSuggestion(date: Date): string {
   return `route_${yyyy}-${mm}-${dd}_${hh}-${min}-${sec}.geojson`;
 }
 
+function createRoutePointId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `point_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function normalizeRoutePoints(points: RoutePoint[]): RoutePoint[] {
+  if (points.length === 0) {
+    return [];
+  }
+
+  if (points.length === 1) {
+    const onlyPoint = points[0];
+    return [{ ...onlyPoint, type: onlyPoint.type === "end" ? "end" : "start" }];
+  }
+
+  return points.map((point, index) => {
+    if (index === 0) {
+      return { ...point, type: "start" };
+    }
+
+    if (index === points.length - 1) {
+      return { ...point, type: "end" };
+    }
+
+    return { ...point, type: "waypoint" };
+  });
+}
+
+function getRoutePointLabel(points: RoutePoint[], index: number): string {
+  const point = points[index];
+  if (!point) {
+    return "Unknown";
+  }
+
+  if (point.type === "start") {
+    return "Start";
+  }
+
+  if (point.type === "end") {
+    return "End";
+  }
+
+  return `Waypoint ${index}`;
+}
+
+function createRoutePointMarkerElement(point: RoutePoint, routePointIndex: number): HTMLDivElement {
+  const element = document.createElement("div");
+  element.className = "route-point-marker";
+  element.dataset.type = point.type;
+
+  const label = document.createElement("span");
+  label.className = "route-point-marker-label";
+
+  if (point.type === "start") {
+    label.textContent = "S";
+  } else if (point.type === "end") {
+    label.textContent = "E";
+  } else {
+    label.textContent = String(routePointIndex);
+  }
+
+  element.append(label);
+  return element;
+}
+
+type RoutePointListItemProps = {
+  point: RoutePoint;
+  index: number;
+  label: string;
+  coordinateLabel: string;
+  onDelete: (id: string) => void;
+};
+
+function RoutePointListItem({
+  point,
+  index,
+  label,
+  coordinateLabel,
+  onDelete,
+}: RoutePointListItemProps): JSX.Element {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: point.id,
+  });
+
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.72 : 1,
+  };
+
+  return (
+    <li ref={setNodeRef} className={`route-point-item${isDragging ? " dragging" : ""}`} style={style}>
+      <button
+        type="button"
+        className="route-point-drag-handle"
+        aria-label={`Drag point ${index + 1}`}
+        {...attributes}
+        {...listeners}
+      >
+        ::
+      </button>
+      <div className="route-point-meta">
+        <p className="route-point-title">{label}</p>
+        <p className="route-point-coordinate">{coordinateLabel}</p>
+      </div>
+      <button
+        type="button"
+        className="route-point-delete"
+        aria-label={`Delete point ${index + 1}`}
+        onClick={() => onDelete(point.id)}
+      >
+        X
+      </button>
+    </li>
+  );
+}
+
 export function App(): JSX.Element {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const startMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const endMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const modeRef = useRef<ClickMode>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
+  const pointMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const routeAbortControllerRef = useRef<AbortController | null>(null);
 
   const [mapboxToken, setMapboxToken] = useState<string>("");
-  const [mode, setMode] = useState<ClickMode>(null);
-  const [startPoint, setStartPoint] = useState<Coordinate | null>(null);
-  const [endPoint, setEndPoint] = useState<Coordinate | null>(null);
+  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
   const [routeFeature, setRouteFeature] = useState<RouteFeature | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [contextMenu, setContextMenu] = useState<MapContextMenuState>(null);
+  const [activeSubmenu, setActiveSubmenu] = useState<ContextMenuSubmenu | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [statusText, setStatusText] = useState("Ready");
 
-  useEffect(() => {
-    modeRef.current = mode;
-  }, [mode]);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -126,15 +290,15 @@ export function App(): JSX.Element {
       return;
     }
 
+    if (map.getLayer(ROUTE_LAYER_ID)) {
+      map.removeLayer(ROUTE_LAYER_ID);
+    }
+
+    if (map.getSource(ROUTE_SOURCE_ID)) {
+      map.removeSource(ROUTE_SOURCE_ID);
+    }
+
     if (!geometry) {
-      if (map.getLayer(ROUTE_LAYER_ID)) {
-        map.removeLayer(ROUTE_LAYER_ID);
-      }
-
-      if (map.getSource(ROUTE_SOURCE_ID)) {
-        map.removeSource(ROUTE_SOURCE_ID);
-      }
-
       return;
     }
 
@@ -143,12 +307,6 @@ export function App(): JSX.Element {
       geometry,
       properties: {},
     };
-
-    const existingSource = map.getSource(ROUTE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
-    if (existingSource) {
-      existingSource.setData(routeGeoJson as GeoJSON.Feature);
-      return;
-    }
 
     map.addSource(ROUTE_SOURCE_ID, {
       type: "geojson",
@@ -166,24 +324,80 @@ export function App(): JSX.Element {
     });
   }, []);
 
-  const fitCoordinates = useCallback((coordinates: Position[]): void => {
-    const map = mapRef.current;
-    if (!map || coordinates.length === 0) {
-      return;
-    }
+  const generateRoute = useCallback(
+    async (points: RoutePoint[]): Promise<void> => {
+      if (!mapboxToken) {
+        return;
+      }
 
-    const [firstLng, firstLat] = coordinates[0] as Coordinate;
-    const bounds = new mapboxgl.LngLatBounds([firstLng, firstLat], [firstLng, firstLat]);
+      if (points.length < 2 || points[0]?.type !== "start" || points[points.length - 1]?.type !== "end") {
+        setRouteFeature(null);
+        return;
+      }
 
-    for (const coordinate of coordinates) {
-      bounds.extend([coordinate[0], coordinate[1]]);
-    }
+      routeAbortControllerRef.current?.abort();
 
-    map.fitBounds(bounds, {
-      padding: 64,
-      duration: 700,
-    });
-  }, []);
+      const controller = new AbortController();
+      routeAbortControllerRef.current = controller;
+      setStatusText("Updating walking route...");
+
+      try {
+        const coordinatesParam = points
+          .map((point) => `${point.coordinates[0]},${point.coordinates[1]}`)
+          .join(";");
+        const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${coordinatesParam}?geometries=geojson&overview=full&access_token=${encodeURIComponent(mapboxToken)}`;
+
+        const response = await fetch(url, { signal: controller.signal });
+        const payload = (await response.json()) as DirectionsResponse;
+
+        if (!response.ok) {
+          throw new Error(payload.message || `Directions API request failed (${response.status}).`);
+        }
+
+        const route = payload.routes?.[0];
+        if (!route || !route.geometry?.coordinates?.length) {
+          throw new Error("No route found for the selected points.");
+        }
+
+        const start = points[0].coordinates;
+        const end = points[points.length - 1].coordinates;
+        const waypoints = points.slice(1, -1).map((point) => point.coordinates);
+
+        const feature: RouteFeature = {
+          type: "Feature",
+          geometry: route.geometry,
+          properties: {
+            distance_m: route.distance,
+            duration_s: route.duration,
+            profile: "walking",
+            start,
+            end,
+            waypoints,
+            generated_at: new Date().toISOString(),
+          },
+        };
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setRouteFeature(feature);
+        setStatusText("Route ready.");
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setRouteFeature(null);
+        setStatusText(`Failed to generate route: ${formatError(error)}`);
+      } finally {
+        if (routeAbortControllerRef.current === controller) {
+          routeAbortControllerRef.current = null;
+        }
+      }
+    },
+    [mapboxToken],
+  );
 
   useEffect(() => {
     if (!mapboxToken || !mapContainerRef.current || mapRef.current) {
@@ -195,42 +409,81 @@ export function App(): JSX.Element {
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: "mapbox://styles/mapbox/streets-v12",
-      center: [-122.4194, 37.7749],
+      center: [8.980786, 46.300597],
       zoom: 12,
     });
 
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
-    map.on("click", (event) => {
-      const activeMode = modeRef.current;
-      if (!activeMode) {
-        return;
-      }
-
+    const openMenuForEvent = (event: mapboxgl.MapMouseEvent & mapboxgl.EventData): void => {
       const coordinate: Coordinate = [
         Number(event.lngLat.lng.toFixed(6)),
         Number(event.lngLat.lat.toFixed(6)),
       ];
 
-      if (activeMode === "start") {
-        setStartPoint(coordinate);
-        setStatusText("Start point set.");
-      } else {
-        setEndPoint(coordinate);
-        setStatusText("End point set.");
-      }
+      setContextMenu({
+        x: Math.round(event.point.x),
+        y: Math.round(event.point.y),
+        coordinate,
+      });
+      setActiveSubmenu(null);
+    };
 
-      setMode(null);
-      setRouteFeature(null);
-    });
+    const onMapClick = (event: mapboxgl.MapMouseEvent & mapboxgl.EventData): void => {
+      openMenuForEvent(event);
+    };
+
+    const onMapContextMenu = (event: mapboxgl.MapMouseEvent & mapboxgl.EventData): void => {
+      event.originalEvent.preventDefault();
+      openMenuForEvent(event);
+    };
+
+    const onCanvasContextMenu = (event: MouseEvent): void => {
+      event.preventDefault();
+    };
+
+    map.on("click", onMapClick);
+    map.on("contextmenu", onMapContextMenu);
+    map.getCanvasContainer().addEventListener("contextmenu", onCanvasContextMenu);
 
     mapRef.current = map;
 
     return () => {
+      map.off("click", onMapClick);
+      map.off("contextmenu", onMapContextMenu);
+      map.getCanvasContainer().removeEventListener("contextmenu", onCanvasContextMenu);
+
+      for (const marker of pointMarkersRef.current.values()) {
+        marker.remove();
+      }
+      pointMarkersRef.current.clear();
+
       map.remove();
       mapRef.current = null;
     };
   }, [mapboxToken]);
+
+  useEffect(() => {
+    if (!contextMenu) {
+      return;
+    }
+
+    const onWindowPointerDown = (event: PointerEvent): void => {
+      const target = event.target as Node | null;
+      if (target && contextMenuRef.current?.contains(target)) {
+        return;
+      }
+
+      setContextMenu(null);
+      setActiveSubmenu(null);
+    };
+
+    window.addEventListener("pointerdown", onWindowPointerDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", onWindowPointerDown);
+    };
+  }, [contextMenu]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -239,119 +492,268 @@ export function App(): JSX.Element {
     }
 
     try {
-      if (startPoint) {
-        if (!startMarkerRef.current) {
-          startMarkerRef.current = new mapboxgl.Marker({ color: "#2563eb" })
-            .setLngLat(startPoint)
-            .addTo(map);
-        } else {
-          startMarkerRef.current.setLngLat(startPoint);
-        }
-      } else if (startMarkerRef.current) {
-        startMarkerRef.current.remove();
-        startMarkerRef.current = null;
+      for (const marker of pointMarkersRef.current.values()) {
+        marker.remove();
       }
+      pointMarkersRef.current.clear();
 
-      if (endPoint) {
-        if (!endMarkerRef.current) {
-          endMarkerRef.current = new mapboxgl.Marker({ color: "#dc2626" })
-            .setLngLat(endPoint)
-            .addTo(map);
-        } else {
-          endMarkerRef.current.setLngLat(endPoint);
-        }
-      } else if (endMarkerRef.current) {
-        endMarkerRef.current.remove();
-        endMarkerRef.current = null;
-      }
+      routePoints.forEach((point, index) => {
+        const element = createRoutePointMarkerElement(point, index);
+        const marker = new mapboxgl.Marker({ element, anchor: "bottom", draggable: true })
+          .setLngLat(point.coordinates)
+          .addTo(map);
+
+        marker.on("dragend", () => {
+          const lngLat = marker.getLngLat();
+          const coordinate: Coordinate = [
+            Number(lngLat.lng.toFixed(6)),
+            Number(lngLat.lat.toFixed(6)),
+          ];
+
+          setRouteFeature(null);
+          setRoutePoints((current) =>
+            normalizeRoutePoints(
+              current.map((currentPoint) =>
+                currentPoint.id === point.id
+                  ? { ...currentPoint, coordinates: coordinate }
+                  : currentPoint,
+              ),
+            ),
+          );
+          setStatusText("Point moved.");
+        });
+
+        pointMarkersRef.current.set(point.id, marker);
+      });
     } catch (error) {
       setStatusText(`Map marker error: ${formatError(error)}`);
       console.error("Failed to update map markers:", error);
     }
-  }, [startPoint, endPoint]);
+  }, [routePoints]);
 
   useEffect(() => {
     drawRoute(routeFeature?.geometry ?? null);
+  }, [drawRoute, routeFeature]);
 
-    if (routeFeature) {
-      fitCoordinates(routeFeature.geometry.coordinates);
-    }
-  }, [drawRoute, fitCoordinates, routeFeature]);
-
-  const canGenerate = Boolean(startPoint && endPoint && mapboxToken && !isGenerating);
-  const canSave = Boolean(routeFeature && !isSaving);
-
-  const startLabel = useMemo(() => formatCoordinate(startPoint), [startPoint]);
-  const endLabel = useMemo(() => formatCoordinate(endPoint), [endPoint]);
-
-  const onSelectMode = (nextMode: Exclude<ClickMode, null>): void => {
+  useEffect(() => {
     if (!mapboxToken) {
-      setStatusText("Missing Mapbox token. Set VITE_MAPBOX_TOKEN or MAPBOX_TOKEN.");
       return;
     }
 
-    if (mode === nextMode) {
-      setMode(null);
-      setStatusText("Selection mode cleared.");
-      return;
-    }
-
-    setMode(nextMode);
-    setStatusText(`Click on the map to set ${nextMode === "start" ? "Start" : "End"}.`);
-  };
-
-  const onGenerateRoute = async (): Promise<void> => {
-    if (!startPoint || !endPoint) {
-      setStatusText("Set both start and end points before generating a route.");
-      return;
-    }
-
-    if (!mapboxToken) {
-      setStatusText("Missing Mapbox token. Set VITE_MAPBOX_TOKEN or MAPBOX_TOKEN.");
-      return;
-    }
-
-    setIsGenerating(true);
-    setStatusText("Generating walking route...");
-
-    try {
-      const coordinatesParam = `${startPoint[0]},${startPoint[1]};${endPoint[0]},${endPoint[1]}`;
-      const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${coordinatesParam}?geometries=geojson&overview=full&access_token=${encodeURIComponent(mapboxToken)}`;
-
-      const response = await fetch(url);
-      const payload = (await response.json()) as DirectionsResponse;
-
-      if (!response.ok) {
-        throw new Error(payload.message || `Directions API request failed (${response.status}).`);
-      }
-
-      const route = payload.routes?.[0];
-      if (!route || !route.geometry?.coordinates?.length) {
-        throw new Error("No route found for the selected points.");
-      }
-
-      const feature: RouteFeature = {
-        type: "Feature",
-        geometry: route.geometry,
-        properties: {
-          distance_m: route.distance,
-          duration_s: route.duration,
-          profile: "walking",
-          start: startPoint,
-          end: endPoint,
-          generated_at: new Date().toISOString(),
-        },
-      };
-
-      setRouteFeature(feature);
-      setStatusText("Route ready.");
-    } catch (error) {
+    if (routePoints.length < 2) {
+      routeAbortControllerRef.current?.abort();
+      routeAbortControllerRef.current = null;
       setRouteFeature(null);
-      setStatusText(`Failed to generate route: ${formatError(error)}`);
-    } finally {
-      setIsGenerating(false);
+      return;
     }
-  };
+
+    void generateRoute(routePoints);
+  }, [generateRoute, mapboxToken, routePoints]);
+
+  useEffect(() => {
+    return () => {
+      routeAbortControllerRef.current?.abort();
+      routeAbortControllerRef.current = null;
+    };
+  }, []);
+
+  const applyRoutePointUpdate = useCallback(
+    (updater: (current: RoutePoint[]) => RoutePoint[], nextStatusText: string): void => {
+      setRouteFeature(null);
+      setRoutePoints((current) => normalizeRoutePoints(updater(current)));
+      setStatusText(nextStatusText);
+    },
+    [],
+  );
+
+  const onSetBoundaryPointFromContextMenu = useCallback(
+    (target: "start" | "end"): void => {
+      if (!contextMenu) {
+        return;
+      }
+
+      if (!mapRef.current) {
+        setContextMenu(null);
+        setActiveSubmenu(null);
+        setStatusText("Map is not ready yet.");
+        return;
+      }
+
+      const coordinate = contextMenu.coordinate;
+
+      applyRoutePointUpdate(
+        (current) => {
+          if (target === "start") {
+            if (current.length === 0) {
+              return [
+                {
+                  id: createRoutePointId(),
+                  type: "start",
+                  coordinates: coordinate,
+                },
+              ];
+            }
+
+            if (current.length === 1 && current[0].type === "end") {
+              return [
+                {
+                  id: createRoutePointId(),
+                  type: "start",
+                  coordinates: coordinate,
+                },
+                current[0],
+              ];
+            }
+
+            const next = [...current];
+            next[0] = { ...next[0], coordinates: coordinate };
+            return next;
+          }
+
+          if (current.length === 0) {
+            return [
+              {
+                id: createRoutePointId(),
+                type: "end",
+                coordinates: coordinate,
+              },
+            ];
+          }
+
+          if (current.length === 1 && current[0].type === "start") {
+            return [
+              ...current,
+              {
+                id: createRoutePointId(),
+                type: "end",
+                coordinates: coordinate,
+              },
+            ];
+          }
+
+          if (current.length === 1 && current[0].type === "end") {
+            return [{ ...current[0], coordinates: coordinate }];
+          }
+
+          const next = [...current];
+          const lastIndex = next.length - 1;
+          next[lastIndex] = { ...next[lastIndex], coordinates: coordinate };
+          return next;
+        },
+        target === "start" ? "Start point set." : "End point set.",
+      );
+
+      setContextMenu(null);
+      setActiveSubmenu(null);
+    },
+    [applyRoutePointUpdate, contextMenu],
+  );
+
+  const onSetPointFromContextMenu = useCallback(
+    (pointIndex: number): void => {
+      if (!contextMenu) {
+        return;
+      }
+
+      if (!mapRef.current) {
+        setContextMenu(null);
+        setActiveSubmenu(null);
+        setStatusText("Map is not ready yet.");
+        return;
+      }
+
+      const coordinate = contextMenu.coordinate;
+
+      applyRoutePointUpdate(
+        (current) => {
+          if (current.length === 0) {
+            return [
+              {
+                id: createRoutePointId(),
+                type: "start",
+                coordinates: coordinate,
+              },
+            ];
+          }
+
+          const next = [...current];
+          const safeIndex = Math.min(Math.max(pointIndex, 0), next.length - 1);
+          next[safeIndex] = { ...next[safeIndex], coordinates: coordinate };
+          return next;
+        },
+        "Point replaced.",
+      );
+
+      setContextMenu(null);
+      setActiveSubmenu(null);
+    },
+    [applyRoutePointUpdate, contextMenu],
+  );
+
+  const onInsertPointAtIndex = useCallback(
+    (insertionIndex: number): void => {
+      if (!contextMenu) {
+        return;
+      }
+
+      if (!mapRef.current) {
+        setContextMenu(null);
+        setActiveSubmenu(null);
+        setStatusText("Map is not ready yet.");
+        return;
+      }
+
+      const coordinate = contextMenu.coordinate;
+
+      applyRoutePointUpdate(
+        (current) => {
+          const next = [...current];
+          const safeInsertionIndex = Math.min(Math.max(insertionIndex, 0), next.length);
+
+          next.splice(safeInsertionIndex, 0, {
+            id: createRoutePointId(),
+            type: "waypoint",
+            coordinates: coordinate,
+          });
+
+          return next;
+        },
+        "Point inserted.",
+      );
+
+      setContextMenu(null);
+      setActiveSubmenu(null);
+    },
+    [applyRoutePointUpdate, contextMenu],
+  );
+
+  const onDeletePoint = useCallback(
+    (id: string): void => {
+      applyRoutePointUpdate((current) => current.filter((point) => point.id !== id), "Point deleted.");
+    },
+    [applyRoutePointUpdate],
+  );
+
+  const onDragEnd = useCallback(
+    (event: DragEndEvent): void => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) {
+        return;
+      }
+
+      applyRoutePointUpdate((current) => {
+        const oldIndex = current.findIndex((point) => point.id === String(active.id));
+        const newIndex = current.findIndex((point) => point.id === String(over.id));
+
+        if (oldIndex < 0 || newIndex < 0) {
+          return current;
+        }
+
+        return arrayMove(current, oldIndex, newIndex);
+      }, "Points reordered.");
+    },
+    [applyRoutePointUpdate],
+  );
 
   const onSaveGeoJSON = async (): Promise<void> => {
     if (!routeFeature) {
@@ -386,36 +788,77 @@ export function App(): JSX.Element {
   };
 
   const onClear = (): void => {
-    setMode(null);
-    setStartPoint(null);
-    setEndPoint(null);
+    routeAbortControllerRef.current?.abort();
+    routeAbortControllerRef.current = null;
+
+    setRoutePoints([]);
     setRouteFeature(null);
+    setContextMenu(null);
+    setActiveSubmenu(null);
     setStatusText("Cleared.");
   };
+
+  const canSave = Boolean(routeFeature && !isSaving);
+
+  const sortableIds = useMemo(() => routePoints.map((point) => point.id), [routePoints]);
+  const hasStartAndEnd = useMemo(
+    () =>
+      routePoints.some((point) => point.type === "start") &&
+      routePoints.some((point) => point.type === "end"),
+    [routePoints],
+  );
+  const setMenuOptions = useMemo<
+    Array<
+      | { key: string; label: string; mode: "boundary"; target: "start" | "end" }
+      | { key: string; label: string; mode: "replace"; pointIndex: number }
+    >
+  >(() => {
+    if (!hasStartAndEnd) {
+      return [
+        { key: "set-start", label: "Start", mode: "boundary", target: "start" },
+        { key: "set-end", label: "End", mode: "boundary", target: "end" },
+      ];
+    }
+
+    return routePoints.map((point, index) => ({
+      key: point.id,
+      label: getRoutePointLabel(routePoints, index),
+      mode: "replace",
+      pointIndex: index,
+    }));
+  }, [hasStartAndEnd, routePoints]);
+
+  const insertMenuOptions = useMemo(() => {
+    const options: Array<{ key: string; label: string; insertionIndex: number }> = [
+      { key: "before-start", label: "before Start", insertionIndex: 0 },
+      { key: "after-start", label: "after Start", insertionIndex: 1 },
+    ];
+
+    for (let index = 1; index < routePoints.length - 1; index += 1) {
+      if (routePoints[index].type === "waypoint") {
+        options.push({
+          key: `after-${routePoints[index].id}`,
+          label: `after Waypoint ${index}`,
+          insertionIndex: index + 1,
+        });
+      }
+    }
+
+    if (routePoints.length > 1) {
+      options.push({
+        key: "after-end",
+        label: "after End",
+        insertionIndex: routePoints.length,
+      });
+    }
+
+    return options;
+  }, [routePoints]);
 
   return (
     <div className="app-shell">
       <aside className="control-panel">
-        <h1>Canyon Route Editor</h1>
-
         <div className="button-grid">
-          <button
-            type="button"
-            className={mode === "start" ? "active" : ""}
-            onClick={() => onSelectMode("start")}
-          >
-            Set Start
-          </button>
-          <button
-            type="button"
-            className={mode === "end" ? "active" : ""}
-            onClick={() => onSelectMode("end")}
-          >
-            Set End
-          </button>
-          <button type="button" onClick={() => void onGenerateRoute()} disabled={!canGenerate}>
-            {isGenerating ? "Generating..." : "Generate Route"}
-          </button>
           <button type="button" onClick={() => void onSaveGeoJSON()} disabled={!canSave}>
             {isSaving ? "Saving..." : "Save GeoJSON"}
           </button>
@@ -424,20 +867,107 @@ export function App(): JSX.Element {
           </button>
         </div>
 
-        <div className="coord-list">
-          <p>
-            <strong>Start:</strong> {startLabel}
-          </p>
-          <p>
-            <strong>End:</strong> {endLabel}
-          </p>
-        </div>
+        <section className="route-points-panel">
+          <h2>Route Points</h2>
+          {routePoints.length === 0 ? (
+            <p className="route-points-empty">No points yet.</p>
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+              <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                <ul className="route-point-list">
+                  {routePoints.map((point, index) => (
+                    <RoutePointListItem
+                      key={point.id}
+                      point={point}
+                      index={index}
+                      label={getRoutePointLabel(routePoints, index)}
+                      coordinateLabel={formatCoordinate(point.coordinates)}
+                      onDelete={onDeletePoint}
+                    />
+                  ))}
+                </ul>
+              </SortableContext>
+            </DndContext>
+          )}
+        </section>
 
         <p className="status-text">{statusText}</p>
       </aside>
 
-      <main className="map-area">
+      <main className="map-area" onContextMenu={(event) => event.preventDefault()}>
         <div ref={mapContainerRef} className="map-container" />
+
+        {contextMenu ? (
+          <div className="map-context-menu-layer">
+            <div
+              ref={contextMenuRef}
+              className="map-context-menu"
+              style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
+              role="menu"
+              aria-label="Map click menu"
+            >
+              <div
+                className="map-context-submenu-wrap"
+                onMouseEnter={() => setActiveSubmenu("set")}
+                onMouseLeave={() => setActiveSubmenu((current) => (current === "set" ? null : current))}
+              >
+                <button
+                  type="button"
+                  className="map-context-submenu-trigger"
+                  onClick={() => setActiveSubmenu((current) => (current === "set" ? null : "set"))}
+                >
+                  {hasStartAndEnd ? "Replace ..." : "Set as ..."}
+                </button>
+
+                {activeSubmenu === "set" ? (
+                  <div className="map-context-submenu" role="menu" aria-label="Set as point">
+                    {setMenuOptions.map((option) => (
+                      option.mode === "boundary" ? (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => onSetBoundaryPointFromContextMenu(option.target)}
+                        >
+                          {option.label}
+                        </button>
+                      ) : (
+                        <button key={option.key} type="button" onClick={() => onSetPointFromContextMenu(option.pointIndex)}>
+                          {option.label}
+                        </button>
+                      )
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              {hasStartAndEnd ? (
+                <div
+                  className="map-context-submenu-wrap"
+                  onMouseEnter={() => setActiveSubmenu("insert")}
+                  onMouseLeave={() => setActiveSubmenu((current) => (current === "insert" ? null : current))}
+                >
+                  <button
+                    type="button"
+                    className="map-context-submenu-trigger"
+                    onClick={() => setActiveSubmenu((current) => (current === "insert" ? null : "insert"))}
+                  >
+                    Insert ...
+                  </button>
+
+                  {activeSubmenu === "insert" ? (
+                    <div className="map-context-submenu" role="menu" aria-label="Insert point">
+                      {insertMenuOptions.map((option) => (
+                        <button key={option.key} type="button" onClick={() => onInsertPointAtIndex(option.insertionIndex)}>
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </main>
     </div>
   );

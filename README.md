@@ -1,12 +1,12 @@
-# Canyon Route Editor
+# Canyon Editor
 
-Minimal Electron desktop app (Windows + macOS) that uses Mapbox to set start/end points, generate a walking route, render it, and save the route as GeoJSON.
+Minimal Electron desktop app (Windows + macOS) that uses Mapbox to manage ordered route points (start, waypoints, end), generate a walking route, render it, and save the route as GeoJSON.
 
 ## Architecture
 
 - `electron/main.ts`: creates the app window with secure defaults, resolves token from environment, and handles save dialog/file writes via IPC.
 - `electron/preload.ts`: exposes a minimal safe API (`getMapboxToken`, `saveGeoJSON`) using `contextBridge`.
-- `renderer/`: Vite + React + TypeScript UI with `mapbox-gl`, map click modes, route generation, and export controls.
+- `renderer/`: Vite + React + TypeScript UI with `mapbox-gl`, custom map context menus, drag-and-drop point ordering, route generation, and export controls.
 
 ## Prerequisites
 
@@ -87,13 +87,13 @@ Use `MAPBOX_TOKEN` as an environment variable before launching the packaged app,
 
 ```powershell
 $env:MAPBOX_TOKEN="your_token_here"
-./Canyon Route Editor.exe
+./Canyon Editor.exe
 ```
 
 - macOS shell:
 
 ```bash
-MAPBOX_TOKEN="your_token_here" /Applications/Canyon\ Route\ Editor.app/Contents/MacOS/Canyon\ Route\ Editor
+MAPBOX_TOKEN="your_token_here" /Applications/Canyon\ Editor.app/Contents/MacOS/Canyon\ Editor
 ```
 
 ## GeoJSON export format
@@ -105,6 +105,7 @@ MAPBOX_TOKEN="your_token_here" /Applications/Canyon\ Route\ Editor.app/Contents/
 - `profile` (`"walking"`)
 - `start` (`[lng, lat]`)
 - `end` (`[lng, lat]`)
+- `waypoints` (`[[lng, lat], ...]`)
 - `generated_at` (ISO timestamp)
 
 ## Assumptions
@@ -115,6 +116,5 @@ MAPBOX_TOKEN="your_token_here" /Applications/Canyon\ Route\ Editor.app/Contents/
 
 ## Next steps
 
-- Add waypoint support (multi-stop routing).
-- Add a "straight line" mode that exports `[start, end]` as a `LineString` without Directions API.
+- Add a "straight line" mode that exports point order as a `LineString` without Directions API.
 - Load and attach saved routes to a larger JSON dataset/workflow.

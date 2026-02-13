@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -11,12 +12,26 @@ type SaveGeoJSONResult = {
 
 let mainWindow: BrowserWindow | null = null;
 
+function resolveWindowIconPath(): string | undefined {
+  const candidates = [
+    path.join(app.getAppPath(), "build", "icon.png"),
+    path.join(process.resourcesPath, "build", "icon.png"),
+    path.join(process.resourcesPath, "icon.png"),
+  ];
+
+  return candidates.find((candidate) => existsSync(candidate));
+}
+
 function createWindow(): void {
+  const iconPath = resolveWindowIconPath();
+
   mainWindow = new BrowserWindow({
+    title: "Canyon Editor",
     width: 1280,
     height: 820,
     minWidth: 960,
     minHeight: 640,
+    ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
