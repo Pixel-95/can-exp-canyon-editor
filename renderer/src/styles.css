@@ -160,6 +160,39 @@ button {
   font-size: 0.98rem;
 }
 
+.route-points-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.route-points-invert {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: #f1f5f9;
+  cursor: pointer;
+  text-align: left;
+}
+
+.route-points-invert-icon {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  flex: 0 0 auto;
+}
+
+.route-points-invert:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .route-points-empty {
   margin: 0;
   padding: 10px;

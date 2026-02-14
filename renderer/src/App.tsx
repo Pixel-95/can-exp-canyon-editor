@@ -1536,6 +1536,35 @@ export function App(): JSX.Element {
     [applyRoutePointUpdate],
   );
 
+  const onInvertRouteDirection = useCallback((): void => {
+    applyRoutePointUpdate(
+      (current) => {
+        if (current.length < 2) {
+          return current;
+        }
+
+        const reversedPoints = current
+          .slice()
+          .reverse()
+          .map((point) => ({ ...point }));
+        const reversedSegmentModes = current
+          .slice(1)
+          .map((point) => point.segmentMode ?? "straight")
+          .reverse();
+
+        for (let index = 1; index < reversedPoints.length; index += 1) {
+          reversedPoints[index] = {
+            ...reversedPoints[index],
+            segmentMode: reversedSegmentModes[index - 1] ?? "straight",
+          };
+        }
+
+        return reversedPoints;
+      },
+      "Route direction inverted.",
+    );
+  }, [applyRoutePointUpdate]);
+
   const onSaveGeoJSON = async (): Promise<void> => {
     if (!routeFeature) {
       setStatusText("Generate a route before saving GeoJSON.");
@@ -1803,7 +1832,23 @@ export function App(): JSX.Element {
         </section>
 
         <section className="route-points-panel">
-          <h2>Route Points</h2>
+          <div className="route-points-header">
+            <h2>Route Points</h2>
+            <button
+              type="button"
+              className="route-points-invert"
+              onClick={onInvertRouteDirection}
+              disabled={routePoints.length < 2}
+            >
+              <svg className="route-points-invert-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 7h11" />
+                <path d="m13 4 4 3-4 3" />
+                <path d="M18 17H7" />
+                <path d="m11 14-4 3 4 3" />
+              </svg>
+              <span>Invert direction</span>
+            </button>
+          </div>
           {routePoints.length === 0 ? (
             <p className="route-points-empty">No points yet.</p>
           ) : (
