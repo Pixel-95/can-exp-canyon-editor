@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import { Menu, app, BrowserWindow, dialog, ipcMain } from "electron";
+import { Menu, app, BrowserWindow, dialog, ipcMain, screen } from "electron";
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -60,13 +60,17 @@ function resolveWindowIconPath(): string | undefined {
 
 function createWindow(): void {
   const iconPath = resolveWindowIconPath();
+  const { workAreaSize } = screen.getPrimaryDisplay();
+  const startupWidth = Math.max(1248, Math.floor(workAreaSize.width * 0.9));
+  const startupHeight = Math.max(832, Math.floor(workAreaSize.height * 0.9));
 
   mainWindow = new BrowserWindow({
     title: "Canyon Editor",
-    width: 1664,
-    height: 1066,
+    width: startupWidth,
+    height: startupHeight,
     minWidth: 1248,
     minHeight: 832,
+    show: false,
     autoHideMenuBar: true,
     ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
@@ -89,6 +93,15 @@ function createWindow(): void {
 
   mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, url) => {
     console.error("Renderer failed to load:", { errorCode, errorDescription, url });
+  });
+
+  mainWindow.once("ready-to-show", () => {
+    if (!mainWindow) {
+      return;
+    }
+
+    mainWindow.maximize();
+    mainWindow.show();
   });
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;

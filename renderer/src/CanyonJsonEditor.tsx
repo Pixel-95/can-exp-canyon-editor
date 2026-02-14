@@ -952,18 +952,6 @@ export function CanyonJsonEditor(): JSX.Element {
         if (isSectionsArray) {
           return (
             <div className="json-sections-block">
-              <div className="json-sections-toolbar">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextItem = newArrayItem(path, value);
-                    setPathValue(path, [...value, nextItem]);
-                  }}
-                >
-                  + Add Section
-                </button>
-              </div>
-
               <div className="json-sections-list">
                 {value.length === 0 ? <p className="json-empty-text">No sections.</p> : null}
                 {value.map((item, index) => {
@@ -994,7 +982,7 @@ export function CanyonJsonEditor(): JSX.Element {
                             aria-label={`${itemCollapsed ? "Expand" : "Collapse"} ${itemTitle}`}
                             title={itemCollapsed ? "Expand section" : "Collapse section"}
                           >
-                            {itemCollapsed ? "\u2304" : "\u2303"}
+                            {itemCollapsed ? "\u25BC" : "\u25B2"}
                           </button>
                           <input
                             type="text"
@@ -1059,6 +1047,18 @@ export function CanyonJsonEditor(): JSX.Element {
                     </article>
                   );
                 })}
+              </div>
+
+              <div className="json-sections-toolbar">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextItem = newArrayItem(path, value);
+                    setPathValue(path, [...value, nextItem]);
+                  }}
+                >
+                  + Add Section
+                </button>
               </div>
             </div>
           );
