@@ -934,6 +934,121 @@ export function CanyonJsonEditor(): JSX.Element {
           );
         }
 
+        if (isSectionsArray) {
+          return (
+            <div className="json-sections-block">
+              <div className="json-sections-toolbar">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextItem = newArrayItem(path, value);
+                    setPathValue(path, [...value, nextItem]);
+                  }}
+                >
+                  + Add Section
+                </button>
+              </div>
+
+              <div className="json-sections-list">
+                {value.length === 0 ? <p className="json-empty-text">No sections.</p> : null}
+                {value.map((item, index) => {
+                  if (item === null) {
+                    return null;
+                  }
+
+                  const itemPath = [...path, index];
+                  const itemPathKey = toPathKey(itemPath);
+                  const itemCollapsed = collapsedGroups[itemPathKey] ?? true;
+                  const itemTitle = `Section ${index + 1}`;
+                  const sectionName =
+                    isJsonObject(item) && typeof item.name === "string" ? item.name : "";
+
+                  return (
+                    <article key={itemPathKey} className="json-array-item">
+                      <div className="json-array-item-header">
+                        <div className="json-array-item-main">
+                          <button
+                            type="button"
+                            className="json-chevron-toggle"
+                            onClick={() =>
+                              setCollapsedGroups((current) => ({
+                                ...current,
+                                [itemPathKey]: !itemCollapsed,
+                              }))
+                            }
+                            aria-label={`${itemCollapsed ? "Expand" : "Collapse"} ${itemTitle}`}
+                            title={itemCollapsed ? "Expand section" : "Collapse section"}
+                          >
+                            {itemCollapsed ? "\u2304" : "\u2303"}
+                          </button>
+                          <input
+                            type="text"
+                            className="json-section-name-header-input"
+                            value={sectionName}
+                            onChange={(event) => setPathValue([...itemPath, "name"], event.target.value)}
+                            placeholder="Section name"
+                            aria-label={`Section ${index + 1} name`}
+                          />
+                        </div>
+                        <div className="json-array-item-actions">
+                          <button
+                            type="button"
+                            className="json-array-arrow-btn"
+                            disabled={index === 0}
+                            onClick={() => {
+                              const moved = moveArrayItem(value, index, index - 1);
+                              setPathValue(path, moved);
+                            }}
+                            aria-label={`Move ${itemTitle} up`}
+                            title="Move up"
+                          >
+                            {"\u2191"}
+                          </button>
+                          <button
+                            type="button"
+                            className="json-array-arrow-btn"
+                            disabled={index >= value.length - 1}
+                            onClick={() => {
+                              const moved = moveArrayItem(value, index, index + 1);
+                              setPathValue(path, moved);
+                            }}
+                            aria-label={`Move ${itemTitle} down`}
+                            title="Move down"
+                          >
+                            {"\u2193"}
+                          </button>
+                          <button
+                            type="button"
+                            className="json-danger-button"
+                            onClick={() =>
+                              setCanyonData((current) => {
+                                if (!current) {
+                                  return current;
+                                }
+                                const next = removeArrayIndex(current, path, index);
+                                if (!isJsonObject(next)) {
+                                  return current;
+                                }
+                                return withGeneratedSectionIds(next);
+                              })
+                            }
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+
+                      {!itemCollapsed ? (
+                        <div className="json-array-item-content">{renderNode(item, itemPath, itemTitle)}</div>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
         return (
           <section className="json-card">
             <div className="json-card-header">
@@ -972,14 +1087,7 @@ export function CanyonJsonEditor(): JSX.Element {
                   const itemPath = [...path, index];
                   const itemPathKey = toPathKey(itemPath);
                   const itemCollapsed = collapsedGroups[itemPathKey] ?? false;
-                  const itemTitle = isSectionPath(itemPath) ? `Section ${index + 1}` : `Element ${index + 1}`;
-                  const sectionName =
-                    isSectionsArray && isJsonObject(item) && typeof item.name === "string"
-                      ? item.name
-                      : "";
-                  const collapseLabel = isSectionsArray
-                    ? itemCollapsed ? "+" : "-"
-                    : `${itemCollapsed ? "+" : "-"} ${itemTitle}`;
+                  const itemTitle = `Element ${index + 1}`;
 
                   return (
                     <article key={itemPathKey} className="json-array-item">
@@ -990,50 +1098,16 @@ export function CanyonJsonEditor(): JSX.Element {
                             className="json-collapse-button"
                             onClick={() =>
                               setCollapsedGroups((current) => ({
-                              ...current,
-                              [itemPathKey]: !itemCollapsed,
-                            }))
-                          }
-                          aria-label={`${itemCollapsed ? "Expand" : "Collapse"} ${itemTitle}`}
-                        >
-                          {collapseLabel}
-                        </button>
-                          {isSectionsArray ? (
-                            <input
-                              type="text"
-                              className="json-section-name-header-input"
-                              value={sectionName}
-                              onChange={(event) => setPathValue([...itemPath, "name"], event.target.value)}
-                              placeholder="Section name"
-                              aria-label={`Section ${index + 1} name`}
-                            />
-                          ) : null}
+                                ...current,
+                                [itemPathKey]: !itemCollapsed,
+                              }))
+                            }
+                            aria-label={`${itemCollapsed ? "Expand" : "Collapse"} ${itemTitle}`}
+                          >
+                            {itemCollapsed ? "+" : "-"} {itemTitle}
+                          </button>
                         </div>
                         <div className="json-array-item-actions">
-                          {isSectionsArray ? (
-                            <>
-                              <button
-                                type="button"
-                                disabled={index === 0}
-                                onClick={() => {
-                                  const moved = moveArrayItem(value, index, index - 1);
-                                  setPathValue(path, moved);
-                                }}
-                              >
-                                Move Up
-                              </button>
-                              <button
-                                type="button"
-                                disabled={index >= value.length - 1}
-                                onClick={() => {
-                                  const moved = moveArrayItem(value, index, index + 1);
-                                  setPathValue(path, moved);
-                                }}
-                              >
-                                Move Down
-                              </button>
-                            </>
-                          ) : null}
                           <button
                             type="button"
                             className="json-danger-button"
@@ -1045,9 +1119,6 @@ export function CanyonJsonEditor(): JSX.Element {
                                 const next = removeArrayIndex(current, path, index);
                                 if (!isJsonObject(next)) {
                                   return current;
-                                }
-                                if (isSectionsArrayPath(path)) {
-                                  return withGeneratedSectionIds(next);
                                 }
                                 return next;
                               })
@@ -1214,10 +1285,37 @@ export function CanyonJsonEditor(): JSX.Element {
 
         const maxRappelValue = isSectionPath(path) ? value.max_rappel_in_meter ?? null : null;
         const recommendedRopesValue = isSectionPath(path) ? value.recommended_ropes ?? null : null;
+        const objectBody = (
+          <div className="json-object-body">
+            {normalEntries.map(([key, child]) => (
+              <div className="json-field-row" key={`${pathKey}.${key}`}>
+                {renderNode(child, [...path, key], key)}
+              </div>
+            ))}
+            {isSectionPath(path) && (maxRappelValue !== null || recommendedRopesValue !== null) ? (
+              <div className="json-two-col-row">
+                {maxRappelValue !== null ? (
+                  <div className="json-field-row">
+                    {renderNode(maxRappelValue, [...path, "max_rappel_in_meter"], "max_rappel_in_meter")}
+                  </div>
+                ) : null}
+                {recommendedRopesValue !== null ? (
+                  <div className="json-field-row">
+                    {renderNode(recommendedRopesValue, [...path, "recommended_ropes"], "recommended_ropes")}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        );
+
+        if (isSectionPath(path)) {
+          return objectBody;
+        }
 
         return (
           <section className="json-card">
-            {path.length > 0 && !isSectionPath(path) && !isSectionDescriptionsPath(path) ? (
+            {path.length > 0 && !isSectionDescriptionsPath(path) ? (
               <div className="json-card-header">
                 <button
                   type="button"
@@ -1234,29 +1332,7 @@ export function CanyonJsonEditor(): JSX.Element {
               </div>
             ) : null}
 
-            {!isCollapsed ? (
-              <div className="json-object-body">
-                {normalEntries.map(([key, child]) => (
-                  <div className="json-field-row" key={`${pathKey}.${key}`}>
-                    {renderNode(child, [...path, key], key)}
-                  </div>
-                ))}
-                {isSectionPath(path) && (maxRappelValue !== null || recommendedRopesValue !== null) ? (
-                  <div className="json-two-col-row">
-                    {maxRappelValue !== null ? (
-                      <div className="json-field-row">
-                        {renderNode(maxRappelValue, [...path, "max_rappel_in_meter"], "max_rappel_in_meter")}
-                      </div>
-                    ) : null}
-                    {recommendedRopesValue !== null ? (
-                      <div className="json-field-row">
-                        {renderNode(recommendedRopesValue, [...path, "recommended_ropes"], "recommended_ropes")}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+            {!isCollapsed ? objectBody : null}
           </section>
         );
       }
