@@ -4,8 +4,14 @@ type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue };
 type PathSegment = string | number;
+type CountryOption = {
+  code: string;
+  name: string;
+  regions: Array<{ code: string; name: string }>;
+};
 
 const DEFAULT_JSON_PATH = "data/Kobelache/data.json";
+const COUNTRY_ASSET_PATH = "assets/en.json";
 const LANGUAGE_KEY_PATTERN = /^[a-z]{2}(?:-[A-Za-z]{2})?$/i;
 
 const ROOT_EDITABLE_KEYS = new Set(["name", "description", "location", "sections"]);
@@ -21,10 +27,6 @@ const SECTION_EDITABLE_KEYS = new Set([
   "tour_dimensions_in_meter",
   "max_rappel_in_meter",
   "recommended_ropes",
-  "subjective_rating",
-  "quality_anchoring",
-  "subjective_rating_count",
-  "quality_anchoring_count",
   "topo",
 ]);
 const SECTION_DESCRIPTION_KEYS = new Set(["approach", "canyon", "exit"]);
@@ -46,10 +48,6 @@ function isSectionPath(path: PathSegment[]): boolean {
   return path.length === 2 && path[0] === "sections" && typeof path[1] === "number";
 }
 
-function isSectionObjectPath(path: PathSegment[]): boolean {
-  return path.length >= 2 && path[0] === "sections" && typeof path[1] === "number";
-}
-
 function isSectionDescriptionsPath(path: PathSegment[]): boolean {
   return (
     path.length === 3 &&
@@ -61,6 +59,28 @@ function isSectionDescriptionsPath(path: PathSegment[]): boolean {
 
 function isLocationPath(path: PathSegment[]): boolean {
   return path.length === 1 && path[0] === "location";
+}
+
+function isCountryCodePath(path: PathSegment[]): boolean {
+  return path.length === 2 && path[0] === "location" && path[1] === "country_code";
+}
+
+function isRegionCodePath(path: PathSegment[]): boolean {
+  return path.length === 2 && path[0] === "location" && path[1] === "region_code";
+}
+
+function isDifficultiesPath(path: PathSegment[]): boolean {
+  return (
+    path.length === 3 &&
+    path[0] === "sections" &&
+    typeof path[1] === "number" &&
+    path[2] === "difficulties"
+  );
+}
+
+function isCompactStringArrayPath(path: PathSegment[]): boolean {
+  const lastSegment = path[path.length - 1];
+  return lastSegment === "authors" || lastSegment === "special_notes";
 }
 
 function toPathKey(path: PathSegment[]): string {
@@ -132,6 +152,45 @@ function isLanguageObject(value: JsonValue): value is JsonObject {
   }
 
   return true;
+}
+
+function parseCountriesFromAsset(payload: unknown): CountryOption[] {
+  if (!isJsonObject(payload) || !isJsonObject(payload.countries)) {
+    return [];
+  }
+
+  const countries: CountryOption[] = [];
+  for (const [code, entry] of Object.entries(payload.countries)) {
+    if (!isJsonObject(entry)) {
+      continue;
+    }
+
+    const countryName = typeof entry.name === "string" && entry.name.trim() ? entry.name : code;
+    const regions: Array<{ code: string; name: string }> = [];
+
+    if (isJsonObject(entry.regions)) {
+      for (const [regionCode, regionName] of Object.entries(entry.regions)) {
+        if (typeof regionName !== "string") {
+          continue;
+        }
+
+        regions.push({
+          code: regionCode,
+          name: regionName,
+        });
+      }
+    }
+
+    regions.sort((left, right) => left.name.localeCompare(right.name));
+    countries.push({
+      code,
+      name: countryName,
+      regions,
+    });
+  }
+
+  countries.sort((left, right) => left.name.localeCompare(right.name));
+  return countries;
 }
 
 function shouldRenderChild(parentPath: PathSegment[], key: string, value: JsonValue): boolean {
@@ -279,10 +338,6 @@ function createDefaultSection(existingSections: JsonValue[]): JsonObject {
     },
     max_rappel_in_meter: 0,
     recommended_ropes: "",
-    subjective_rating: 0,
-    quality_anchoring: 0,
-    subjective_rating_count: 0,
-    quality_anchoring_count: 0,
     topo: "",
   };
 }
@@ -325,6 +380,7 @@ export function CanyonJsonEditor(): JSX.Element {
   const [canyonData, setCanyonData] = useState<JsonObject | null>(null);
   const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("Loading data/Kobelache/data.json...");
+  const [countries, setCountries] = useState<CountryOption[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({});
@@ -332,6 +388,20 @@ export function CanyonJsonEditor(): JSX.Element {
   const [languageTabs, setLanguageTabs] = useState<Record<string, string>>({});
 
   const baseDirectory = useMemo(() => getDirectoryPath(currentFilePath), [currentFilePath]);
+  const countryByCode = useMemo(() => {
+    return new Map(countries.map((country) => [country.code, country] as const));
+  }, [countries]);
+  const selectedCountryCode = useMemo(() => {
+    if (!canyonData) {
+      return "";
+    }
+
+    const countryValue = valueAtPath(canyonData, ["location", "country_code"]);
+    return typeof countryValue === "string" ? countryValue : "";
+  }, [canyonData]);
+  const selectedCountryRegions = useMemo(() => {
+    return countryByCode.get(selectedCountryCode)?.regions ?? [];
+  }, [countryByCode, selectedCountryCode]);
 
   const clearValidationError = useCallback((pathKey: string): void => {
     setValidationErrors((current) => {
@@ -350,6 +420,18 @@ export function CanyonJsonEditor(): JSX.Element {
       ...current,
       [pathKey]: message,
     }));
+  }, []);
+
+  const clearDraft = useCallback((pathKey: string): void => {
+    setInputDrafts((current) => {
+      if (!(pathKey in current)) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[pathKey];
+      return next;
+    });
   }, []);
 
   const setPathValue = useCallback(
@@ -405,6 +487,54 @@ export function CanyonJsonEditor(): JSX.Element {
       canceled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let canceled = false;
+
+    async function loadCountries(): Promise<void> {
+      const result = await window.api.loadJsonFromPath(COUNTRY_ASSET_PATH);
+      if (canceled) {
+        return;
+      }
+
+      if (result.canceled || !result.data) {
+        return;
+      }
+
+      const parsedCountries = parseCountriesFromAsset(result.data);
+      setCountries(parsedCountries);
+    }
+
+    void loadCountries().catch(() => {
+      if (!canceled) {
+        setCountries([]);
+      }
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!canyonData) {
+      return;
+    }
+
+    const regionValue = valueAtPath(canyonData, ["location", "region_code"]);
+    if (typeof regionValue !== "string") {
+      return;
+    }
+
+    if (!regionValue) {
+      return;
+    }
+
+    const validRegionCodes = new Set(selectedCountryRegions.map((region) => region.code));
+    if (!validRegionCodes.has(regionValue)) {
+      setPathValue(["location", "region_code"], selectedCountryRegions[0]?.code ?? "");
+    }
+  }, [canyonData, selectedCountryRegions, setPathValue]);
 
   const onLoadJson = useCallback(async (): Promise<void> => {
     const result = await window.api.loadJsonFromDialog();
@@ -538,6 +668,25 @@ export function CanyonJsonEditor(): JSX.Element {
     [baseDirectory, setPathValue],
   );
 
+  const onCountryCodeChange = useCallback(
+    (nextCountryCode: string): void => {
+      setPathValue(["location", "country_code"], nextCountryCode);
+
+      if (!canyonData) {
+        return;
+      }
+
+      const currentRegion = valueAtPath(canyonData, ["location", "region_code"]);
+      const validRegions = countryByCode.get(nextCountryCode)?.regions ?? [];
+      const validRegionCodes = new Set(validRegions.map((region) => region.code));
+
+      if (typeof currentRegion === "string" && currentRegion && !validRegionCodes.has(currentRegion)) {
+        setPathValue(["location", "region_code"], validRegions[0]?.code ?? "");
+      }
+    },
+    [canyonData, countryByCode, setPathValue],
+  );
+
   const renderNode = useCallback(
     (value: JsonValue, path: PathSegment[], label: string): JSX.Element | null => {
       if (value === null) {
@@ -654,6 +803,54 @@ export function CanyonJsonEditor(): JSX.Element {
       }
 
       if (Array.isArray(value)) {
+        if (isCompactStringArrayPath(path) && value.every((item) => typeof item === "string")) {
+          const lastSegment = path[path.length - 1];
+          const itemLabel = lastSegment === "authors" ? "Author" : "Note";
+
+          return (
+            <div className="json-input-field json-compact-list">
+              <div className="json-compact-list-header">
+                <label>{titleCase(label)}</label>
+                <button
+                  type="button"
+                  onClick={() => setPathValue(path, [...value, ""])}
+                >
+                  + Add {itemLabel}
+                </button>
+              </div>
+
+              {value.length === 0 ? <p className="json-empty-text">No entries.</p> : null}
+
+              {value.map((entry, index) => (
+                <div className="json-compact-list-row" key={`${pathKey}.${index}`}>
+                  <input
+                    type="text"
+                    value={entry}
+                    onChange={(event) => {
+                      const next = value.slice();
+                      next[index] = event.target.value;
+                      setPathValue(path, next);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="json-danger-button"
+                    onClick={() => {
+                      const next = value.slice();
+                      next.splice(index, 1);
+                      setPathValue(path, next);
+                    }}
+                    aria-label={`Remove ${itemLabel.toLowerCase()} ${index + 1}`}
+                    title="Remove"
+                  >
+                    X
+                  </button>
+                </div>
+              ))}
+            </div>
+          );
+        }
+
         return (
           <section className="json-card">
             <div className="json-card-header">
@@ -741,6 +938,42 @@ export function CanyonJsonEditor(): JSX.Element {
       }
 
       if (isJsonObject(value)) {
+        if (isDifficultiesPath(path)) {
+          const fields: Array<{ key: "vertical" | "aquatic" | "general"; label: string }> = [
+            { key: "vertical", label: "Vertical" },
+            { key: "aquatic", label: "Aquatic" },
+            { key: "general", label: "General" },
+          ];
+
+          return (
+            <div className="json-input-field">
+              <label>{titleCase(label)}</label>
+              <div className="json-difficulties-row">
+                {fields.map((field) => {
+                  const fieldPath = [...path, field.key];
+                  const fieldPathKey = toPathKey(fieldPath);
+                  const fieldValue = value[field.key];
+                  const displayValue =
+                    inputDrafts[fieldPathKey] ??
+                    (typeof fieldValue === "number" ? String(fieldValue) : "");
+
+                  return (
+                    <label key={field.key} className="json-difficulty-item">
+                      <span>{field.label}</span>
+                      <input
+                        type="number"
+                        value={displayValue}
+                        onChange={(event) => onNumberDraftChange(fieldPath, event.target.value)}
+                        onBlur={() => clearDraft(fieldPathKey)}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
         const entries = Object.entries(value).filter(([key, child]) =>
           shouldRenderChild(path, key, child),
         );
@@ -791,17 +1024,7 @@ export function CanyonJsonEditor(): JSX.Element {
               type="number"
               value={draftValue}
               onChange={(event) => onNumberDraftChange(path, event.target.value)}
-              onBlur={() =>
-                setInputDrafts((current) => {
-                  if (!(pathKey in current)) {
-                    return current;
-                  }
-
-                  const next = { ...current };
-                  delete next[pathKey];
-                  return next;
-                })
-              }
+              onBlur={() => clearDraft(pathKey)}
             />
             {validationError ? <p className="json-inline-error">{validationError}</p> : null}
           </div>
@@ -820,6 +1043,57 @@ export function CanyonJsonEditor(): JSX.Element {
               />
               <span>{titleCase(label)}</span>
             </label>
+          </div>
+        );
+      }
+
+      if (isCountryCodePath(path)) {
+        const hasCurrentCountry = countries.some((country) => country.code === value);
+
+        return (
+          <div className="json-input-field">
+            <label htmlFor={`field-${pathKey}`}>{titleCase(label)}</label>
+            <select
+              id={`field-${pathKey}`}
+              value={value}
+              onChange={(event) => onCountryCodeChange(event.target.value)}
+            >
+              {!hasCurrentCountry && value ? (
+                <option value={value}>{value}</option>
+              ) : null}
+              <option value="">Select country</option>
+              {countries.map((country) => (
+                <option key={country.code} value={country.code}>
+                  {country.code} - {country.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      }
+
+      if (isRegionCodePath(path)) {
+        const regionCodes = new Set(selectedCountryRegions.map((region) => region.code));
+        const selectedValue = regionCodes.has(value) ? value : "";
+
+        return (
+          <div className="json-input-field">
+            <label htmlFor={`field-${pathKey}`}>{titleCase(label)}</label>
+            <select
+              id={`field-${pathKey}`}
+              value={selectedValue}
+              onChange={(event) => setPathValue(path, event.target.value)}
+              disabled={selectedCountryRegions.length === 0}
+            >
+              <option value="">
+                {selectedCountryRegions.length === 0 ? "No regions for selected country" : "Select region"}
+              </option>
+              {selectedCountryRegions.map((region) => (
+                <option key={region.code} value={region.code}>
+                  {region.code} - {region.name}
+                </option>
+              ))}
+            </select>
           </div>
         );
       }
@@ -860,10 +1134,14 @@ export function CanyonJsonEditor(): JSX.Element {
       );
     },
     [
+      clearDraft,
       collapsedGroups,
+      countries,
+      onCountryCodeChange,
       languageTabs,
       onNumberDraftChange,
       onTopoFilePick,
+      selectedCountryRegions,
       setPathValue,
       validationErrors,
       inputDrafts,

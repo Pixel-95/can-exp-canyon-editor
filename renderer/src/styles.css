@@ -498,24 +498,25 @@ button {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: 8px;
+  padding: 8px 10px;
   border-bottom: 1px solid #cbd5e1;
   background: #ffffff;
 }
 
 .json-toolbar-buttons {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .json-toolbar-buttons button {
   border: 1px solid #94a3b8;
-  border-radius: 8px;
-  padding: 8px 12px;
+  border-radius: 7px;
+  padding: 6px 10px;
   background: #f8fafc;
   cursor: pointer;
+  font-size: 0.86rem;
 }
 
 .json-toolbar-buttons button:disabled {
@@ -525,7 +526,7 @@ button {
 
 .json-status {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   color: #334155;
   text-align: right;
   max-width: 45%;
@@ -535,21 +536,21 @@ button {
 .json-editor-body {
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 12px;
+  padding: 8px;
 }
 
 .json-file-path {
-  margin-bottom: 10px;
-  font-size: 0.84rem;
+  margin-bottom: 6px;
+  font-size: 0.78rem;
   color: #64748b;
   word-break: break-all;
 }
 
 .json-card {
   border: 1px solid #cbd5e1;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #ffffff;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   overflow: hidden;
 }
 
@@ -557,15 +558,15 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 6px 8px;
   border-bottom: 1px solid #e2e8f0;
   background: #f8fafc;
 }
 
 .json-card-header h3 {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.86rem;
 }
 
 .json-collapse-button {
@@ -581,17 +582,18 @@ button {
 
 .json-inline-actions {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
   align-items: center;
 }
 
 .json-inline-actions button {
   border: 1px solid #94a3b8;
-  border-radius: 8px;
-  padding: 5px 8px;
+  border-radius: 7px;
+  padding: 4px 7px;
   background: #ffffff;
   cursor: pointer;
+  font-size: 0.8rem;
 }
 
 .json-danger-button {
@@ -601,9 +603,9 @@ button {
 }
 
 .json-object-body {
-  padding: 10px;
+  padding: 7px;
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .json-field-row {
@@ -612,32 +614,34 @@ button {
 
 .json-input-field {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: #ffffff;
-  padding: 8px;
+  padding: 6px;
 }
 
 .json-input-field label {
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   font-weight: 600;
 }
 
 .json-input-field input,
-.json-input-field textarea {
+.json-input-field textarea,
+.json-input-field select {
   width: 100%;
   border: 1px solid #94a3b8;
-  border-radius: 8px;
+  border-radius: 7px;
   background: #ffffff;
   color: #0f172a;
-  padding: 8px 9px;
+  padding: 6px 7px;
+  font-size: 0.85rem;
 }
 
 .json-inline-error {
   margin: 0;
   color: #9f1239;
-  font-size: 0.84rem;
+  font-size: 0.78rem;
 }
 
 .json-checkbox-label {
@@ -653,8 +657,8 @@ button {
 .json-language-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 8px 10px 0;
+  gap: 4px;
+  padding: 6px 8px 0;
 }
 
 .json-language-tab {
@@ -662,9 +666,9 @@ button {
   border-radius: 999px;
   background: #ffffff;
   color: #334155;
-  padding: 4px 9px;
+  padding: 3px 8px;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 
 .json-language-tab.active {
@@ -674,23 +678,23 @@ button {
 }
 
 .json-language-content {
-  padding: 10px;
+  padding: 7px;
 }
 
 .json-language-content textarea {
   width: 100%;
-  min-height: 86px;
+  min-height: 74px;
 }
 
 .json-array-body {
-  padding: 10px;
+  padding: 7px;
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .json-array-item {
   border: 1px solid #dbeafe;
-  border-radius: 9px;
+  border-radius: 7px;
   background: #f8fbff;
 }
 
@@ -698,40 +702,42 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 7px 8px;
+  gap: 6px;
+  padding: 6px 7px;
   border-bottom: 1px solid #dbeafe;
 }
 
 .json-array-item-header button {
   border: 1px solid #94a3b8;
-  border-radius: 8px;
+  border-radius: 7px;
   background: #ffffff;
-  padding: 5px 8px;
+  padding: 4px 7px;
   cursor: pointer;
+  font-size: 0.8rem;
 }
 
 .json-array-item-content {
-  padding: 8px;
+  padding: 6px;
 }
 
 .json-topo-picker {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
 .json-topo-picker button {
   border: 1px solid #94a3b8;
-  border-radius: 8px;
+  border-radius: 7px;
   background: #f8fafc;
-  padding: 7px 10px;
+  padding: 5px 8px;
   cursor: pointer;
+  font-size: 0.82rem;
 }
 
 .json-topo-picker span {
-  font-size: 0.86rem;
+  font-size: 0.8rem;
   color: #334155;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -741,8 +747,64 @@ button {
 .json-empty-text {
   margin: 0;
   color: #64748b;
-  font-size: 0.88rem;
-  padding: 8px 10px;
+  font-size: 0.8rem;
+  padding: 5px 7px;
+}
+
+.json-compact-list {
+  gap: 5px;
+}
+
+.json-compact-list-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  align-items: center;
+}
+
+.json-compact-list-header button {
+  border: 1px solid #94a3b8;
+  border-radius: 7px;
+  background: #f8fafc;
+  padding: 4px 7px;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.json-compact-list-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px;
+  align-items: center;
+}
+
+.json-compact-list-row button {
+  min-width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #9f1239;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.json-difficulties-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.json-difficulty-item {
+  display: grid;
+  gap: 3px;
+}
+
+.json-difficulty-item span {
+  font-size: 0.75rem;
+  color: #475569;
+  font-weight: 600;
 }
 
 .map-overlay-toggle {
@@ -751,13 +813,13 @@ button {
   right: 10px;
   transform: translateY(-50%);
   z-index: 80;
-  width: 34px;
-  height: 56px;
+  width: 30px;
+  height: 48px;
   border: 1px solid #94a3b8;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #ffffff;
   color: #0f172a;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.22);
@@ -769,7 +831,10 @@ button {
 
 .route-overlay {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 80%;
   z-index: 70;
   transform: translateX(100%);
   transition: transform 260ms ease;
@@ -785,6 +850,8 @@ button {
   width: 100%;
   height: 100%;
   background: #ffffff;
+  border-left: 1px solid #cbd5e1;
+  box-shadow: -8px 0 22px rgba(15, 23, 42, 0.2);
 }
 
 @media (max-width: 960px) {
@@ -799,6 +866,10 @@ button {
   }
 
   .json-topo-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .json-difficulties-row {
     grid-template-columns: 1fr;
   }
 }
