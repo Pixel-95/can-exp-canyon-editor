@@ -29,6 +29,7 @@ import type { Feature, FeatureCollection, LineString } from "geojson";
 type Coordinate = [number, number];
 type RoutePointType = "start" | "waypoint" | "end";
 type SegmentMode = "route" | "straight";
+type MapStyleMode = "satellite" | "outdoors";
 type ContextMenuSubmenu = "set" | "insert";
 
 type RoutePoint = {
@@ -127,6 +128,10 @@ const ROUTE_LAYER_ID = "walking-route-layer";
 const TERRAIN_TILE_ZOOM = 14;
 const TERRAIN_TILE_SIZE = 512;
 const MAX_ROUTED_SEGMENT_CACHE_ENTRIES = 400;
+const MAP_STYLE_BY_MODE: Record<MapStyleMode, string> = {
+  satellite: "mapbox://styles/mapbox/satellite-streets-v12",
+  outdoors: "mapbox://styles/mapbox/outdoors-v12",
+};
 
 const EMPTY_ROUTE_GEOJSON: FeatureCollection<LineString> = {
   type: "FeatureCollection",
@@ -316,12 +321,12 @@ function normalizeRoutePoints(points: RoutePoint[]): RoutePoint[] {
 
     if (index === points.length - 1) {
       basePoint.type = "end";
-      basePoint.segmentMode = point.segmentMode ?? "route";
+      basePoint.segmentMode = point.segmentMode ?? "straight";
       return basePoint;
     }
 
     basePoint.type = "waypoint";
-    basePoint.segmentMode = point.segmentMode ?? "route";
+    basePoint.segmentMode = point.segmentMode ?? "straight";
     return basePoint;
   });
 }
@@ -404,6 +409,22 @@ function createRouteSegmentCacheKey(from: Coordinate, to: Coordinate): string {
   return `${from[0]},${from[1]}|${to[0]},${to[1]}`;
 }
 
+function getInsertedPointSegmentMode(points: RoutePoint[], insertionIndex: number): SegmentMode {
+  if (points.length < 2) {
+    return "straight";
+  }
+
+  if (insertionIndex <= 0) {
+    return points[1]?.segmentMode ?? "straight";
+  }
+
+  if (insertionIndex >= points.length) {
+    return points[points.length - 1]?.segmentMode ?? "straight";
+  }
+
+  return points[insertionIndex]?.segmentMode ?? "straight";
+}
+
 type RoutePointListItemProps = {
   point: RoutePoint;
   index: number;
@@ -449,11 +470,11 @@ function RoutePointListItem({
           <label className="route-point-segment-mode">
             <span>Segment</span>
             <select
-              value={point.segmentMode ?? "route"}
+              value={point.segmentMode ?? "straight"}
               onChange={(event) => onSegmentModeChange(point.id, event.target.value as SegmentMode)}
             >
-              <option value="route">Along road</option>
               <option value="straight">Straight line</option>
+              <option value="route">Along road</option>
             </select>
           </label>
         ) : null}
@@ -475,12 +496,15 @@ export function App(): JSX.Element {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const segmentModePopupRef = useRef<mapboxgl.Popup | null>(null);
+  const routePointsRef = useRef<RoutePoint[]>([]);
+  const routeFeatureRef = useRef<RouteFeature | null>(null);
   const pointMarkersRef = useRef<Map<string, MarkerEntry>>(new Map());
   const routedSegmentCacheRef = useRef<Map<string, CachedRouteSegment>>(new Map());
   const routeAbortControllerRef = useRef<AbortController | null>(null);
   const suppressMapMenuUntilRef = useRef(0);
 
   const [mapboxToken, setMapboxToken] = useState<string>("");
+  const [mapStyleMode, setMapStyleMode] = useState<MapStyleMode>("outdoors");
   const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
   const [routeFeature, setRouteFeature] = useState<RouteFeature | null>(null);
   const [contextMenu, setContextMenu] = useState<MapContextMenuState>(null);
@@ -492,6 +516,9 @@ export function App(): JSX.Element {
   const [routeElevationError, setRouteElevationError] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [statusText, setStatusText] = useState("Ready");
+
+  routePointsRef.current = routePoints;
+  routeFeatureRef.current = routeFeature;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -547,7 +574,7 @@ export function App(): JSX.Element {
     }
 
     if (!map.isStyleLoaded()) {
-      map.once("load", () => drawRoute(geometry));
+      map.once("idle", () => drawRoute(geometry));
       return;
     }
 
@@ -586,6 +613,10 @@ export function App(): JSX.Element {
       properties: {},
     };
     source.setData(routeGeoJson as GeoJSON.Feature);
+  }, []);
+
+  const onToggleMapStyle = useCallback((): void => {
+    setMapStyleMode((current) => (current === "satellite" ? "outdoors" : "satellite"));
   }, []);
 
   const generateRoute = useCallback(
@@ -691,7 +722,7 @@ export function App(): JSX.Element {
         for (let index = 1; index < points.length; index += 1) {
           const previousPoint = points[index - 1];
           const currentPoint = points[index];
-          const mode: SegmentMode = currentPoint.segmentMode ?? "route";
+          const mode: SegmentMode = currentPoint.segmentMode ?? "straight";
 
           if (mode === "straight") {
             const straightDistanceM = haversineDistanceMeters(
@@ -876,7 +907,7 @@ export function App(): JSX.Element {
 
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
-      style: "mapbox://styles/mapbox/streets-v12",
+      style: MAP_STYLE_BY_MODE[mapStyleMode],
       center: [8.980786, 46.300597],
       zoom: 12,
     });
@@ -946,6 +977,26 @@ export function App(): JSX.Element {
       mapRef.current = null;
     };
   }, [mapboxToken]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    const redrawRoute = (): void => {
+      drawRoute(routeFeatureRef.current?.geometry ?? null);
+    };
+
+    map.once("style.load", redrawRoute);
+    map.once("idle", redrawRoute);
+    map.setStyle(MAP_STYLE_BY_MODE[mapStyleMode]);
+
+    return () => {
+      map.off("style.load", redrawRoute);
+      map.off("idle", redrawRoute);
+    };
+  }, [drawRoute, mapStyleMode]);
 
   useEffect(() => {
     if (!contextMenu) {
@@ -1096,6 +1147,12 @@ export function App(): JSX.Element {
 
   const onDeletePoint = useCallback(
     (id: string): void => {
+      const points = routePointsRef.current;
+      if (!points.some((point) => point.id === id)) {
+        setStatusText("Point no longer exists.");
+        return;
+      }
+
       applyRoutePointUpdate((current) => current.filter((point) => point.id !== id), "Point deleted.");
     },
     [applyRoutePointUpdate],
@@ -1109,7 +1166,7 @@ export function App(): JSX.Element {
             return point;
           }
 
-          if ((point.segmentMode ?? "route") === mode) {
+          if ((point.segmentMode ?? "straight") === mode) {
             return point;
           }
 
@@ -1128,12 +1185,14 @@ export function App(): JSX.Element {
       return;
     }
 
-    const pointIndex = routePoints.findIndex((point) => point.id === pointId);
+    const points = routePointsRef.current;
+    const pointIndex = points.findIndex((point) => point.id === pointId);
     if (pointIndex < 0) {
+      setStatusText("Point no longer exists.");
       return;
     }
 
-    const point = routePoints[pointIndex];
+    const point = points[pointIndex];
     if (!point) {
       return;
     }
@@ -1148,10 +1207,10 @@ export function App(): JSX.Element {
       const select = document.createElement("select");
       select.className = "segment-mode-popup-select";
       select.innerHTML = `
-        <option value="route">Along road</option>
         <option value="straight">Straight line</option>
+        <option value="route">Along road</option>
       `;
-      select.value = point.segmentMode ?? "route";
+      select.value = point.segmentMode ?? "straight";
       container.append(select);
       select.addEventListener("change", () => {
         onSegmentModeChange(pointId, select.value as SegmentMode);
@@ -1186,7 +1245,7 @@ export function App(): JSX.Element {
     });
 
     segmentModePopupRef.current = popup;
-  }, [onDeletePoint, onSegmentModeChange, routePoints]);
+  }, [onDeletePoint, onSegmentModeChange]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1331,6 +1390,7 @@ export function App(): JSX.Element {
     const safeInsertionIndex = Math.min(Math.max(insertionIndex, 0), routePoints.length);
     const previousPoint = routePoints[safeInsertionIndex - 1];
     const nextPoint = routePoints[safeInsertionIndex];
+    const inheritedSegmentMode = getInsertedPointSegmentMode(routePoints, safeInsertionIndex);
 
     if (
       (previousPoint && isSameCoordinate(previousPoint.coordinates, coordinate)) ||
@@ -1345,7 +1405,18 @@ export function App(): JSX.Element {
       id: createRoutePointId(),
       type: "waypoint",
       coordinates: coordinate,
+      segmentMode: inheritedSegmentMode,
     });
+
+    if (safeInsertionIndex === 0 && next.length > 1) {
+      const shiftedStart = next[1];
+      if (shiftedStart) {
+        next[1] = {
+          ...shiftedStart,
+          segmentMode: inheritedSegmentMode,
+        };
+      }
+    }
 
     setRoutePoints(normalizeRoutePoints(next));
     setStatusText("Point inserted.");
@@ -1372,47 +1443,6 @@ export function App(): JSX.Element {
       setActiveSubmenu(null);
     },
     [contextMenu, setBoundaryPointAtCoordinate],
-  );
-
-  const onSetPointFromContextMenu = useCallback(
-    (pointIndex: number): void => {
-      if (!contextMenu) {
-        return;
-      }
-
-      if (!mapRef.current) {
-        setContextMenu(null);
-        setActiveSubmenu(null);
-        setStatusText("Map is not ready yet.");
-        return;
-      }
-
-      const coordinate = contextMenu.coordinate;
-
-      applyRoutePointUpdate(
-        (current) => {
-          if (current.length === 0) {
-            return [
-              {
-                id: createRoutePointId(),
-                type: "start",
-                coordinates: coordinate,
-              },
-            ];
-          }
-
-          const next = [...current];
-          const safeIndex = Math.min(Math.max(pointIndex, 0), next.length - 1);
-          next[safeIndex] = { ...next[safeIndex], coordinates: coordinate };
-          return next;
-        },
-        "Point replaced.",
-      );
-
-      setContextMenu(null);
-      setActiveSubmenu(null);
-    },
-    [applyRoutePointUpdate, contextMenu],
   );
 
   const onInsertPointAtIndex = useCallback(
@@ -1528,25 +1558,14 @@ export function App(): JSX.Element {
     [routePoints],
   );
   const setMenuOptions = useMemo<
-    Array<
-      | { key: string; label: string; mode: "boundary"; target: "start" | "end" }
-      | { key: string; label: string; mode: "replace"; pointIndex: number }
-    >
-  >(() => {
-    if (!hasStartAndEnd) {
-      return [
-        { key: "set-start", label: "Start", mode: "boundary", target: "start" },
-        { key: "set-end", label: "End", mode: "boundary", target: "end" },
-      ];
-    }
-
-    return routePoints.map((point, index) => ({
-      key: point.id,
-      label: getRoutePointLabel(routePoints, index),
-      mode: "replace",
-      pointIndex: index,
-    }));
-  }, [hasStartAndEnd, routePoints]);
+    Array<{ key: string; label: string; target: "start" | "end" }>
+  >(
+    () => [
+      { key: "set-start", label: "Start", target: "start" },
+      { key: "set-end", label: "End", target: "end" },
+    ],
+    [],
+  );
 
   const insertMenuOptions = useMemo<InsertMenuOption[]>(() => {
     const options: InsertMenuOption[] = [
@@ -1766,6 +1785,27 @@ export function App(): JSX.Element {
 
       <main className="map-area" onContextMenu={(event) => event.preventDefault()}>
         <div ref={mapContainerRef} className="map-container" />
+        <button
+          type="button"
+          className="map-style-toggle"
+          onClick={onToggleMapStyle}
+          aria-label={
+            mapStyleMode === "satellite"
+              ? "Switch map style to outdoors"
+              : "Switch map style to standard satellite"
+          }
+          title={
+            mapStyleMode === "satellite"
+              ? "Switch to Outdoors"
+              : "Switch to Standard Satellite"
+          }
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3 3 7.5 12 12l9-4.5L12 3Z" />
+            <path d="M3 11.5 12 16l9-4.5" />
+            <path d="M3 15.5 12 20l9-4.5" />
+          </svg>
+        </button>
 
         {contextMenu ? (
           <div className="map-context-menu-layer">
@@ -1776,23 +1816,23 @@ export function App(): JSX.Element {
               role="menu"
               aria-label="Map click menu"
             >
-              <div
-                className="map-context-submenu-wrap"
-                onMouseEnter={() => setActiveSubmenu("set")}
-                onMouseLeave={() => setActiveSubmenu((current) => (current === "set" ? null : current))}
-              >
-                <button
-                  type="button"
-                  className="map-context-submenu-trigger"
-                  onClick={() => setActiveSubmenu((current) => (current === "set" ? null : "set"))}
+              {!hasStartAndEnd ? (
+                <div
+                  className="map-context-submenu-wrap"
+                  onMouseEnter={() => setActiveSubmenu("set")}
+                  onMouseLeave={() => setActiveSubmenu((current) => (current === "set" ? null : current))}
                 >
-                  {hasStartAndEnd ? "Replace ..." : "Set as ..."}
-                </button>
+                  <button
+                    type="button"
+                    className="map-context-submenu-trigger"
+                    onClick={() => setActiveSubmenu((current) => (current === "set" ? null : "set"))}
+                  >
+                    Set as ...
+                  </button>
 
-                {activeSubmenu === "set" ? (
-                  <div className="map-context-submenu" role="menu" aria-label="Set as point">
-                    {setMenuOptions.map((option) => (
-                      option.mode === "boundary" ? (
+                  {activeSubmenu === "set" ? (
+                    <div className="map-context-submenu" role="menu" aria-label="Set as point">
+                      {setMenuOptions.map((option) => (
                         <button
                           key={option.key}
                           type="button"
@@ -1800,17 +1840,11 @@ export function App(): JSX.Element {
                         >
                           {option.label}
                         </button>
-                      ) : (
-                        <button key={option.key} type="button" onClick={() => onSetPointFromContextMenu(option.pointIndex)}>
-                          {option.label}
-                        </button>
-                      )
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
-              {hasStartAndEnd ? (
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
                 <div
                   className="map-context-submenu-wrap"
                   onMouseEnter={() => setActiveSubmenu("insert")}
@@ -1825,7 +1859,11 @@ export function App(): JSX.Element {
                   </button>
 
                   {activeSubmenu === "insert" ? (
-                    <div className="map-context-submenu" role="menu" aria-label="Insert point">
+                    <div
+                      className="map-context-submenu map-context-submenu-insert"
+                      role="menu"
+                      aria-label="Insert point"
+                    >
                       {insertMenuOptions.map((option) => (
                         <button key={option.key} type="button" onClick={() => onInsertPointAtIndex(option.insertionIndex)}>
                           {option.label}
@@ -1834,7 +1872,7 @@ export function App(): JSX.Element {
                     </div>
                   ) : null}
                 </div>
-              ) : null}
+              )}
             </div>
           </div>
         ) : null}

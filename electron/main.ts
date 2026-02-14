@@ -27,10 +27,10 @@ function createWindow(): void {
 
   mainWindow = new BrowserWindow({
     title: "Canyon Editor",
-    width: 1280,
-    height: 820,
-    minWidth: 960,
-    minHeight: 640,
+    width: 1664,
+    height: 1066,
+    minWidth: 1248,
+    minHeight: 832,
     autoHideMenuBar: true,
     ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {

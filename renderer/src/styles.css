@@ -280,6 +280,36 @@ button {
   height: 100%;
 }
 
+.map-style-toggle {
+  position: absolute;
+  top: 10px;
+  right: 56px;
+  z-index: 15;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.2);
+}
+
+.map-style-toggle:hover {
+  background: #f8fafc;
+}
+
+.map-style-toggle svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+}
+
 .map-context-menu-layer {
   position: absolute;
   inset: 0;
@@ -338,6 +368,16 @@ button {
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.2);
+}
+
+.map-context-submenu-insert {
+  max-height: calc(10 * 35px + 8px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.map-context-submenu-insert button {
+  min-height: 35px;
 }
 
 .route-point-marker {
