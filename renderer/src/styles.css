@@ -731,8 +731,9 @@ button {
   border-radius: 7px;
   background: #ffffff;
   color: #0f172a;
-  padding: 4px 7px;
-  font-size: 0.82rem;
+  padding: 6px 9px;
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .json-array-item-actions {
@@ -841,6 +842,11 @@ button {
   font-size: 0.75rem;
   color: #475569;
   font-weight: 600;
+}
+
+.json-descriptions-plain {
+  display: grid;
+  gap: 6px;
 }
 
 .json-two-col-row {

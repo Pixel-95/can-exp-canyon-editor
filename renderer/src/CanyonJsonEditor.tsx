@@ -977,6 +977,9 @@ export function CanyonJsonEditor(): JSX.Element {
                     isSectionsArray && isJsonObject(item) && typeof item.name === "string"
                       ? item.name
                       : "";
+                  const collapseLabel = isSectionsArray
+                    ? itemCollapsed ? "+" : "-"
+                    : `${itemCollapsed ? "+" : "-"} ${itemTitle}`;
 
                   return (
                     <article key={itemPathKey} className="json-array-item">
@@ -987,13 +990,14 @@ export function CanyonJsonEditor(): JSX.Element {
                             className="json-collapse-button"
                             onClick={() =>
                               setCollapsedGroups((current) => ({
-                                ...current,
-                                [itemPathKey]: !itemCollapsed,
-                              }))
-                            }
-                          >
-                            {itemCollapsed ? "+" : "-"} {itemTitle}
-                          </button>
+                              ...current,
+                              [itemPathKey]: !itemCollapsed,
+                            }))
+                          }
+                          aria-label={`${itemCollapsed ? "Expand" : "Collapse"} ${itemTitle}`}
+                        >
+                          {collapseLabel}
+                        </button>
                           {isSectionsArray ? (
                             <input
                               type="text"
@@ -1187,6 +1191,18 @@ export function CanyonJsonEditor(): JSX.Element {
 
         if (entries.length === 0 && path.length > 0) {
           return null;
+        }
+
+        if (isSectionDescriptionsPath(path)) {
+          return (
+            <div className="json-descriptions-plain">
+              {entries.map(([key, child]) => (
+                <div className="json-field-row" key={`${pathKey}.${key}`}>
+                  {renderNode(child, [...path, key], key)}
+                </div>
+              ))}
+            </div>
+          );
         }
 
         const normalEntries = isSectionPath(path)
