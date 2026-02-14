@@ -1,0 +1,795 @@
+{
+    "canyon_name": "Kobelache - Kangaroo Jump",
+    "date": "2025-12-11",
+    "maximum_walk_length": 30.0,
+    "distance_of_single_line": 60.0,
+    "legend_offset_top": 0.0,
+    "segments": [
+        {
+            "type": "WALK",
+            "length_in_meters": 5,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "JUMP",
+            "length_in_meters": 9,
+            "angle_in_degrees": 95,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "BOLT_RIGHT",
+                    "horizontal_start_rel_to_segment_start": -1,
+                    "vertical_start_rel_to_segment_start": 1,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "POOL",
+            "length_in_meters": 7,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 8.5,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 1.5,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 2.5,
+                    "text": ""
+                },
+                {
+                    "type": "ROPE_RAILING_LEFT",
+                    "horizontal_start_rel_to_segment_start": 2.5,
+                    "vertical_start_rel_to_segment_start": 4.5,
+                    "horizontal_end_rel_to_segment_start": 8,
+                    "vertical_end_rel_to_segment_start": 1.8,
+                    "size": 1.0,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "RAPPEL",
+            "length_in_meters": 7,
+            "angle_in_degrees": 90,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "BOLT_LEFT",
+                    "horizontal_start_rel_to_segment_start": -1,
+                    "vertical_start_rel_to_segment_start": 1,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "POOL",
+            "length_in_meters": 4,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 8,
+            "angle_in_degrees": 5,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 7,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.5,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "JUMP",
+            "length_in_meters": 2,
+            "angle_in_degrees": 90,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "POOL",
+            "length_in_meters": 3,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 5,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "POOL",
+            "length_in_meters": 10,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "TRUNK",
+                    "horizontal_start_rel_to_segment_start": 0,
+                    "vertical_start_rel_to_segment_start": -0.5,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                },
+                {
+                    "type": "WARNING_AND_TEXT",
+                    "horizontal_start_rel_to_segment_start": 2,
+                    "vertical_start_rel_to_segment_start": 5,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": "danger of\nrockfall"
+                }
+            ]
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 5,
+            "angle_in_degrees": 15,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 9,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 5,
+                    "text": ""
+                },
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 1.5,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 0.5,
+                    "text": ""
+                },
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 3,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 0.8,
+                    "text": ""
+                },
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 12,
+                    "vertical_start_rel_to_segment_start": -1,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 2.5,
+                    "text": ""
+                },
+                {
+                    "type": "BOLT_RIGHT",
+                    "horizontal_start_rel_to_segment_start": 0,
+                    "vertical_start_rel_to_segment_start": 2,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 10,
+            "angle_in_degrees": 15,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "CUSTOM_TEXT",
+                    "horizontal_start_rel_to_segment_start": 8,
+                    "vertical_start_rel_to_segment_start": 7,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": "↙ Felssturz"
+                }
+            ]
+        },
+        {
+            "type": "POOL",
+            "length_in_meters": 8,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 6.5,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.5,
+                    "text": ""
+                },
+                {
+                    "type": "ROPE_RAILING_RIGHT",
+                    "horizontal_start_rel_to_segment_start": -4,
+                    "vertical_start_rel_to_segment_start": 3.5,
+                    "horizontal_end_rel_to_segment_start": 7,
+                    "vertical_end_rel_to_segment_start": 2,
+                    "size": 1.0,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 10,
+            "angle_in_degrees": 5,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "CAVE",
+                    "horizontal_start_rel_to_segment_start": 9,
+                    "vertical_start_rel_to_segment_start": -1,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 10,
+            "angle_in_degrees": 20,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 8.5,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 2,
+                    "text": ""
+                },
+                {
+                    "type": "TRUNK",
+                    "horizontal_start_rel_to_segment_start": 6.7,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "CLIMB",
+            "length_in_meters": 5,
+            "angle_in_degrees": 80,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 13,
+            "angle_in_degrees": 5,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "CAVE",
+                    "horizontal_start_rel_to_segment_start": 7,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "SLIDE",
+            "length_in_meters": 5,
+            "angle_in_degrees": 50,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "POOL",
+            "length_in_meters": 5,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 8,
+            "angle_in_degrees": 20,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "CLIMB",
+            "length_in_meters": 3,
+            "angle_in_degrees": 80,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "BOLT_LEFT",
+                    "horizontal_start_rel_to_segment_start": -1,
+                    "vertical_start_rel_to_segment_start": 1,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                },
+                {
+                    "type": "CUSTOM_TEXT",
+                    "horizontal_start_rel_to_segment_start": -2.5,
+                    "vertical_start_rel_to_segment_start": 5.5,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": "↙ Tarzan"
+                }
+            ]
+        },
+        {
+            "type": "POOL",
+            "length_in_meters": 5,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 3,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 2,
+            "angle_in_degrees": -60,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "ROPE_RAILING_RIGHT",
+                    "horizontal_start_rel_to_segment_start": 0.5,
+                    "vertical_start_rel_to_segment_start": 1.5,
+                    "horizontal_end_rel_to_segment_start": 3,
+                    "vertical_end_rel_to_segment_start": 0,
+                    "size": 1.0,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 2,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 10,
+            "angle_in_degrees": 30,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "ROPE_RAILING_LEFT",
+                    "horizontal_start_rel_to_segment_start": 0,
+                    "vertical_start_rel_to_segment_start": 1,
+                    "horizontal_end_rel_to_segment_start": 13,
+                    "vertical_end_rel_to_segment_start": 1,
+                    "size": 1.0,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "JUMP",
+            "length_in_meters": 8,
+            "angle_in_degrees": 85,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "POOL",
+            "length_in_meters": 7,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 30,
+            "angle_in_degrees": 10,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "ROPE_RAILING_LEFT",
+                    "horizontal_start_rel_to_segment_start": 0,
+                    "vertical_start_rel_to_segment_start": 1,
+                    "horizontal_end_rel_to_segment_start": 5,
+                    "vertical_end_rel_to_segment_start": 1,
+                    "size": 1.0,
+                    "text": ""
+                },
+                {
+                    "type": "ESCAPE_EXIT_RIGHT",
+                    "horizontal_start_rel_to_segment_start": 3,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                },
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 6,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1,
+                    "text": ""
+                },
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 8,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1,
+                    "text": ""
+                },
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 10,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 0.5,
+                    "text": ""
+                },
+                {
+                    "type": "CAVE",
+                    "horizontal_start_rel_to_segment_start": 20,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 15,
+            "angle_in_degrees": 5,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "CAVE",
+                    "horizontal_start_rel_to_segment_start": 5,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 5,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "JUMP",
+            "length_in_meters": 5,
+            "angle_in_degrees": 95,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "POOL",
+            "length_in_meters": 4,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 5,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "RAPPEL",
+            "length_in_meters": 18,
+            "angle_in_degrees": 90,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "BOLT_RIGHT",
+                    "horizontal_start_rel_to_segment_start": -2.5,
+                    "vertical_start_rel_to_segment_start": 1,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                },
+                {
+                    "type": "BOLT_LEFT",
+                    "horizontal_start_rel_to_segment_start": -1,
+                    "vertical_start_rel_to_segment_start": 3,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                },
+                {
+                    "type": "CUSTOM_TEXT",
+                    "horizontal_start_rel_to_segment_start": 7,
+                    "vertical_start_rel_to_segment_start": 7,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": "↙ Dom"
+                }
+            ]
+        },
+        {
+            "type": "POOL",
+            "length_in_meters": 10,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 10,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 50,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": 5,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 5,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 0.5,
+                    "text": ""
+                },
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 7,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1,
+                    "text": ""
+                },
+                {
+                    "type": "ESCAPE_EXIT_RIGHT",
+                    "horizontal_start_rel_to_segment_start": 49,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                },
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 46,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.1,
+                    "text": ""
+                },
+                {
+                    "type": "STONE",
+                    "horizontal_start_rel_to_segment_start": 48,
+                    "vertical_start_rel_to_segment_start": 0,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 0.8,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "CLIMB",
+            "length_in_meters": 3,
+            "angle_in_degrees": 70,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 4,
+            "angle_in_degrees": 20,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "ROPE_RAILING_RIGHT",
+                    "horizontal_start_rel_to_segment_start": 0,
+                    "vertical_start_rel_to_segment_start": 1.5,
+                    "horizontal_end_rel_to_segment_start": 3,
+                    "vertical_end_rel_to_segment_start": 1,
+                    "size": 1.0,
+                    "text": ""
+                }
+            ]
+        },
+        {
+            "type": "JUMP",
+            "length_in_meters": 8,
+            "angle_in_degrees": 95,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": [
+                {
+                    "type": "BOLT_RIGHT",
+                    "horizontal_start_rel_to_segment_start": -1,
+                    "vertical_start_rel_to_segment_start": 1,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": ""
+                },
+                {
+                    "type": "CUSTOM_TEXT",
+                    "horizontal_start_rel_to_segment_start": 2,
+                    "vertical_start_rel_to_segment_start": 7,
+                    "horizontal_end_rel_to_segment_start": null,
+                    "vertical_end_rel_to_segment_start": null,
+                    "size": 1.0,
+                    "text": "↙ Narrenloch"
+                }
+            ]
+        },
+        {
+            "type": "POOL",
+            "length_in_meters": 8,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        },
+        {
+            "type": "WALK",
+            "length_in_meters": 5,
+            "angle_in_degrees": 0,
+            "duration_to_walk_in_min": null,
+            "do_not_cut_row_after_this_segment": false,
+            "force_cut_row_after_this_segment": false,
+            "elements": []
+        }
+    ]
+}

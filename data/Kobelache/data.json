@@ -1,0 +1,311 @@
+{
+  "id": 0,
+  "coordinates": [
+    9.78948,
+    47.384366
+  ],
+  "name": "Kobelache",
+  "description": {
+    "en": "Beautiful canyon in with a lot of jumps, slides and rapells.",
+    "de": "Wunderschöner Canyon mit vielen Sprüngen, Rutschen und Abseilstellen.",
+    "es": "Hermoso cañón con muchos saltos, toboganes y rápeles.",
+    "fr": "Beau canyon avec de nombreux sauts, toboggans et descentes en rappel.",
+    "it": "Bellissimo canyon con molti salti, scivoli e calate.",
+    "pt": "Belo cânion com muitos saltos, escorregas e rapéis."
+  },
+  "location": {
+    "country_code": "AUT",
+    "region_code": "VOR"
+  },
+  "parking_lots": [
+    {
+      "coordinates": [
+        9.777093,
+        47.389767
+      ],
+      "name": {
+        "en": "big parking lot",
+        "de": "großer Parkplatz",
+        "es": "gran aparcamiento",
+        "fr": "grand parking",
+        "it": "grande parcheggio",
+        "pt": "grande estacionamento"
+      }
+    },
+    {
+      "coordinates": [
+        9.787126,
+        47.374731
+      ],
+      "name": {
+        "en": "small gravel area",
+        "de": "kleine Schotterfläche",
+        "es": "pequeña área de grava",
+        "fr": "petite zone de gravier",
+        "it": "piccola area ghiaiosa",
+        "pt": "pequena área de cascalho"
+      }
+    }
+  ],
+  "points_of_interest": [
+    {
+      "coordinates": [
+        9.78087356398331,
+        47.389966459160185
+      ],
+      "name": {
+        "en": "Canyoning base",
+        "de": "Canyoning Base",
+        "es": "Base de barranquismo",
+        "fr": "Base de canyoning",
+        "it": "Base canyoning",
+        "pt": "Base de canionismo"
+      },
+      "description": {
+        "en": "Blue River Canyoning",
+        "de": "Blue River Canyoning",
+        "es": "Blue River Canyoning",
+        "fr": "Blue River Canyoning",
+        "it": "Blue River Canyoning",
+        "pt": "Blue River Canyoning"
+      }
+    },
+    {
+      "coordinates": [
+        9.789316,
+        47.383761
+      ],
+      "name": {
+        "en": "Wooden bridge",
+        "de": "Holzbrücke",
+        "es": "Puente de madera",
+        "fr": "Pont en bois",
+        "it": "Ponte di legno",
+        "pt": "Ponte de madeira"
+      },
+      "description": {
+        "en": "Amannsbridge",
+        "de": "Amannsbrücke",
+        "es": "Puente Amanns",
+        "fr": "Pont Amanns",
+        "it": "Ponte Amanns",
+        "pt": "Ponte Amanns"
+      }
+    },
+    {
+      "coordinates": [
+        9.783140897557155,
+        47.37837770173814
+      ],
+      "name": {
+        "en": "Bus Stop",
+        "de": "Bushaltestelle",
+        "es": "Parada de autobús",
+        "fr": "Arrêt de bus",
+        "it": "Fermata dell'autobus",
+        "pt": "Parada de ônibus"
+      },
+      "description": {
+        "en": "",
+        "de": "",
+        "es": "",
+        "fr": "",
+        "it": "",
+        "pt": ""
+      }
+    }
+  ],
+  "tracks_access": [
+    "./tracks/Kangaroo Jump - Ausstieg.json",
+    "./tracks/Kangaroo Jump - Zustieg.json",
+    "./tracks/Merlins World - Zustieg.json",
+    "./tracks/Kobelache_ZustiegMueselbach.json"
+  ],
+  "cover_image": "./pictures/_cover/LQ/PXL_20250426_103157646~3.jpg",
+  "sections": [
+    {
+      "id": 0,
+      "name": "Merlin's World",
+      "authors": [
+        "Mario Zinsser"
+      ],
+      "descriptions": {
+        "approach": {
+          "en": "Start next to the bridge and follow the river. Follow the river until it cuts in after about 5 minutes of walking and the first abseiling point appears",
+          "de": "Starte neben der Brücke und folge dem Fluss. Nach etwa 5 Minuten biegt der Fluss ein und der erste Abseilpunkt erscheint.",
+          "es": "Comienza junto al puente y sigue el río. Después de unos 5 minutos, el río se encajona y aparece el primer punto de rápel.",
+          "fr": "Commencez à côté du pont et suivez la rivière. Après environ 5 minutes, la rivière se creuse et le premier point de rappel apparaît.",
+          "it": "Inizia vicino al ponte e segui il fiume. Dopo circa 5 minuti il fiume si restringe e appare il primo punto di calata.",
+          "pt": "Comece ao lado da ponte e siga o rio. Após cerca de 5 minutos, o rio se estreita e aparece o primeiro ponto de rapel."
+        },
+        "canyon": {
+          "en": "Beautiful canyon with lots or jumps, slides and rappels and also one short via ferrata downwards.",
+          "de": "Wunderschöner Canyon mit vielen Sprüngen, Rutschen und Abseilpassagen sowie einer kurzen Kletterpassage über ein Klettersteigseil.",
+          "es": "Hermoso cañón con muchos saltos, toboganes y rápeles, y también una corta vía ferrata en bajada.",
+          "fr": "Beau canyon avec de nombreux sauts, toboggans et rappels, ainsi qu'une courte via ferrata descendante.",
+          "it": "Bellissimo canyon con molti salti, scivoli e calate, e anche una breve via ferrata in discesa.",
+          "pt": "Belo cânion com muitos saltos, escorregas e rapéis, e também uma curta via ferrata descendente."
+        },
+        "exit": {
+          "en": "After the last jump, turn right orographically up the forest path for about 4 minutes until you reach the hiking trail. Follow the hiking trail downhill until you reach the Gütle inn after about 15 minutes.",
+          "de": "Nach dem letzten Sprung orografisch rechts den Waldweg etwa 4 Minuten bergauf, bis man auf den Wanderweg trifft. Folge diesem bergab und erreiche nach ca. 15 Minuten das Gasthaus Gütle.",
+          "es": "Después del último salto, gira a la derecha orográficamente por el sendero del bosque durante unos 4 minutos hasta llegar al sendero de senderismo. Sigue el sendero cuesta abajo hasta llegar al mesón Gütle en unos 15 minutos.",
+          "fr": "Après le dernier saut, tournez à droite orographiquement et montez le chemin forestier pendant environ 4 minutes jusqu'au sentier de randonnée. Suivez-le en descente jusqu'à l'auberge Gütle après environ 15 minutes.",
+          "it": "Dopo l'ultimo salto, gira a destra orograficamente e sali per il sentiero nel bosco per circa 4 minuti fino al sentiero escursionistico. Seguilo in discesa fino alla locanda Gütle (circa 15 minuti).",
+          "pt": "Após o último salto, vire à direita orograficamente e suba pelo caminho na floresta por cerca de 4 minutos até encontrar a trilha de caminhada. Siga a trilha para baixo até chegar à pousada Gütle (cerca de 15 minutos)."
+        }
+      },
+      "special_notes": [],
+      "difficulties": {
+        "vertical": 3,
+        "aquatic": 2,
+        "general": 3
+      },
+      "durations_in_minutes": {
+        "approach_no_shuttle": 90,
+        "approach_with_shuttle": 0,
+        "canyon": 150,
+        "exit_no_shuttle": 15,
+        "exit_with_shuttle": 15
+      },
+      "tour_dimensions_in_meter": {
+        "elevation_start": 800,
+        "elevation_exit": 670,
+        "horizontal_length": 1500
+      },
+      "max_rappel_in_meter": 12,
+      "recommended_ropes": "1x 30m",
+      "subjective_rating": 0,
+      "quality_anchoring": 0,
+      "subjective_rating_count": 0,
+      "quality_anchoring_count": 0,
+      "track_canyon": "./tracks/Merlins World.json",
+      "topo": "./topos/MerlinsWorld.webp",
+      "official_partner": null,
+      "images": {
+        "cover": {
+          "local": "./pictures/Merlin's World/LQ/cover/PXL_20250426_103157646~3.jpg",
+          "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/cover/PXL_20250426_103157646~3.jpg"
+        },
+        "additional": [
+          {
+            "local": "./pictures/Merlin's World/LQ/additional/IMG-20250126-WA0007.jpg",
+            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/IMG-20250126-WA0007.jpg"
+          },
+          {
+            "local": "./pictures/Merlin's World/LQ/additional/PXL_20250606_122432774.jpg",
+            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/PXL_20250606_122432774.jpg"
+          },
+          {
+            "local": "./pictures/Merlin's World/LQ/additional/PXL_20250606_124949728.jpg",
+            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/PXL_20250606_124949728.jpg"
+          },
+          {
+            "local": "./pictures/Merlin's World/LQ/additional/PXL_20250606_130107521.jpg",
+            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/PXL_20250606_130107521.jpg"
+          },
+          {
+            "local": "./pictures/Merlin's World/LQ/additional/PXL_20250628_091215232~3.jpg",
+            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/PXL_20250628_091215232~3.jpg"
+          },
+          {
+            "local": "./pictures/Merlin's World/LQ/additional/PXL_20250628_093312460~2.jpg",
+            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/PXL_20250628_093312460~2.jpg"
+          },
+          {
+            "local": "./pictures/Merlin's World/LQ/additional/c664fe33-27c6-428f-8bdd-29e75ad91358.jpg",
+            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/c664fe33-27c6-428f-8bdd-29e75ad91358.jpg"
+          }
+        ]
+      }
+    },
+    {
+      "id": 1,
+      "name": "Kangaroo Jump",
+      "authors": [
+        "Mario Zinsser"
+      ],
+      "descriptions": {
+        "approach": {
+          "en": "From Gasthof Gütle, take the hiking trail in the direction of Kehlegg. After approx. 25 minutes, go right in the direction of Amannsbridge and after approx. 50m take the forest path down to the starting point.",
+          "de": "Vom Gasthof Gütle aus dem Wanderweg in Richtung Kehlegg folgen. Nach ca. 25 Minuten rechts Richtung Amannsbrücke abbiegen und nach ca. 50m den Waldweg nach unten zum Einstieg nehmen.",
+          "es": "Desde el Gasthof Gütle, toma el sendero en dirección a Kehlegg. Después de unos 25 minutos, gira a la derecha hacia el puente Amanns y tras unos 50 m toma el sendero forestal hacia abajo hasta el punto de inicio.",
+          "fr": "Depuis l'auberge Gütle, prenez le sentier en direction de Kehlegg. Après environ 25 minutes, tournez à droite vers le pont Amanns, puis après environ 50 m, prenez le sentier forestier qui descend jusqu'au point de départ.",
+          "it": "Dal Gasthof Gütle, segui il sentiero in direzione Kehlegg. Dopo circa 25 minuti, gira a destra verso il ponte Amanns e dopo circa 50 m prendi il sentiero nel bosco che scende fino al punto di partenza.",
+          "pt": "A partir do Gasthof Gütle, siga a trilha em direção a Kehlegg. Após cerca de 25 minutos, vire à direita em direção à ponte Amanns e, após cerca de 50 m, pegue o caminho na floresta até o ponto de partida."
+        },
+        "canyon": {
+          "en": "Cool canyon with nice rappels, slides, and jumps. Has also some climbing passages through caves.",
+          "de": "Cooler Canyon mit schönen Abseilpassagen, Rutschen und Sprüngen. Es gibt auch einige Kletterstellen durch Höhlen.",
+          "es": "Cañón espectacular con bonitos rápeles, toboganes y saltos. También hay algunos pasos de escalada a través de cuevas.",
+          "fr": "Canyon impressionnant avec de beaux rappels, toboggans et sauts. Il y a aussi des passages d'escalade à travers des grottes.",
+          "it": "Canyon molto bello con belle calate, scivoli e salti. Ci sono anche dei passaggi in arrampicata attraverso grotte.",
+          "pt": "Cânion incrível com bonitos rapéis, escorregas e saltos. Também há alguns trechos de escalada por cavernas."
+        },
+        "exit": {
+          "en": "Follow the river and get out after about 100m on the right along the steel chain over the wooden fence. This path leads directly back to the Gütle inn.",
+          "de": "Dem Fluss folgen und nach ca. 100m rechts entlang der Stahlkette über den Holzzaun aussteigen. Dieser Weg führt direkt zurück zum Gasthof Gütle.",
+          "es": "Sigue el río y sal tras unos 100 m por la derecha, siguiendo la cadena de acero sobre la valla de madera. Este camino lleva directamente de regreso al mesón Gütle.",
+          "fr": "Suivez la rivière et sortez après environ 100 m sur la droite le long de la chaîne en acier au-dessus de la clôture en bois. Ce chemin mène directement à l'auberge Gütle.",
+          "it": "Segui il fiume e, dopo circa 100 m, esci sulla destra lungo la catena d'acciaio sopra la recinzione di legno. Questo sentiero porta direttamente alla locanda Gütle.",
+          "pt": "Siga o rio e saia após cerca de 100 m à direita ao longo da corrente de aço sobre a cerca de madeira. Este caminho leva diretamente de volta à pousada Gütle."
+        }
+      },
+      "special_notes": [],
+      "difficulties": {
+        "vertical": 3,
+        "aquatic": 3,
+        "general": 3
+      },
+      "durations_in_minutes": {
+        "approach_no_shuttle": 20,
+        "approach_with_shuttle": 20,
+        "canyon": 120,
+        "exit_no_shuttle": 5,
+        "exit_with_shuttle": 5
+      },
+      "tour_dimensions_in_meter": {
+        "elevation_start": 670,
+        "elevation_exit": 580,
+        "horizontal_length": 500
+      },
+      "max_rappel_in_meter": 18,
+      "recommended_ropes": "1x 40m",
+      "subjective_rating": 0,
+      "quality_anchoring": 0,
+      "subjective_rating_count": 0,
+      "quality_anchoring_count": 0,
+      "official_partner": null,
+      "track_canyon": "./tracks/Kangaroo Jump.json",
+      "topo": "./topos/KangarooJump.webp",
+      "images": {
+        "cover": {
+          "local": "./pictures/Kangaroo Jump/LQ/cover/IMG-20250126-WA0011.jpg",
+          "remote_key": "CanyonImages/Kobelache/pictures/Kangaroo Jump/HQ/cover/IMG-20250126-WA0011.jpg"
+        },
+        "additional": [
+          {
+            "local": "./pictures/Kangaroo Jump/LQ/additional/Fotor_159803096556075.jpg",
+            "remote_key": "CanyonImages/Kobelache/pictures/Kangaroo Jump/HQ/additional/Fotor_159803096556075.jpg"
+          },
+          {
+            "local": "./pictures/Kangaroo Jump/LQ/additional/Fotor_159803112620728.jpg",
+            "remote_key": "CanyonImages/Kobelache/pictures/Kangaroo Jump/HQ/additional/Fotor_159803112620728.jpg"
+          },
+          {
+            "local": "./pictures/Kangaroo Jump/LQ/additional/Fotor_159803123300774.jpg",
+            "remote_key": "CanyonImages/Kobelache/pictures/Kangaroo Jump/HQ/additional/Fotor_159803123300774.jpg"
+          },
+          {
+            "local": "./pictures/Kangaroo Jump/LQ/additional/IMG-20250126-WA0009.jpg",
+            "remote_key": "CanyonImages/Kobelache/pictures/Kangaroo Jump/HQ/additional/IMG-20250126-WA0009.jpg"
+          },
+          {
+            "local": "./pictures/Kangaroo Jump/LQ/additional/f9ab9f43-6aa7-45b3-886d-3397ead0280f.jpg",
+            "remote_key": "CanyonImages/Kobelache/pictures/Kangaroo Jump/HQ/additional/f9ab9f43-6aa7-45b3-886d-3397ead0280f.jpg"
+          }
+        ]
+      }
+    }
+  ]
+}
