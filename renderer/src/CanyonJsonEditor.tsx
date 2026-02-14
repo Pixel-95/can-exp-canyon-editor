@@ -543,7 +543,7 @@ export function CanyonJsonEditor(): JSX.Element {
       if (!result.canceled && result.data && isJsonObject(result.data)) {
         setCanyonData(withGeneratedSectionIds(cloneJsonValue(result.data)));
         setCurrentFilePath(result.filePath ?? null);
-        setStatusMessage(`Loaded ${result.filePath ?? DEFAULT_JSON_PATH}`);
+        setStatusMessage(result.filePath ?? DEFAULT_JSON_PATH);
         return;
       }
 
@@ -602,6 +602,19 @@ export function CanyonJsonEditor(): JSX.Element {
       return;
     }
 
+    if (!selectedCountryCode) {
+      return;
+    }
+
+    const selectedCountry = countryByCode.get(selectedCountryCode);
+    if (!selectedCountry) {
+      return;
+    }
+
+    if (selectedCountry.regions.length === 0) {
+      return;
+    }
+
     const regionValue = valueAtPath(canyonData, ["location", "region_code"]);
     if (typeof regionValue !== "string") {
       return;
@@ -611,11 +624,11 @@ export function CanyonJsonEditor(): JSX.Element {
       return;
     }
 
-    const validRegionCodes = new Set(selectedCountryRegions.map((region) => region.code));
+    const validRegionCodes = new Set(selectedCountry.regions.map((region) => region.code));
     if (!validRegionCodes.has(regionValue)) {
-      setPathValue(["location", "region_code"], selectedCountryRegions[0]?.code ?? "");
+      setPathValue(["location", "region_code"], selectedCountry.regions[0]?.code ?? "");
     }
-  }, [canyonData, selectedCountryRegions, setPathValue]);
+  }, [canyonData, countryByCode, selectedCountryCode, setPathValue]);
 
   const onLoadJson = useCallback(async (): Promise<void> => {
     const result = await window.api.loadJsonFromDialog();
@@ -640,7 +653,7 @@ export function CanyonJsonEditor(): JSX.Element {
     setInputDrafts({});
     setCollapsedGroups({});
     setLanguageTabs({});
-    setStatusMessage(`Loaded ${result.filePath ?? "JSON file"}`);
+    setStatusMessage(result.filePath ?? "JSON file");
   }, []);
 
   const onNewJson = useCallback(async (): Promise<void> => {
@@ -784,11 +797,13 @@ export function CanyonJsonEditor(): JSX.Element {
           languageTabs[pathKey] && languages.includes(languageTabs[pathKey])
             ? languageTabs[pathKey]
             : languages[0] ?? "";
+        const cardTitle =
+          path.length === 1 && path[0] === "description" ? "Short Characteristic" : titleCase(label);
 
         return (
           <section className="json-card">
             <div className="json-card-header">
-              <h3>{titleCase(label)}</h3>
+              <h3>{cardTitle}</h3>
               <div className="json-inline-actions">
                 <button
                   type="button"
@@ -1279,12 +1294,15 @@ export function CanyonJsonEditor(): JSX.Element {
         const normalEntries = isSectionPath(path)
           ? entries.filter(
               ([entryKey]) =>
-                entryKey !== "max_rappel_in_meter" && entryKey !== "recommended_ropes",
+                entryKey !== "max_rappel_in_meter" &&
+                entryKey !== "recommended_ropes" &&
+                entryKey !== "topo",
             )
           : entries;
 
         const maxRappelValue = isSectionPath(path) ? value.max_rappel_in_meter ?? null : null;
         const recommendedRopesValue = isSectionPath(path) ? value.recommended_ropes ?? null : null;
+        const topoValue = isSectionPath(path) && typeof value.topo === "string" ? value.topo : null;
         const objectBody = (
           <div className="json-object-body">
             {normalEntries.map(([key, child]) => (
@@ -1304,6 +1322,11 @@ export function CanyonJsonEditor(): JSX.Element {
                     {renderNode(recommendedRopesValue, [...path, "recommended_ropes"], "recommended_ropes")}
                   </div>
                 ) : null}
+              </div>
+            ) : null}
+            {isSectionPath(path) && topoValue !== null ? (
+              <div className="json-field-row">
+                {renderNode(topoValue, [...path, "topo"], "topo")}
               </div>
             ) : null}
           </div>
@@ -1507,7 +1530,6 @@ export function CanyonJsonEditor(): JSX.Element {
       <section className="json-editor-body">
         {canyonData ? (
           <>
-            <div className="json-file-path">{currentFilePath ?? "Unsaved JSON"}</div>
             {renderNode(canyonData, [], "Canyon")}
           </>
         ) : (
