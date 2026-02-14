@@ -707,6 +707,14 @@ button {
   border-bottom: 1px solid #dbeafe;
 }
 
+.json-array-item-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .json-array-item-header button {
   border: 1px solid #94a3b8;
   border-radius: 7px;
@@ -714,6 +722,17 @@ button {
   padding: 4px 7px;
   cursor: pointer;
   font-size: 0.8rem;
+}
+
+.json-section-name-header-input {
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 1px solid #94a3b8;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 4px 7px;
+  font-size: 0.82rem;
 }
 
 .json-array-item-actions {
@@ -805,6 +824,28 @@ button {
 .json-difficulties-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.json-horizontal-fields {
+  display: grid;
+  gap: 6px;
+}
+
+.json-horizontal-field-item {
+  display: grid;
+  gap: 3px;
+}
+
+.json-horizontal-field-item span {
+  font-size: 0.75rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.json-two-col-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -910,5 +951,13 @@ button {
 
   .json-location-row {
     grid-template-columns: 1fr;
+  }
+
+  .json-two-col-row {
+    grid-template-columns: 1fr;
+  }
+
+  .json-horizontal-fields {
+    grid-template-columns: 1fr !important;
   }
 }

@@ -29,6 +29,14 @@ const SECTION_EDITABLE_KEYS = new Set([
   "topo",
 ]);
 const SECTION_DESCRIPTION_KEYS = new Set(["approach", "canyon", "exit"]);
+const SECTION_DURATION_KEYS = [
+  "approach_no_shuttle",
+  "approach_with_shuttle",
+  "canyon",
+  "exit_no_shuttle",
+  "exit_with_shuttle",
+] as const;
+const SECTION_DIMENSION_KEYS = ["elevation_start", "elevation_exit", "horizontal_length"] as const;
 const IGNORED_KEYS = new Set([
   "coordinates",
   "parking_lots",
@@ -82,6 +90,24 @@ function isDifficultiesPath(path: PathSegment[]): boolean {
     path[0] === "sections" &&
     typeof path[1] === "number" &&
     path[2] === "difficulties"
+  );
+}
+
+function isDurationsPath(path: PathSegment[]): boolean {
+  return (
+    path.length === 3 &&
+    path[0] === "sections" &&
+    typeof path[1] === "number" &&
+    path[2] === "durations_in_minutes"
+  );
+}
+
+function isTourDimensionsPath(path: PathSegment[]): boolean {
+  return (
+    path.length === 3 &&
+    path[0] === "sections" &&
+    typeof path[1] === "number" &&
+    path[2] === "tour_dimensions_in_meter"
   );
 }
 
@@ -218,6 +244,10 @@ function shouldRenderChild(parentPath: PathSegment[], key: string, value: JsonVa
   }
 
   if (isSectionPath(parentPath)) {
+    if (key === "name") {
+      return false;
+    }
+
     return SECTION_EDITABLE_KEYS.has(key);
   }
 
@@ -943,22 +973,38 @@ export function CanyonJsonEditor(): JSX.Element {
                   const itemPathKey = toPathKey(itemPath);
                   const itemCollapsed = collapsedGroups[itemPathKey] ?? false;
                   const itemTitle = isSectionPath(itemPath) ? `Section ${index + 1}` : `Element ${index + 1}`;
+                  const sectionName =
+                    isSectionsArray && isJsonObject(item) && typeof item.name === "string"
+                      ? item.name
+                      : "";
 
                   return (
                     <article key={itemPathKey} className="json-array-item">
                       <div className="json-array-item-header">
-                        <button
-                          type="button"
-                          className="json-collapse-button"
-                          onClick={() =>
-                            setCollapsedGroups((current) => ({
-                              ...current,
-                              [itemPathKey]: !itemCollapsed,
-                            }))
-                          }
-                        >
-                          {itemCollapsed ? "+" : "-"} {itemTitle}
-                        </button>
+                        <div className="json-array-item-main">
+                          <button
+                            type="button"
+                            className="json-collapse-button"
+                            onClick={() =>
+                              setCollapsedGroups((current) => ({
+                                ...current,
+                                [itemPathKey]: !itemCollapsed,
+                              }))
+                            }
+                          >
+                            {itemCollapsed ? "+" : "-"} {itemTitle}
+                          </button>
+                          {isSectionsArray ? (
+                            <input
+                              type="text"
+                              className="json-section-name-header-input"
+                              value={sectionName}
+                              onChange={(event) => setPathValue([...itemPath, "name"], event.target.value)}
+                              placeholder="Section name"
+                              aria-label={`Section ${index + 1} name`}
+                            />
+                          ) : null}
+                        </div>
                         <div className="json-array-item-actions">
                           {isSectionsArray ? (
                             <>
@@ -1069,6 +1115,72 @@ export function CanyonJsonEditor(): JSX.Element {
           );
         }
 
+        if (isDurationsPath(path)) {
+          return (
+            <div className="json-input-field">
+              <label>{titleCase(label)}</label>
+              <div
+                className="json-horizontal-fields"
+                style={{ gridTemplateColumns: `repeat(${SECTION_DURATION_KEYS.length}, minmax(0, 1fr))` }}
+              >
+                {SECTION_DURATION_KEYS.map((fieldKey) => {
+                  const fieldPath = [...path, fieldKey];
+                  const fieldPathKey = toPathKey(fieldPath);
+                  const fieldValue = value[fieldKey];
+                  const displayValue =
+                    inputDrafts[fieldPathKey] ??
+                    (typeof fieldValue === "number" ? String(fieldValue) : "");
+
+                  return (
+                    <label key={fieldKey} className="json-horizontal-field-item">
+                      <span>{titleCase(fieldKey)}</span>
+                      <input
+                        type="number"
+                        value={displayValue}
+                        onChange={(event) => onNumberDraftChange(fieldPath, event.target.value)}
+                        onBlur={() => clearDraft(fieldPathKey)}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
+        if (isTourDimensionsPath(path)) {
+          return (
+            <div className="json-input-field">
+              <label>{titleCase(label)}</label>
+              <div
+                className="json-horizontal-fields"
+                style={{ gridTemplateColumns: `repeat(${SECTION_DIMENSION_KEYS.length}, minmax(0, 1fr))` }}
+              >
+                {SECTION_DIMENSION_KEYS.map((fieldKey) => {
+                  const fieldPath = [...path, fieldKey];
+                  const fieldPathKey = toPathKey(fieldPath);
+                  const fieldValue = value[fieldKey];
+                  const displayValue =
+                    inputDrafts[fieldPathKey] ??
+                    (typeof fieldValue === "number" ? String(fieldValue) : "");
+
+                  return (
+                    <label key={fieldKey} className="json-horizontal-field-item">
+                      <span>{titleCase(fieldKey)}</span>
+                      <input
+                        type="number"
+                        value={displayValue}
+                        onChange={(event) => onNumberDraftChange(fieldPath, event.target.value)}
+                        onBlur={() => clearDraft(fieldPathKey)}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
         const entries = Object.entries(value).filter(([key, child]) =>
           shouldRenderChild(path, key, child),
         );
@@ -1077,9 +1189,19 @@ export function CanyonJsonEditor(): JSX.Element {
           return null;
         }
 
+        const normalEntries = isSectionPath(path)
+          ? entries.filter(
+              ([entryKey]) =>
+                entryKey !== "max_rappel_in_meter" && entryKey !== "recommended_ropes",
+            )
+          : entries;
+
+        const maxRappelValue = isSectionPath(path) ? value.max_rappel_in_meter ?? null : null;
+        const recommendedRopesValue = isSectionPath(path) ? value.recommended_ropes ?? null : null;
+
         return (
           <section className="json-card">
-            {path.length > 0 && !isSectionPath(path) ? (
+            {path.length > 0 && !isSectionPath(path) && !isSectionDescriptionsPath(path) ? (
               <div className="json-card-header">
                 <button
                   type="button"
@@ -1098,11 +1220,25 @@ export function CanyonJsonEditor(): JSX.Element {
 
             {!isCollapsed ? (
               <div className="json-object-body">
-                {entries.map(([key, child]) => (
+                {normalEntries.map(([key, child]) => (
                   <div className="json-field-row" key={`${pathKey}.${key}`}>
                     {renderNode(child, [...path, key], key)}
                   </div>
                 ))}
+                {isSectionPath(path) && (maxRappelValue !== null || recommendedRopesValue !== null) ? (
+                  <div className="json-two-col-row">
+                    {maxRappelValue !== null ? (
+                      <div className="json-field-row">
+                        {renderNode(maxRappelValue, [...path, "max_rappel_in_meter"], "max_rappel_in_meter")}
+                      </div>
+                    ) : null}
+                    {recommendedRopesValue !== null ? (
+                      <div className="json-field-row">
+                        {renderNode(recommendedRopesValue, [...path, "recommended_ropes"], "recommended_ropes")}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </section>
