@@ -1,0 +1,572 @@
+{
+  "preferences": {
+    "name": "English",
+    "nativeName": "English",
+    "flag": "🇬🇧"
+  },
+  "countries": {
+    "ALB": {
+      "name": "Albania",
+      "flag": "🇦🇱",
+      "regions": {}
+    },
+    "AUS": {
+      "name": "Australia",
+      "flag": "🇦🇺",
+      "regions": {}
+    },
+    "AUT": {
+      "name": "Austria",
+      "flag": "🇦🇹",
+      "regions": {
+        "BUR": "Burgenland",
+        "KAR": "Carinthia",
+        "NIE": "Lower Austria",
+        "OBE": "Upper Austria",
+        "SAL": "Salzburg",
+        "STE": "Styria",
+        "TIR": "Tyrol",
+        "VOR": "Vorarlberg",
+        "WIE": "Vienna"
+      }
+    },
+    "CHE": {
+      "name": "Switzerland",
+      "flag": "🇨🇭",
+      "regions": {
+        "AAR": "Aargau",
+        "APP": "Appenzell Ausserrhoden",
+        "API": "Appenzell Innerrhoden",
+        "BSL": "Basel-Landschaft",
+        "BSS": "Basel-Stadt",
+        "BER": "Bern",
+        "FRI": "Fribourg",
+        "GEN": "Geneva",
+        "GLA": "Glarus",
+        "GRB": "Grisons",
+        "JUR": "Jura",
+        "LUZ": "Lucerne",
+        "NEU": "Neuchâtel",
+        "NID": "Nidwalden",
+        "OBW": "Obwalden",
+        "SHA": "Schaffhausen",
+        "SCH": "Schwyz",
+        "SOL": "Solothurn",
+        "GAL": "St. Gallen",
+        "TIC": "Ticino",
+        "THU": "Thurgau",
+        "URI": "Uri",
+        "VAD": "Vaud",
+        "VAL": "Valais",
+        "ZUG": "Zug",
+        "ZUR": "Zurich"
+      }
+    },
+    "DEU": {
+      "name": "Germany",
+      "flag": "🇩🇪",
+      "regions": {
+        "BAW": "Baden-Württemberg",
+        "BAY": "Bavaria"
+      }
+    },
+    "ESP": {
+      "name": "Spain",
+      "flag": "🇪🇸",
+      "regions": {
+        "MAL": "Mallorca"
+      }
+    },
+    "FRA": {
+      "name": "France",
+      "flag": "🇫🇷",
+      "regions": {}
+    },
+    "GRC": {
+      "name": "Greece",
+      "flag": "🇬🇷",
+      "regions": {}
+    },
+    "IDN": {
+      "name": "Indonesia",
+      "flag": "🇮🇩",
+      "regions": {
+        "BAL": "Bali"
+      }
+    },
+    "ITA": {
+      "name": "Italy",
+      "flag": "🇮🇹",
+      "regions": {
+        "FRI": "Friuli Venezia Giulia",
+        "LOM": "Lombardy",
+        "TAA": "Trentino-South Tyrol"
+      }
+    },
+    "MEX": {
+      "name": "Mexico",
+      "flag": "🇲🇽",
+      "regions": {}
+    },
+    "MNE": {
+      "name": "Montenegro",
+      "flag": "🇲🇪",
+      "regions": {}
+    },
+    "NPL": {
+      "name": "Nepal",
+      "flag": "🇳🇵",
+      "regions": {}
+    },
+    "NZL": {
+      "name": "New Zealand",
+      "flag": "🇳🇿",
+      "regions": {}
+    },
+    "OMN": {
+      "name": "Oman",
+      "flag": "🇴🇲",
+      "regions": {
+        "ABS": "Al-Batina South"
+      }
+    },
+    "PRT": {
+      "name": "Portugal",
+      "flag": "🇵🇹",
+      "regions": {
+        "AZR": "Azores",
+        "MAD": "Madeira"
+      }
+    },
+    "ROU": {
+      "name": "Romania",
+      "flag": "🇷🇴",
+      "regions": {
+        "AB": "Alba",
+        "AR": "Arad",
+        "AG": "Argeș",
+        "BC": "Bacău",
+        "BH": "Bihor",
+        "BN": "Bistrița-Năsăud",
+        "BT": "Botoșani",
+        "BV": "Brașov",
+        "BR": "Brăila",
+        "BZ": "Buzău",
+        "CS": "Caraș-Severin",
+        "CL": "Călărași",
+        "CJ": "Cluj",
+        "CT": "Constanța",
+        "CV": "Covasna",
+        "DB": "Dâmbovița",
+        "DJ": "Dolj",
+        "GL": "Galați",
+        "GR": "Giurgiu",
+        "GJ": "Gorj",
+        "HR": "Harghita",
+        "HD": "Hunedoara",
+        "IL": "Ialomița",
+        "IS": "Iași",
+        "IF": "Ilfov",
+        "MM": "Maramureș",
+        "MH": "Mehedinți",
+        "MS": "Mureș",
+        "NT": "Neamț",
+        "OT": "Olt",
+        "PH": "Prahova",
+        "SM": "Satu Mare",
+        "SJ": "Sălaj",
+        "SB": "Sibiu",
+        "SV": "Suceava",
+        "TR": "Teleorman",
+        "TM": "Timiș",
+        "TL": "Tulcea",
+        "VS": "Vaslui",
+        "VL": "Vâlcea",
+        "VN": "Vrancea",
+        "B": "București"
+      }
+    },
+    "SVN": {
+      "name": "Slovenia",
+      "flag": "🇸🇮",
+      "regions": {}
+    },
+    "USA": {
+      "name": "United States",
+      "flag": "🇺🇸",
+      "regions": {}
+    }
+  },
+  "tabs": {
+    "discover": "Discover",
+    "favorites": "Favorites",
+    "logbook": "Logbook",
+    "downloads": "Downloads",
+    "profile": "Profile"
+  },
+  "misc": {
+    "back_button": "BACK",
+    "cancel": "Cancel",
+    "ok": "OK",
+    "delete": "Delete",
+    "discard": "Discard",
+    "save": "Save",
+    "discard_changes_title": "Discard changes",
+    "discard_changes_message": "If you go back, all unsaved information will be lost.",
+    "no_connection": "No internet connection",
+    "error": "Error",
+    "error_saving_entry": "Error saving entry. Please try again later."
+  },
+  "profile": {
+    "language": "Language",
+    "logout": "Logout",
+    "nickname": "Username",
+    "change_username_title": "Change username",
+    "no_favorites_yet": "You have not added any favorites yet.",
+    "no_downloads_yet": "You have not downloaded any canyons yet.",
+    "change_success_title": "Success",
+    "change_failed_title": "Error",
+    "change_success": "Successfully changed.",
+    "change_failed": "The change could not be completed. Please try again later.",
+    "change_failed_empty_username": "Username must not be empty.",
+    "topo_creator_title": "Topo Creator",
+    "topo_creator_subtitle": "Topo generation in just a few clicks.",
+    "topo_creator_description": "Create and edit topos directly in your browser. Our topo creator is optimized for desktop use and is not yet well suited for mobile devices.",
+    "topo_creator_button": "Open topo creator in browser",
+    "profile_title": "Profile",
+    "faqs_title": "FAQs",
+    "shop_title": "Gear Shop",
+    "feedback_title": "Feedback",
+    "feedback_explanation": "Do you have suggestions to improve the app or want to propose new features? Share your feedback via email and help us make Canyon Explore even better.",
+    "support_title": "Support",
+    "support_explanation": "Need help using the app or running into technical issues? Contact our support team via email and we'll be happy to assist.",
+    "contact_title": "Contact",
+    "contact_explanation": "Have questions or ideas? Reach out to us via email and we'll gladly help.",
+    "color_mode": "Color Mode",
+    "light_mode": "☀️  Light Mode",
+    "dark_mode": "🌑  Dark Mode"
+  },
+  "faqs": {
+    "title": "FAQs",
+    "general": "General",
+    "contribute_data": "Contribute your own data",
+    "app_feedback": "App feedback",
+    "faq_purpose_q": "What is the purpose of this app?",
+    "faq_purpose_a": "This app is designed to help canyoning enthusiasts plan and navigate their trips effortlessly. From access routes and parking to offline maps and topographies, it's your ultimate canyoning companion.",
+    "faq_devices_q": "What devices are supported?",
+    "faq_devices_a": "The app is available for both Android and iOS devices. It works best on smartphones but is also compatible with tablets.",
+    "faq_languages_q": "In which languages is the app available?",
+    "faq_languages_a": "The app currently supports English, German, Spanish, Italian, Portuguese, and French. If you'd like to see additional languages, feel free to contact us.",
+    "faq_offline_q": "Can I use the app offline?",
+    "faq_offline_a": "Yes, you can download canyon information, maps, and topographies for offline use. This ensures you have everything you need, even when you're off the grid.",
+    "faq_access_routes_q": "What format does the app support for access routes?",
+    "faq_access_routes_a": "The app uses tracks on a included offline map to display access routes on the map, leading you directly to canyon starting points and parking lots.",
+    "faq_new_canyons_q": "Will new canyons be added regularly?",
+    "faq_new_canyons_a": "Yes! We're continually expanding our database with new canyons. Updates will be rolled out frequently to keep the app fresh and useful.",
+    "faq_edit_canyon_q": "Can I edit an existing canyon?",
+    "faq_edit_canyon_a": "Yes. By clicking on >Edit Canyon<, you can submit an improved version of an existing canyon. Our team will review your submission and publish it as soon as possible.",
+    "faq_add_canyon_q": "Can I add my own canyon to the app?",
+    "faq_add_canyon_a": "Absolutely! You can add a canyon via >Add Canyon< and provide all the necessary data. This should include a description, access tracks, and a topo. Once submitted, we'll review and publish it as quickly as possible.",
+    "faq_topo_format_q": "What format should I use for the topo?",
+    "faq_topo_format_a": "The topo can simply be a photo you take. Our team will then convert it into the Canyon Explore format so that it integrates seamlessly into the app.",
+    "faq_topo_creator_q": "Is there a topo creator in the app?",
+    "faq_topo_creator_a": "Not yet. Currently, you need to provide an existing topo (e.g. as a photo). However, we are working on a topo editor tool that will allow you to create and customize topos directly within Canyon Explore.",
+    "faq_publish_time_q": "How long does it take until my submitted canyon or edit is published?",
+    "faq_publish_time_a": "We usually review and publish new or updated canyons within a few days. The exact time may vary depending on the complexity and completeness of the data.",
+    "faq_share_trips_q": "Can I share my canyoning trips with others?",
+    "faq_share_trips_a": "Yes! You can post that you completed a canyon and add a short report about the current circumstances (e.g., water level, obstacles, safety conditions). This helps other users get up-to-date information and makes the community stronger.",
+    "faq_new_features_q": "Can I suggest new features for the app?",
+    "faq_new_features_a": "Yes, we'd love to hear your ideas! You can send your suggestions through the in-app feedback form. Your input helps us shape the future of Canyon Explore.",
+    "faq_report_issues_q": "Can I report errors or suggest new canyons to add?",
+    "faq_report_issues_a": "Absolutely! We value your feedback. You can report issues or suggest new canyons directly through the app's feedback section or by emailing us."
+  },
+  "email_form": {
+    "name": "Name",
+    "nameBox_placeholder": "Enter your name here ...",
+    "nameBox_error": "Please enter your name",
+    "text": "Text",
+    "textBox_placeholder": "Enter your feedback here in any language ...",
+    "textBox_error": "Please enter your text.",
+    "submitButton": "Send"
+  },
+  "overviewMap": {
+    "button_map": "Map",
+    "button_new": "Add New Canyon",
+    "bottomSheet": {
+      "header_0": "Find your next canyon",
+      "header_1": " canyon to explore",
+      "header_n": " canyons to explore",
+      "no_canyons_no_filters": "No canyons found in this area.",
+      "no_canyons_with_filters": "No canyons found in this area with the selected filters.",
+      "button_change_filters": "Change filters",
+      "button_change_map": "Adjust search area"
+    },
+    "welcomeModal": {
+      "title": "Welcome to\nCanyon Explore",
+      "feedbackLink": "Give Feedback",
+      "dontShowAgain": "Don't show this message again."
+    }
+  },
+  "details": {
+    "specialNotes": "Special Notes",
+    "photos": "Photos",
+    "photos_add": "Add Photo",
+    "photos_empty": "There are no photos yet for this canyon section.",
+    "author": "Author",
+    "authors": "Authors",
+    "descriptions": "Descriptions",
+    "descriptions_short": "Short Characteristic",
+    "descriptions_approach": "Approach",
+    "descriptions_canyon": "Canyon",
+    "descriptions_exit": "Return",
+    "description_null": "There is no description available yet for this canyon section.",
+    "button_less": "Less",
+    "button_more": "More",
+    "topography": "Topography",
+    "button_topography": "Open Topo",
+    "map": "Map",
+    "button_map": "Open Map",
+    "edit": "Edit and Improve",
+    "button_edit": "Edit or improve this canyon",
+    "alert_no_topo_title": "No topo available",
+    "alert_no_topo_message": "There is no topo available yet for this canyon section.\nHelp us complete the data and send us a topo for this section.\n\nAlso try our topo creator at\ntopo-creator.canyon-explore.com\nto create your own topo! It is optimized for use on a computer.",
+    "alert_no_topo_send_topo": "Send own topo",
+    "comments": "User Comments",
+    "add_comment": "Add your comment",
+    "comment_title_placeholder": "Short title ...",
+    "comment_text_placeholder": "Your comment ...",
+    "comment_send": "Submit comment/review ",
+    "comment_sending": "Sending...",
+    "no_comments_yet": "No comment yet for this section. Be the first one to add a comment!",
+    "comment_thanks_title": "Thank you for your comment",
+    "comment_thanks_text": "We have received your comment and will publish it as soon as possible.",
+    "official_partner_title": "Official Partner",
+    "official_partner_description": "Some of our canyons are presented by official partners. There you can find all the details, including topos, approaches, and much more. Discover the canyons in the book and dive even deeper into the adventure!",
+    "official_partner_button": "Go to the book",
+    "explanations": {
+      "rating": {
+        "title": "Subjective User Rating for this Canyon Section",
+        "description": "The rating is based on the average of all user ratings. It is a subjective measure of how good the canyon is."
+      },
+      "anchorQuality": {
+        "title": "Quality of Anchoring",
+        "description": "Rates the condition and reliability of installed anchors, including bolts, fixed ropes, and other safety points. A good quality rating indicates well-placed, and well-maintained anchors, while a lower rating may suggest aging or poorly maintained equipment."
+      },
+      "index": {
+        "title": "Index and Number of Sections in this Canyon",
+        "description": "The number on the left shows the current section index within the canyon, while the number on the right indicates the total number of sections in the entire canyon."
+      },
+      "durationCanyon": {
+        "title": "Duration in Canyon",
+        "description": "This is the estimated time required to complete this section of the canyon without the approach and return hikes. The duration depends on factors like group size, experience, water flow, and technical challenges."
+      },
+      "difficulty": {
+        "title": "Difficulty",
+        "description": "The difficulty is shown in the French system (e.g., v3 a4 II).\n\nVertical Difficulty (v):\nRates the technical difficulty of rappels and downclimbs. A higher number (scale goes from 1 to 7) indicates longer rappels, more complex ropework, and greater exposure.\n\nAquatic Difficulty (a):\nRates the challenges posed by water features in the canyon. A higher number (scale goes from 1 to 7) indicates stronger currents, mandatory jumps, technical slides, siphons, or difficult swimming passages.\n\nCommitment (roman number):\nRates the difficulty of retreating or exiting the canyon. A higher number (scale goes from I to VI) indicates longer total duration, fewer escape options, and greater exposure to environmental risks."
+      },
+      "highestRappel": {
+        "title": "Highest Rappel",
+        "description": "The height of the longest rappel (abseil) in the canyon section. This measurement helps determine the required rope length."
+      },
+      "access_no": {
+        "title": "Approach Duration (Without a Shuttle Car)",
+        "description": "Refers to the estimated time required to reach the entrance of the canyon section from the parking lot, assuming you don't have a second car for shuttle."
+      },
+      "exit_no": {
+        "title": "Return Duration (Without a Shuttle Car)",
+        "description": "Refers to the estimated time required to hike back to the parking lot after completing the section of the canyon, assuming no second car is available for shuttle."
+      },
+      "recommendedRopes": {
+        "title": "Recommended Ropes",
+        "description": "Indicates the recommended rope length(s) for the canyon, based on the height of the rappels and technical requirements. This ensures you have sufficient rope to complete the descents safely and effectively.\nHowever, this ist just a recommandation and may vary depending on specific conditions. Always assess the situation on-site before proceeding and ask local guides."
+      },
+      "access_yes": {
+        "title": "Approach Duration (With a Shuttle Car)",
+        "description": "Refers to the estimated time required to reach the entrance of the canyon section from the parking lot, assuming you have a second car for shuttle."
+      },
+      "exit_yes": {
+        "title": "Return Duration (With a Shuttle Car)",
+        "description": "Refers to the estimated time required to hike back to the parking lot after completing the section of the canyon, assuming a second car is available for shuttle."
+      },
+      "horizontalLength": {
+        "title": "Horizontal Length",
+        "description": "Indicates the total horizontal distance you will cover within this section of the canyon."
+      },
+      "elevation_start": {
+        "title": "Elevation at the Entrance",
+        "description": "Refers to the altitude of this section's starting point in the canyon. It is measured above sea level."
+      },
+      "elevation_end": {
+        "title": "Elevation at the Exit",
+        "description": "Refers to the altitude of this section's end point in the canyon. It is measured above sea level."
+      },
+      "elevation_difference": {
+        "title": "Elevation Difference between Entrance and Exit",
+        "description": "Describes the vertical difference in elevation from the entrance to the exit of the section in the canyon. This difference helps determine the overall descent, providing an insight into the canyon's steepness and the effort required for the descent."
+      }
+    }
+  },
+  "map": {
+    "parking_lot": "Parking Lot"
+  },
+  "search": {
+    "searchbar_placeholder": "Find your Canyon"
+  },
+  "filter": {
+    "title": "Filter",
+    "null_option": "Select",
+    "search_placeholder": "Search ...",
+    "to": "to",
+    "button_reset": "Reset all Filters",
+    "button_apply": "Apply all Filters",
+    "warning_text_min_max": "Make sure that the left selector has a lower value than the right selector.",
+    "region": {
+      "title": "Region",
+      "country": "Country",
+      "region": "Region"
+    },
+    "rating": {
+      "title": "Rating",
+      "rating": "Rating",
+      "anchorQuality": "Anchor Quality"
+    },
+    "duration": {
+      "title": "Duration",
+      "duration_canyon": "Duration in Canyon",
+      "duration_total": "Total Duration",
+      "duration_access": "Approach Duration",
+      "duration_exit": "Return Duration",
+      "shuttleCar_checkbox": "Shuttle Car available",
+      "shuttleCar_description_yes": "A shuttle car is available. So all the durations listed below are assuming that you have at least two cars.",
+      "shuttleCar_description_no": "A shuttle car is not available. So all the durations listed below are assuming that you have only one car."
+    },
+    "highestRappel": {
+      "title": "Highest Rappel",
+      "highestRappel": "Highest Rappel"
+    },
+    "difficulty": {
+      "title": "Difficulty",
+      "difficulty_vertical": "Vertical Difficulty",
+      "difficulty_aquatic": "Aquatic Difficulty",
+      "difficulty_commitment": "Commitment"
+    },
+    "elevation": {
+      "title": "Dimensions",
+      "elevation_difference": "Elevation Difference",
+      "elevation_start": "Start Elevation",
+      "elevation_end": "End Elevation",
+      "horizontalDistance": "Horizontal Distance"
+    },
+    "reset_confirm_popup": {
+      "title": "Reset Filters",
+      "message": "Do you really want to reset all filters?"
+    }
+  },
+  "add_edit": {
+    "canyon_name_placeholder": "Name of the new canyon",
+    "section_name_placeholder": "Name of the new section",
+    "login_required_title": "Not logged in",
+    "login_required_message": "Please log in first.",
+    "terms_of_use_title": "Terms of Use",
+    "terms_of_use_message": "Please accept the terms of use first.",
+    "file_too_large_title": "File too large",
+    "file_too_large_message": "The selected file exceeds the allowed size of {{maxFileSizeMB}}MB (actual size: {{actualFileSizeMB}}MB).",
+    "invalid_email_title": "Invalid email",
+    "invalid_email_message": "Please enter a valid email address.",
+    "upload_success_title": "Upload successful",
+    "upload_success_message": "All files were uploaded successfully.",
+    "upload_error_title": "Upload failed",
+    "upload_error_message": "An error occurred during the upload. Please try again later.",
+    "free_text_label": "Comment",
+    "free_text_placeholder": "Comment for the Canyon Explore team ...\n(Not published)",
+    "file_upload_label": "File upload",
+    "file_upload_description": "Upload all files you have for this canyon (GPX tracks, images, topos, etc.). Without these files, the canyon cannot be published.\n\nAlso try our topo creator at\ntopo-creator.canyon-explore.com\nto create your own topo! It is optimized for use on a computer.",
+    "add_files_title": "Add files",
+    "take_photo": "Take photo",
+    "select_photos": "Select photos",
+    "select_files": "Select files",
+    "email_address_label": "Email address",
+    "email_address_description": "Please enter your email address so we can contact you.",
+    "upload_button_label": "Upload data",
+    "accept_terms_sentence_text": "I accept the ",
+    "accept_terms_link_text": "terms of use",
+    "accept_terms_error_text": "You must accept the terms of use to continue.",
+    "uploading_message": "Uploading data ...",
+    "delete_section_title": "Delete section",
+    "delete_section_message": "Do you really want to delete the section {{section_name}}?",
+    "author_label": "Author",
+    "author_placeholder": "Your full name ...",
+    "author_explanation": "If you enter your name here, it will be displayed as the author in the app."
+  },
+  "login": {
+    "sign_in_with_google": "Sign in with Google",
+    "sign_in_with_apple": "Sign in with Apple",
+    "sign_in_with_email": "Sign in with Email",
+    "terms_of_use": "Terms of Use",
+    "privacy_policy": "Privacy Policy",
+    "app_version": "App Version",
+    "sign_up": "Create account",
+    "sign_in": "Log in",
+    "password_placeholder": "Password",
+    "confirm_password_placeholder": "Confirm password",
+    "forgot_password": "Forgot password?",
+    "already_have_account": "Already have an account?",
+    "dont_have_account": "Don't have an account yet?",
+    "invalid_email_title": "Invalid email",
+    "invalid_email_message": "Please enter a valid email address.",
+    "invalid_password_title": "Invalid password",
+    "invalid_password_message": "The password must be at least {{minChars}} characters long.",
+    "password_mismatch_title": "Passwords do not match",
+    "password_mismatch_message": "The passwords entered do not match. Please check your input.",
+    "error_during_login_title": "Error during login",
+    "reset_password_title": "Reset password",
+    "reset_password_message": "Once you click OK, we will send a link to reset your password to this email address: {{email}}",
+    "reset_password_success_title": "Password Reset",
+    "reset_password_success_message": "A link to reset your password has been sent to {{email}}. Please check your inbox to reset your password.",
+    "sign_up_success_title": "Registration Successful",
+    "sign_up_success_message": "A confirmation link has been sent to {{email}}. Please check your inbox to activate your account.",
+    "wrong_password": "Wrong password. Please check your input.",
+    "change_password": "Change Password",
+    "change_password_success_title": "Password Changed",
+    "change_password_success_message": "Your password has been successfully changed. You can now log in with your new password."
+  },
+  "offline_mode": {
+    "offline_title": "You are offline",
+    "offline_message": "Some features may be unavailable.",
+    "not_logged_in_title": "Not logged in",
+    "not_logged_in_message": "Please log in to access this feature.",
+    "login": "Login",
+    "active": "Offline Mode Active"
+  },
+  "comment": {
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleting": "Deleting ...",
+    "edited": "edited",
+    "delete_confirm_title": "Delete comment",
+    "delete_confirm_text": "Do you really want to delete this comment?",
+    "deleted_title": "Comment deleted",
+    "deleted_text": "The comment has been successfully deleted.",
+    "sort_newest": "Date",
+    "sort_most_liked": "Relevance",
+    "edited_title": "Comment edited",
+    "edited_text": "Your comment has been successfully edited."
+  },
+  "logbook": {
+    "searchbar_placeholder": "Search ...",
+    "sort_newest": "Date",
+    "sort_alphabetical": "Alphabetical",
+    "sort_rating": "Rating",
+    "update_entry": "Update",
+    "save_entry": "Save",
+    "saving": "Saving ...",
+    "edit_canyon_in_logbook": "Edit canyon in logbook",
+    "add_canyon_to_logbook": "Add canyon to logbook",
+    "select_canyon_placeholder": "Select canyon ...",
+    "add_friend_placeholder": "Add friend ...",
+    "public_comment_placeholder": "Public comment ...",
+    "private_note_placeholder": "Private note ...",
+    "no_logged_canyons_yet": "You have not logged any canyons yet.",
+    "with": "with"
+  }
+}
