@@ -1,120 +1,46 @@
-# Canyon Editor
+<p align="center">
+  <span style="display:inline-flex;width:120px;height:120px;align-items:center;justify-content:center;background:#1f1f1f;border-radius:22px;">
+    <img src="build/icon.png" alt="Canyon Explore Canyon Editor icon" width="96" height="96" />
+  </span>
+</p>
 
-Minimal Electron desktop app (Windows + macOS) that uses Mapbox to manage ordered route points (start, waypoints, end), generate a walking route, render it, and save the route as GeoJSON.
+<h1 align="center">Canyon Explore - Canyon Editor</h1>
 
-## Architecture
+<p align="center">
+  A desktop canyon editor to introduce and maintain new canyons for the Canyon Explore app.
+</p>
 
-- `electron/main.ts`: creates the app window with secure defaults, resolves token from environment, and handles save dialog/file writes via IPC.
-- `electron/preload.ts`: exposes a minimal safe API (`getMapboxToken`, `saveGeoJSON`) using `contextBridge`.
-- `renderer/`: Vite + React + TypeScript UI with `mapbox-gl`, custom map context menus, drag-and-drop point ordering, route generation, and export controls.
+<p align="center">
+  <a href="https://canyon-explore.com/"><strong>Canyon Explore</strong></a>
+</p>
 
-## Prerequisites
+<p align="center">
+  <em>Screenshot coming soon</em>
+</p>
 
-- Node.js 20+
-- npm 10+
-- Mapbox account with access to the Directions API
+## Overview
+With Canyon Editor, new canyons can be introduced for Canyon Explore in a structured way.  
+Create routes with start, waypoint, and end points on the map, then export the canyon data for app integration.
 
-## External setup steps (required)
+## Why It Stands Out
+- Built specifically for adding canyon content to Canyon Explore
+- Fast, map-based editing of ordered route points
+- Clean export format for integration into existing workflows
+- Desktop app workflow for Windows and macOS
 
-1. Create a Mapbox account at `https://www.mapbox.com/`.
-2. Create an access token:
-   - In Mapbox dashboard, go to **Access tokens**.
-   - Create a token with at least styles + directions access.
-3. Ensure Directions API access:
-   - Verify your account/plan allows Directions API calls.
-   - If token restrictions are enabled, allow requests for your desktop app environment.
-4. Put token into `.env` in project root:
+## Live Demo
+Currently available as a desktop application (no browser demo).
 
-```env
-VITE_MAPBOX_TOKEN=your_mapbox_token_here
-# or
-MAPBOX_TOKEN=your_mapbox_token_here
-```
+## Commands
 
-Notes:
-- `VITE_MAPBOX_TOKEN` is read directly by the renderer during development/build.
-- `MAPBOX_TOKEN` is read by Electron main process (via preload bridge), useful for runtime-provided tokens.
+Install dependencies
+`npm install`
 
-## Install
+Run in development
+`npm run dev`
 
-```bash
-npm install
-```
+Build production files
+`npm run build`
 
-## Development
-
-```bash
-npm run dev
-```
-
-This starts:
-- Vite dev server (`http://localhost:5173`)
-- Electron TypeScript watch build
-- Electron app with auto-restart on main/preload changes
-
-## Production build
-
-```bash
-npm run build
-```
-
-Outputs:
-- Renderer: `dist/renderer`
-- Electron main/preload: `dist/electron`
-
-## Package installers (Windows + macOS)
-
-```bash
-npm run package
-```
-
-Installer outputs are written to `release/`.
-
-Platform note:
-- Build Windows installers on Windows.
-- Build macOS DMG on macOS.
-
-### macOS packaging note
-
-For local unsigned builds you can still create a DMG, but Gatekeeper warnings are expected.
-Optional: configure Apple signing/notarization env vars in `electron-builder` for production distribution.
-
-## Token provisioning in production
-
-Use `MAPBOX_TOKEN` as an environment variable before launching the packaged app, for example:
-
-- Windows PowerShell:
-
-```powershell
-$env:MAPBOX_TOKEN="your_token_here"
-./Canyon Editor.exe
-```
-
-- macOS shell:
-
-```bash
-MAPBOX_TOKEN="your_token_here" /Applications/Canyon\ Editor.app/Contents/MacOS/Canyon\ Editor
-```
-
-## GeoJSON export format
-
-`Save GeoJSON` writes a valid `FeatureCollection` with one `LineString` feature and properties:
-
-- `distance_m`
-- `duration_s`
-- `profile` (`"walking"`)
-- `start` (`[lng, lat]`)
-- `end` (`[lng, lat]`)
-- `waypoints` (`[[lng, lat], ...]`)
-- `generated_at` (ISO timestamp)
-
-## Assumptions
-
-- App uses the first route returned by Mapbox Directions API.
-- Coordinates are stored as `[longitude, latitude]`.
-- Route generation requires an active internet connection.
-
-## Next steps
-
-- Add a "straight line" mode that exports point order as a `LineString` without Directions API.
-- Load and attach saved routes to a larger JSON dataset/workflow.
+Create installers
+`npm run package`
