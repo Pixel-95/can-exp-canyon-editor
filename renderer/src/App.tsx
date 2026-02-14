@@ -261,14 +261,6 @@ function calculateStraightSegmentDurationSeconds(distanceM: number, deltaElevati
   return Math.max(0, durationHours * 3600);
 }
 
-function formatCoordinate(value: Coordinate | null): string {
-  if (!value) {
-    return "Not set";
-  }
-
-  return `${value[0].toFixed(6)}, ${value[1].toFixed(6)}`;
-}
-
 function formatError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -345,7 +337,7 @@ function getRoutePointLabel(points: RoutePoint[], index: number): string {
     return "End";
   }
 
-  return `Waypoint ${index}`;
+  return `WP ${index}`;
 }
 
 function getRoutePointMarkerLabel(point: RoutePoint, routePointIndex: number): string {
@@ -429,7 +421,6 @@ type RoutePointListItemProps = {
   point: RoutePoint;
   index: number;
   label: string;
-  coordinateLabel: string;
   onDelete: (id: string) => void;
   onSegmentModeChange: (id: string, mode: SegmentMode) => void;
 };
@@ -438,7 +429,6 @@ function RoutePointListItem({
   point,
   index,
   label,
-  coordinateLabel,
   onDelete,
   onSegmentModeChange,
 }: RoutePointListItemProps): JSX.Element {
@@ -464,20 +454,19 @@ function RoutePointListItem({
         ::
       </button>
       <div className="route-point-meta">
-        <p className="route-point-title">{label}</p>
-        <p className="route-point-coordinate">{coordinateLabel}</p>
-        {index > 0 ? (
-          <label className="route-point-segment-mode">
-            <span>Segment</span>
+        <div className="route-point-title-row">
+          <p className="route-point-title">{label}</p>
+          {index > 0 ? (
             <select
+              className="route-point-segment-select"
               value={point.segmentMode ?? "straight"}
               onChange={(event) => onSegmentModeChange(point.id, event.target.value as SegmentMode)}
             >
               <option value="straight">Straight line</option>
               <option value="route">Along road</option>
             </select>
-          </label>
-        ) : null}
+          ) : null}
+        </div>
       </div>
       <button
         type="button"
@@ -496,6 +485,7 @@ export function App(): JSX.Element {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const segmentModePopupRef = useRef<mapboxgl.Popup | null>(null);
+  const mapPointerCoordinateRef = useRef<Coordinate | null>(null);
   const routePointsRef = useRef<RoutePoint[]>([]);
   const routeFeatureRef = useRef<RouteFeature | null>(null);
   const pointMarkersRef = useRef<Map<string, MarkerEntry>>(new Map());
@@ -941,8 +931,19 @@ export function App(): JSX.Element {
       openMenuForEvent(event);
     };
 
+    const onMapMouseMove = (event: mapboxgl.MapMouseEvent & mapboxgl.EventData): void => {
+      mapPointerCoordinateRef.current = [
+        Number(event.lngLat.lng.toFixed(6)),
+        Number(event.lngLat.lat.toFixed(6)),
+      ];
+    };
+
     const onCanvasContextMenu = (event: MouseEvent): void => {
       event.preventDefault();
+    };
+
+    const onCanvasMouseLeave = (): void => {
+      mapPointerCoordinateRef.current = null;
     };
 
     const onMapMoveStart = (): void => {
@@ -954,19 +955,24 @@ export function App(): JSX.Element {
 
     map.on("click", onMapClick);
     map.on("contextmenu", onMapContextMenu);
+    map.on("mousemove", onMapMouseMove);
     map.on("movestart", onMapMoveStart);
     map.getCanvasContainer().addEventListener("contextmenu", onCanvasContextMenu);
+    map.getCanvasContainer().addEventListener("mouseleave", onCanvasMouseLeave);
 
     mapRef.current = map;
 
     return () => {
       map.off("click", onMapClick);
       map.off("contextmenu", onMapContextMenu);
+      map.off("mousemove", onMapMouseMove);
       map.off("movestart", onMapMoveStart);
       map.getCanvasContainer().removeEventListener("contextmenu", onCanvasContextMenu);
+      map.getCanvasContainer().removeEventListener("mouseleave", onCanvasMouseLeave);
 
       segmentModePopupRef.current?.remove();
       segmentModePopupRef.current = null;
+      mapPointerCoordinateRef.current = null;
 
       for (const markerEntry of pointMarkersRef.current.values()) {
         markerEntry.marker.remove();
@@ -1225,7 +1231,7 @@ export function App(): JSX.Element {
     container.append(removeButton);
 
     const popup = new mapboxgl.Popup({
-      closeButton: true,
+      closeButton: false,
       closeOnClick: true,
       offset: 18,
     })
@@ -1422,6 +1428,48 @@ export function App(): JSX.Element {
     setStatusText("Point inserted.");
     return true;
   }, [routePoints]);
+
+  useEffect(() => {
+    const onWindowKeyDown = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented || event.repeat || event.altKey || event.ctrlKey || event.metaKey) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      if (
+        target &&
+        (target.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT")
+      ) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (key !== "s" && key !== "e") {
+        return;
+      }
+
+      const coordinate = mapPointerCoordinateRef.current;
+      if (!coordinate) {
+        setStatusText("Move the mouse over the map to insert a point.");
+        return;
+      }
+
+      event.preventDefault();
+
+      if (key === "s") {
+        insertPointAt(0, coordinate);
+        return;
+      }
+
+      insertPointAt(routePointsRef.current.length, coordinate);
+    };
+
+    window.addEventListener("keydown", onWindowKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onWindowKeyDown);
+    };
+  }, [insertPointAt]);
 
   const onSetBoundaryPointFromContextMenu = useCallback(
     (target: "start" | "end"): void => {
@@ -1691,6 +1739,30 @@ export function App(): JSX.Element {
           </button>
         </div>
 
+        <section className="route-summary">
+          {routeSummary ? (
+            <>
+              <p>
+                <strong>Distance:</strong> {routeSummary.distanceKm} km
+              </p>
+              <p>
+                <strong>Walk Time:</strong> {routeSummary.durationMin} min
+              </p>
+              <p>
+                <strong>Start Elevation:</strong>{" "}
+                {routeElevations ? `${routeElevations.startM} m` : routeElevationError ? "Unavailable" : "Loading..."}
+              </p>
+              <p>
+                <strong>End Elevation:</strong>{" "}
+                {routeElevations ? `${routeElevations.endM} m` : routeElevationError ? "Unavailable" : "Loading..."}
+              </p>
+              {routeElevationError ? <p className="route-summary-error">{routeElevationError}</p> : null}
+            </>
+          ) : (
+            <p className="route-summary-empty">No route yet.</p>
+          )}
+        </section>
+
         <section className="coordinate-input-panel">
           <h2>Insert Coordinate</h2>
           <form
@@ -1730,31 +1802,6 @@ export function App(): JSX.Element {
           {coordinateInputError ? <p className="coordinate-input-error">{coordinateInputError}</p> : null}
         </section>
 
-        <section className="route-summary">
-          <h2>Route Summary</h2>
-          {routeSummary ? (
-            <>
-              <p>
-                <strong>Distance:</strong> {routeSummary.distanceKm} km
-              </p>
-              <p>
-                <strong>Walk Time:</strong> {routeSummary.durationMin} min
-              </p>
-              <p>
-                <strong>Start Elevation:</strong>{" "}
-                {routeElevations ? `${routeElevations.startM} m` : routeElevationError ? "Unavailable" : "Loading..."}
-              </p>
-              <p>
-                <strong>End Elevation:</strong>{" "}
-                {routeElevations ? `${routeElevations.endM} m` : routeElevationError ? "Unavailable" : "Loading..."}
-              </p>
-              {routeElevationError ? <p className="route-summary-error">{routeElevationError}</p> : null}
-            </>
-          ) : (
-            <p className="route-summary-empty">No route yet.</p>
-          )}
-        </section>
-
         <section className="route-points-panel">
           <h2>Route Points</h2>
           {routePoints.length === 0 ? (
@@ -1769,7 +1816,6 @@ export function App(): JSX.Element {
                       point={point}
                       index={index}
                       label={getRoutePointLabel(routePoints, index)}
-                      coordinateLabel={formatCoordinate(point.coordinates)}
                       onDelete={onDeletePoint}
                       onSegmentModeChange={onSegmentModeChange}
                     />

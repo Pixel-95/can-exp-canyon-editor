@@ -176,7 +176,7 @@ button {
   display: flex;
   flex-direction: column;
   flex: 1;
-  gap: 8px;
+  gap: 5px;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
@@ -184,12 +184,12 @@ button {
 
 .route-point-item {
   display: grid;
-  grid-template-columns: 34px 1fr 32px;
+  grid-template-columns: 28px 1fr 28px;
   align-items: center;
-  gap: 8px;
-  padding: 8px;
+  gap: 6px;
+  padding: 5px 6px;
   border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #f8fafc;
   width: 100%;
   min-width: 0;
@@ -204,7 +204,7 @@ button {
   border: 1px solid #94a3b8;
   border-radius: 6px;
   height: 100%;
-  min-height: 30px;
+  min-height: 26px;
   background: #ffffff;
   cursor: grab;
 }
@@ -213,41 +213,33 @@ button {
   min-width: 0;
 }
 
+.route-point-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
 .route-point-title {
   margin: 0;
   font-size: 0.9rem;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.route-point-coordinate {
-  margin: 2px 0 0;
-  font-size: 0.82rem;
-  color: #334155;
-  word-break: break-word;
-}
-
-.route-point-segment-mode {
-  margin-top: 6px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.route-point-segment-mode span {
-  font-size: 0.78rem;
-  color: #334155;
-  flex: 0 0 auto;
-}
-
-.route-point-segment-mode select {
+.route-point-segment-select {
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 0 124px;
   border: 1px solid #94a3b8;
   border-radius: 6px;
-  padding: 4px 6px;
+  padding: 3px 6px;
   background: #ffffff;
   color: #0f172a;
   font-size: 0.8rem;
+  line-height: 1.2;
 }
 
 .route-point-delete {
@@ -255,7 +247,8 @@ button {
   border-radius: 6px;
   background: #fff1f2;
   color: #9f1239;
-  min-height: 30px;
+  min-height: 26px;
+  padding: 0;
   cursor: pointer;
 }
 
