@@ -17,7 +17,6 @@ const LANGUAGE_KEY_PATTERN = /^[a-z]{2}(?:-[A-Za-z]{2})?$/i;
 const ROOT_EDITABLE_KEYS = new Set(["name", "description", "location", "sections"]);
 const LOCATION_EDITABLE_KEYS = new Set(["country_code", "region_code"]);
 const SECTION_EDITABLE_KEYS = new Set([
-  "id",
   "name",
   "authors",
   "descriptions",
@@ -48,6 +47,10 @@ function isSectionPath(path: PathSegment[]): boolean {
   return path.length === 2 && path[0] === "sections" && typeof path[1] === "number";
 }
 
+function isSectionsArrayPath(path: PathSegment[]): boolean {
+  return path.length === 1 && path[0] === "sections";
+}
+
 function isSectionDescriptionsPath(path: PathSegment[]): boolean {
   return (
     path.length === 3 &&
@@ -59,6 +62,10 @@ function isSectionDescriptionsPath(path: PathSegment[]): boolean {
 
 function isLocationPath(path: PathSegment[]): boolean {
   return path.length === 1 && path[0] === "location";
+}
+
+function isMainNamePath(path: PathSegment[]): boolean {
+  return path.length === 1 && path[0] === "name";
 }
 
 function isCountryCodePath(path: PathSegment[]): boolean {
@@ -273,6 +280,50 @@ function removeArrayIndex(root: JsonValue, arrayPath: PathSegment[], index: numb
   return setAtPath(root, arrayPath, clone);
 }
 
+function moveArrayItem<T>(items: T[], fromIndex: number, toIndex: number): T[] {
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= items.length ||
+    toIndex >= items.length
+  ) {
+    return items;
+  }
+
+  const clone = items.slice();
+  const [moved] = clone.splice(fromIndex, 1);
+  if (typeof moved === "undefined") {
+    return items;
+  }
+
+  clone.splice(toIndex, 0, moved);
+  return clone;
+}
+
+function withGeneratedSectionIds(root: JsonObject): JsonObject {
+  const sectionsValue = root.sections;
+  if (!Array.isArray(sectionsValue)) {
+    return root;
+  }
+
+  const nextSections = sectionsValue.map((entry, index) => {
+    if (!isJsonObject(entry)) {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      id: index,
+    } as JsonValue;
+  });
+
+  return {
+    ...root,
+    sections: nextSections,
+  };
+}
+
 function defaultFromSample(sample: JsonValue): JsonValue {
   if (sample === null) {
     return "";
@@ -368,14 +419,6 @@ function isTopoPath(path: PathSegment[]): boolean {
   );
 }
 
-function sectionCardTitle(value: JsonValue, index: number): string {
-  if (isJsonObject(value) && typeof value.name === "string" && value.name.trim()) {
-    return value.name.trim();
-  }
-
-  return `Section ${index + 1}`;
-}
-
 export function CanyonJsonEditor(): JSX.Element {
   const [canyonData, setCanyonData] = useState<JsonObject | null>(null);
   const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
@@ -441,8 +484,16 @@ export function CanyonJsonEditor(): JSX.Element {
           return current;
         }
 
-        const next = setAtPath(current, path, nextValue);
-        return isJsonObject(next) ? next : current;
+        const updated = setAtPath(current, path, nextValue);
+        if (!isJsonObject(updated)) {
+          return current;
+        }
+
+        if (isSectionsArrayPath(path) || path[0] === "sections") {
+          return withGeneratedSectionIds(updated);
+        }
+
+        return updated;
       });
 
       clearValidationError(toPathKey(path));
@@ -460,7 +511,7 @@ export function CanyonJsonEditor(): JSX.Element {
       }
 
       if (!result.canceled && result.data && isJsonObject(result.data)) {
-        setCanyonData(cloneJsonValue(result.data));
+        setCanyonData(withGeneratedSectionIds(cloneJsonValue(result.data)));
         setCurrentFilePath(result.filePath ?? null);
         setStatusMessage(`Loaded ${result.filePath ?? DEFAULT_JSON_PATH}`);
         return;
@@ -553,7 +604,7 @@ export function CanyonJsonEditor(): JSX.Element {
       return;
     }
 
-    setCanyonData(cloneJsonValue(result.data));
+    setCanyonData(withGeneratedSectionIds(cloneJsonValue(result.data)));
     setCurrentFilePath(result.filePath ?? null);
     setValidationErrors({});
     setInputDrafts({});
@@ -575,7 +626,7 @@ export function CanyonJsonEditor(): JSX.Element {
       return;
     }
 
-    setCanyonData(cloneJsonValue(template));
+    setCanyonData(withGeneratedSectionIds(cloneJsonValue(template)));
     setCurrentFilePath(null);
     setValidationErrors({});
     setInputDrafts({});
@@ -803,6 +854,8 @@ export function CanyonJsonEditor(): JSX.Element {
       }
 
       if (Array.isArray(value)) {
+        const isSectionsArray = isSectionsArrayPath(path);
+
         if (isCompactStringArrayPath(path) && value.every((item) => typeof item === "string")) {
           const lastSegment = path[path.length - 1];
           const itemLabel = lastSegment === "authors" ? "Author" : "Note";
@@ -889,9 +942,7 @@ export function CanyonJsonEditor(): JSX.Element {
                   const itemPath = [...path, index];
                   const itemPathKey = toPathKey(itemPath);
                   const itemCollapsed = collapsedGroups[itemPathKey] ?? false;
-                  const itemTitle = isSectionPath(itemPath)
-                    ? sectionCardTitle(item, index)
-                    : `Element ${index + 1}`;
+                  const itemTitle = isSectionPath(itemPath) ? `Section ${index + 1}` : `Element ${index + 1}`;
 
                   return (
                     <article key={itemPathKey} className="json-array-item">
@@ -908,21 +959,53 @@ export function CanyonJsonEditor(): JSX.Element {
                         >
                           {itemCollapsed ? "+" : "-"} {itemTitle}
                         </button>
-                        <button
-                          type="button"
-                          className="json-danger-button"
-                          onClick={() =>
-                            setCanyonData((current) => {
-                              if (!current) {
-                                return current;
-                              }
-                              const next = removeArrayIndex(current, path, index);
-                              return isJsonObject(next) ? next : current;
-                            })
-                          }
-                        >
-                          Delete
-                        </button>
+                        <div className="json-array-item-actions">
+                          {isSectionsArray ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={index === 0}
+                                onClick={() => {
+                                  const moved = moveArrayItem(value, index, index - 1);
+                                  setPathValue(path, moved);
+                                }}
+                              >
+                                Move Up
+                              </button>
+                              <button
+                                type="button"
+                                disabled={index >= value.length - 1}
+                                onClick={() => {
+                                  const moved = moveArrayItem(value, index, index + 1);
+                                  setPathValue(path, moved);
+                                }}
+                              >
+                                Move Down
+                              </button>
+                            </>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="json-danger-button"
+                            onClick={() =>
+                              setCanyonData((current) => {
+                                if (!current) {
+                                  return current;
+                                }
+                                const next = removeArrayIndex(current, path, index);
+                                if (!isJsonObject(next)) {
+                                  return current;
+                                }
+                                if (isSectionsArrayPath(path)) {
+                                  return withGeneratedSectionIds(next);
+                                }
+                                return next;
+                              })
+                            }
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
 
                       {!itemCollapsed ? (
@@ -938,6 +1021,18 @@ export function CanyonJsonEditor(): JSX.Element {
       }
 
       if (isJsonObject(value)) {
+        if (isLocationPath(path)) {
+          const countryField = renderNode(value.country_code ?? "", [...path, "country_code"], "country_code");
+          const regionField = renderNode(value.region_code ?? "", [...path, "region_code"], "region_code");
+
+          return (
+            <div className="json-location-row">
+              <div>{countryField}</div>
+              <div>{regionField}</div>
+            </div>
+          );
+        }
+
         if (isDifficultiesPath(path)) {
           const fields: Array<{ key: "vertical" | "aquatic" | "general"; label: string }> = [
             { key: "vertical", label: "Vertical" },
@@ -984,7 +1079,7 @@ export function CanyonJsonEditor(): JSX.Element {
 
         return (
           <section className="json-card">
-            {path.length > 0 ? (
+            {path.length > 0 && !isSectionPath(path) ? (
               <div className="json-card-header">
                 <button
                   type="button"
@@ -1043,6 +1138,21 @@ export function CanyonJsonEditor(): JSX.Element {
               />
               <span>{titleCase(label)}</span>
             </label>
+          </div>
+        );
+      }
+
+      if (isMainNamePath(path)) {
+        return (
+          <div className="json-main-name-field">
+            <input
+              id={`field-${pathKey}`}
+              className="json-main-name-input"
+              type="text"
+              value={value}
+              onChange={(event) => setPathValue(path, event.target.value)}
+              placeholder="Canyon name"
+            />
           </div>
         );
       }

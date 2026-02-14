@@ -716,6 +716,18 @@ button {
   font-size: 0.8rem;
 }
 
+.json-array-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.json-array-item-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .json-array-item-content {
   padding: 6px;
 }
@@ -807,6 +819,29 @@ button {
   font-weight: 600;
 }
 
+.json-location-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.json-main-name-field {
+  margin-bottom: 6px;
+}
+
+.json-main-name-input {
+  width: 100%;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 8px 10px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 .map-overlay-toggle {
   position: absolute;
   top: 50%;
@@ -870,6 +905,10 @@ button {
   }
 
   .json-difficulties-row {
+    grid-template-columns: 1fr;
+  }
+
+  .json-location-row {
     grid-template-columns: 1fr;
   }
 }
