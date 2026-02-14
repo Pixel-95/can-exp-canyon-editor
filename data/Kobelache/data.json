@@ -1,5 +1,5 @@
 {
-  "id": 0,
+  "id": null,
   "coordinates": [
     9.78948,
     47.384366
@@ -121,7 +121,7 @@
     "./tracks/Merlins World - Zustieg.json",
     "./tracks/Kobelache_ZustiegMueselbach.json"
   ],
-  "cover_image": "./pictures/_cover/LQ/PXL_20250426_103157646~3.jpg",
+  "cover_image": null,
   "sections": [
     {
       "id": 0,
@@ -183,40 +183,8 @@
       "topo": "./topos/MerlinsWorld.webp",
       "official_partner": null,
       "images": {
-        "cover": {
-          "local": "./pictures/Merlin's World/LQ/cover/PXL_20250426_103157646~3.jpg",
-          "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/cover/PXL_20250426_103157646~3.jpg"
-        },
-        "additional": [
-          {
-            "local": "./pictures/Merlin's World/LQ/additional/IMG-20250126-WA0007.jpg",
-            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/IMG-20250126-WA0007.jpg"
-          },
-          {
-            "local": "./pictures/Merlin's World/LQ/additional/PXL_20250606_122432774.jpg",
-            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/PXL_20250606_122432774.jpg"
-          },
-          {
-            "local": "./pictures/Merlin's World/LQ/additional/PXL_20250606_124949728.jpg",
-            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/PXL_20250606_124949728.jpg"
-          },
-          {
-            "local": "./pictures/Merlin's World/LQ/additional/PXL_20250606_130107521.jpg",
-            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/PXL_20250606_130107521.jpg"
-          },
-          {
-            "local": "./pictures/Merlin's World/LQ/additional/PXL_20250628_091215232~3.jpg",
-            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/PXL_20250628_091215232~3.jpg"
-          },
-          {
-            "local": "./pictures/Merlin's World/LQ/additional/PXL_20250628_093312460~2.jpg",
-            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/PXL_20250628_093312460~2.jpg"
-          },
-          {
-            "local": "./pictures/Merlin's World/LQ/additional/c664fe33-27c6-428f-8bdd-29e75ad91358.jpg",
-            "remote_key": "CanyonImages/Kobelache/pictures/Merlin's World/HQ/additional/c664fe33-27c6-428f-8bdd-29e75ad91358.jpg"
-          }
-        ]
+        "cover": null,
+        "additional": []
       }
     },
     {
@@ -279,32 +247,8 @@
       "track_canyon": "./tracks/Kangaroo Jump.json",
       "topo": "./topos/KangarooJump.webp",
       "images": {
-        "cover": {
-          "local": "./pictures/Kangaroo Jump/LQ/cover/IMG-20250126-WA0011.jpg",
-          "remote_key": "CanyonImages/Kobelache/pictures/Kangaroo Jump/HQ/cover/IMG-20250126-WA0011.jpg"
-        },
-        "additional": [
-          {
-            "local": "./pictures/Kangaroo Jump/LQ/additional/Fotor_159803096556075.jpg",
-            "remote_key": "CanyonImages/Kobelache/pictures/Kangaroo Jump/HQ/additional/Fotor_159803096556075.jpg"
-          },
-          {
-            "local": "./pictures/Kangaroo Jump/LQ/additional/Fotor_159803112620728.jpg",
-            "remote_key": "CanyonImages/Kobelache/pictures/Kangaroo Jump/HQ/additional/Fotor_159803112620728.jpg"
-          },
-          {
-            "local": "./pictures/Kangaroo Jump/LQ/additional/Fotor_159803123300774.jpg",
-            "remote_key": "CanyonImages/Kobelache/pictures/Kangaroo Jump/HQ/additional/Fotor_159803123300774.jpg"
-          },
-          {
-            "local": "./pictures/Kangaroo Jump/LQ/additional/IMG-20250126-WA0009.jpg",
-            "remote_key": "CanyonImages/Kobelache/pictures/Kangaroo Jump/HQ/additional/IMG-20250126-WA0009.jpg"
-          },
-          {
-            "local": "./pictures/Kangaroo Jump/LQ/additional/f9ab9f43-6aa7-45b3-886d-3397ead0280f.jpg",
-            "remote_key": "CanyonImages/Kobelache/pictures/Kangaroo Jump/HQ/additional/f9ab9f43-6aa7-45b3-886d-3397ead0280f.jpg"
-          }
-        ]
+        "cover": null,
+        "additional": []
       }
     }
   ]
