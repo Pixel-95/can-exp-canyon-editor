@@ -631,17 +631,23 @@ export function RouteMapApp({
   routePointsRef.current = routePoints;
   routeFeatureRef.current = routeFeature;
 
+  const closeAllMenus = useCallback((): void => {
+    setContextMenu(null);
+    setActiveSubmenu(null);
+    setPoiEditor(null);
+    setPoiPasteModal(null);
+    setParkingEditor(null);
+    setParkingPasteModal(null);
+    segmentModePopupRef.current?.remove();
+    segmentModePopupRef.current = null;
+  }, []);
+
   useEffect(() => {
     viewModeRef.current = viewMode;
     if (viewMode === "compact") {
-      setContextMenu(null);
-      setActiveSubmenu(null);
-      setPoiEditor(null);
-      setPoiPasteModal(null);
-      setParkingEditor(null);
-      setParkingPasteModal(null);
+      closeAllMenus();
     }
-  }, [viewMode]);
+  }, [closeAllMenus, viewMode]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1051,16 +1057,16 @@ export function RouteMapApp({
         Number(event.lngLat.lat.toFixed(6)),
       ];
 
+      closeAllMenus();
       setContextMenu({
         x: Math.round(event.point.x),
         y: Math.round(event.point.y),
         coordinate,
       });
-      setActiveSubmenu(null);
     };
 
-    const onMapClick = (event: mapboxgl.MapMouseEvent & mapboxgl.EventData): void => {
-      openMenuForEvent(event);
+    const onMapClick = (): void => {
+      closeAllMenus();
     };
 
     const onMapContextMenu = (event: mapboxgl.MapMouseEvent & mapboxgl.EventData): void => {
@@ -1084,14 +1090,7 @@ export function RouteMapApp({
     };
 
     const onMapMoveStart = (): void => {
-      setContextMenu(null);
-      setActiveSubmenu(null);
-      setPoiEditor(null);
-      setPoiPasteModal(null);
-      setParkingEditor(null);
-      setParkingPasteModal(null);
-      segmentModePopupRef.current?.remove();
-      segmentModePopupRef.current = null;
+      closeAllMenus();
     };
 
     map.on("click", onMapClick);
@@ -1133,7 +1132,7 @@ export function RouteMapApp({
       map.remove();
       mapRef.current = null;
     };
-  }, [mapboxToken]);
+  }, [closeAllMenus, mapboxToken]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1183,8 +1182,7 @@ export function RouteMapApp({
     if (onSetOverviewCoordinate) {
       overviewMarker.on("dragstart", () => {
         suppressMapMenuUntilRef.current = Date.now() + 350;
-        setContextMenu(null);
-        setActiveSubmenu(null);
+        closeAllMenus();
       });
 
       overviewMarker.on("dragend", () => {
@@ -1199,7 +1197,7 @@ export function RouteMapApp({
     }
 
     overviewPointMarkerRef.current = overviewMarker;
-  }, [onSetOverviewCoordinate, overviewCoordinate]);
+  }, [closeAllMenus, onSetOverviewCoordinate, overviewCoordinate]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1235,11 +1233,7 @@ export function RouteMapApp({
           return;
         }
 
-        setContextMenu(null);
-        setActiveSubmenu(null);
-        setPoiPasteModal(null);
-        setParkingEditor(null);
-        setParkingPasteModal(null);
+        closeAllMenus();
         setPoiEditor({
           index,
           language: effectiveDefaultLanguage,
@@ -1249,11 +1243,7 @@ export function RouteMapApp({
       if (onPointsOfInterestChange) {
         marker.on("dragstart", () => {
           suppressMapMenuUntilRef.current = Date.now() + 350;
-          setContextMenu(null);
-          setActiveSubmenu(null);
-          setPoiPasteModal(null);
-          setParkingEditor(null);
-          setParkingPasteModal(null);
+          closeAllMenus();
         });
 
         marker.on("dragend", () => {
@@ -1279,7 +1269,7 @@ export function RouteMapApp({
 
       poiMarkersRef.current.push(marker);
     });
-  }, [effectiveDefaultLanguage, onPointsOfInterestChange, pointsOfInterest]);
+  }, [closeAllMenus, effectiveDefaultLanguage, onPointsOfInterestChange, pointsOfInterest]);
 
   useEffect(() => {
     if (!poiEditor) {
@@ -1326,11 +1316,7 @@ export function RouteMapApp({
           return;
         }
 
-        setContextMenu(null);
-        setActiveSubmenu(null);
-        setPoiEditor(null);
-        setPoiPasteModal(null);
-        setParkingPasteModal(null);
+        closeAllMenus();
         setParkingEditor({
           index,
           language: effectiveDefaultLanguage,
@@ -1340,11 +1326,7 @@ export function RouteMapApp({
       if (onParkingLotsChange) {
         marker.on("dragstart", () => {
           suppressMapMenuUntilRef.current = Date.now() + 350;
-          setContextMenu(null);
-          setActiveSubmenu(null);
-          setPoiEditor(null);
-          setPoiPasteModal(null);
-          setParkingPasteModal(null);
+          closeAllMenus();
         });
 
         marker.on("dragend", () => {
@@ -1370,7 +1352,7 @@ export function RouteMapApp({
 
       parkingLotMarkersRef.current.push(marker);
     });
-  }, [effectiveDefaultLanguage, onParkingLotsChange, parkingLots]);
+  }, [closeAllMenus, effectiveDefaultLanguage, onParkingLotsChange, parkingLots]);
 
   useEffect(() => {
     if (!parkingEditor) {
@@ -1713,8 +1695,7 @@ export function RouteMapApp({
 
         marker.on("dragstart", () => {
           suppressMapMenuUntilRef.current = Date.now() + 350;
-          setContextMenu(null);
-          setActiveSubmenu(null);
+          closeAllMenus();
         });
 
         marker.on("dragend", () => {
@@ -1742,7 +1723,7 @@ export function RouteMapApp({
       setStatusText(`Map marker error: ${formatError(error)}`);
       console.error("Failed to update map markers:", error);
     }
-  }, [applyRoutePointUpdate, openSegmentModePopup, routePoints]);
+  }, [applyRoutePointUpdate, closeAllMenus, openSegmentModePopup, routePoints]);
 
   const setBoundaryPointAtCoordinate = useCallback((target: "start" | "end", coordinate: Coordinate): void => {
     applyRoutePointUpdate(
