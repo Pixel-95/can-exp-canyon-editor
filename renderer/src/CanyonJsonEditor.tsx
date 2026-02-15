@@ -20,6 +20,8 @@ const DEFAULT_JSON_PATH = "data/Kobelache/data.json";
 const COUNTRY_ASSET_PATH = "assets/en.json";
 const SPECIAL_NOTES_ASSET_PATH = "assets/possible_special_notes.json";
 const LANGUAGE_KEY_PATTERN = /^[a-z]{2}(?:-[A-Za-z]{2})?$/i;
+const STATIC_LANGUAGE_KEYS = ["de", "en", "es", "fr", "it", "pt"] as const;
+const STATIC_LANGUAGE_SET = new Set<string>(STATIC_LANGUAGE_KEYS);
 
 const ROOT_EDITABLE_KEYS = new Set(["name", "description", "location", "sections"]);
 const LOCATION_EDITABLE_KEYS = new Set(["country_code", "region_code"]);
@@ -386,6 +388,39 @@ function getNoteIdFromEntry(
   return null;
 }
 
+function parseStaticLanguagePastePayload(payload: unknown): { value: JsonObject | null; error: string | null } {
+  if (!isJsonObject(payload)) {
+    return {
+      value: null,
+      error: "The pasted content must be a JSON object.",
+    };
+  }
+
+  for (const key of Object.keys(payload)) {
+    if (!STATIC_LANGUAGE_SET.has(key)) {
+      return {
+        value: null,
+        error: `Unsupported language key "${key}". Allowed keys: ${STATIC_LANGUAGE_KEYS.join(", ")}.`,
+      };
+    }
+  }
+
+  const output: JsonObject = {};
+  for (const language of STATIC_LANGUAGE_KEYS) {
+    const rawValue = payload[language];
+    if (typeof rawValue !== "string") {
+      return {
+        value: null,
+        error: `Language "${language}" must be a string.`,
+      };
+    }
+
+    output[language] = rawValue;
+  }
+
+  return { value: output, error: null };
+}
+
 function shouldRenderChild(parentPath: PathSegment[], key: string, value: JsonValue): boolean {
   if (value === null) {
     return false;
@@ -620,6 +655,9 @@ export function CanyonJsonEditor(): JSX.Element {
   const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [languageTabs, setLanguageTabs] = useState<Record<string, string>>({});
+  const [languagePasteTargetPath, setLanguagePasteTargetPath] = useState<PathSegment[] | null>(null);
+  const [languagePasteDraft, setLanguagePasteDraft] = useState("");
+  const [languagePasteError, setLanguagePasteError] = useState("");
 
   const baseDirectory = useMemo(() => getDirectoryPath(currentFilePath), [currentFilePath]);
   const topoDefaultDirectory = useMemo(
@@ -1129,6 +1167,41 @@ export function CanyonJsonEditor(): JSX.Element {
     [setPathValue],
   );
 
+  const openLanguagePasteModal = useCallback((path: PathSegment[]): void => {
+    setLanguagePasteTargetPath(path);
+    setLanguagePasteDraft("");
+    setLanguagePasteError("");
+  }, []);
+
+  const closeLanguagePasteModal = useCallback((): void => {
+    setLanguagePasteTargetPath(null);
+    setLanguagePasteError("");
+  }, []);
+
+  const onApplyLanguagePaste = useCallback((): void => {
+    if (!languagePasteTargetPath) {
+      return;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(languagePasteDraft);
+    } catch {
+      setLanguagePasteError("Invalid JSON format.");
+      return;
+    }
+
+    const validation = parseStaticLanguagePastePayload(parsed);
+    if (!validation.value || validation.error) {
+      setLanguagePasteError(validation.error ?? "Invalid language JSON payload.");
+      return;
+    }
+
+    setPathValue(languagePasteTargetPath, validation.value);
+    setLanguagePasteTargetPath(null);
+    setLanguagePasteError("");
+  }, [languagePasteDraft, languagePasteTargetPath, setPathValue]);
+
   const renderNode = useCallback(
     (value: JsonValue, path: PathSegment[], label: string): JSX.Element | null => {
       if (value === null) {
@@ -1140,81 +1213,29 @@ export function CanyonJsonEditor(): JSX.Element {
       const validationError = validationErrors[pathKey];
 
       if (isLanguageObject(value)) {
-        const languages = Object.keys(value);
         const activeLanguage =
-          languageTabs[pathKey] && languages.includes(languageTabs[pathKey])
+          languageTabs[pathKey] && STATIC_LANGUAGE_SET.has(languageTabs[pathKey])
             ? languageTabs[pathKey]
-            : languages[0] ?? "";
+            : STATIC_LANGUAGE_KEYS[0];
         const cardTitle =
           path.length === 1 && path[0] === "description" ? "Short Characteristic" : titleCase(label);
 
         return (
           <section className="json-card">
             <div className="json-card-header">
-              <h3>{cardTitle}</h3>
-              <div className="json-inline-actions">
+              <div className="json-language-header-left">
+                <h3>{cardTitle}</h3>
                 <button
                   type="button"
-                  onClick={() => {
-                    const rawLanguage = window.prompt("Language key (e.g. en, de, fr)", "");
-                    if (!rawLanguage) {
-                      return;
-                    }
-
-                    const languageKey = rawLanguage.trim().toLowerCase();
-                    if (!languageKey) {
-                      return;
-                    }
-
-                    if (!LANGUAGE_KEY_PATTERN.test(languageKey)) {
-                      setStatusMessage("Invalid language key format.");
-                      return;
-                    }
-
-                    if (languageKey in value) {
-                      setStatusMessage(`Language ${languageKey} already exists.`);
-                      return;
-                    }
-
-                    setPathValue(path, {
-                      ...value,
-                      [languageKey]: "",
-                    });
-                    setLanguageTabs((current) => ({
-                      ...current,
-                      [pathKey]: languageKey,
-                    }));
-                  }}
+                  onClick={() => openLanguagePasteModal(path)}
                 >
-                  Add language
-                </button>
-                <button
-                  type="button"
-                  className="json-danger-button"
-                  disabled={!activeLanguage}
-                  onClick={() => {
-                    if (!activeLanguage) {
-                      return;
-                    }
-
-                    const nextObject = { ...value };
-                    delete nextObject[activeLanguage];
-
-                    setPathValue(path, nextObject);
-                    const remaining = Object.keys(nextObject);
-                    setLanguageTabs((current) => ({
-                      ...current,
-                      [pathKey]: remaining[0] ?? "",
-                    }));
-                  }}
-                >
-                  Remove language
+                  Paste JSON
                 </button>
               </div>
             </div>
 
             <div className="json-language-tabs">
-              {languages.map((language) => (
+              {STATIC_LANGUAGE_KEYS.map((language) => (
                 <button
                   type="button"
                   key={language}
@@ -1231,17 +1252,13 @@ export function CanyonJsonEditor(): JSX.Element {
               ))}
             </div>
 
-            {activeLanguage ? (
-              <div className="json-language-content">
-                <textarea
-                  value={String(value[activeLanguage] ?? "")}
-                  rows={4}
-                  onChange={(event) => setPathValue([...path, activeLanguage], event.target.value)}
-                />
-              </div>
-            ) : (
-              <p className="json-empty-text">No language entries.</p>
-            )}
+            <div className="json-language-content">
+              <textarea
+                value={typeof value[activeLanguage] === "string" ? value[activeLanguage] : ""}
+                rows={4}
+                onChange={(event) => setPathValue([...path, activeLanguage], event.target.value)}
+              />
+            </div>
           </section>
         );
       }
@@ -2051,6 +2068,7 @@ export function CanyonJsonEditor(): JSX.Element {
       onDifficultyRomanStep,
       languageTabs,
       onNumberDraftChange,
+      openLanguagePasteModal,
       onSpecialNoteParamChange,
       onSpecialNoteRemoveUnknown,
       onSpecialNoteToggle,
@@ -2062,7 +2080,6 @@ export function CanyonJsonEditor(): JSX.Element {
       specialNoteIdByIcon,
       validationErrors,
       inputDrafts,
-      setStatusMessage,
     ],
   );
 
@@ -2092,6 +2109,38 @@ export function CanyonJsonEditor(): JSX.Element {
           <div className="json-empty-text">No JSON loaded.</div>
         )}
       </section>
+
+      {languagePasteTargetPath ? (
+        <div className="json-modal-backdrop" role="presentation">
+          <div className="json-modal" role="dialog" aria-modal="true" aria-label="Paste language JSON">
+            <div className="json-modal-header">
+              <h3>Paste language JSON</h3>
+              <button type="button" className="json-modal-close" onClick={closeLanguagePasteModal} aria-label="Close">
+                X
+              </button>
+            </div>
+            <p className="json-modal-help">
+              Provide valid JSON with exactly these keys: {STATIC_LANGUAGE_KEYS.join(", ")}.
+            </p>
+            <textarea
+              value={languagePasteDraft}
+              rows={12}
+              onChange={(event) => {
+                setLanguagePasteDraft(event.target.value);
+                if (languagePasteError) {
+                  setLanguagePasteError("");
+                }
+              }}
+            />
+            {languagePasteError ? <p className="json-inline-error">{languagePasteError}</p> : null}
+            <div className="json-modal-actions">
+              <button type="button" className="json-modal-apply" onClick={onApplyLanguagePaste}>
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
