@@ -162,6 +162,7 @@ type RouteMapAppProps = {
   onPointsOfInterestChange?: (points: PointOfInterest[]) => void;
   parkingLots?: ParkingLot[];
   onParkingLotsChange?: (parkingLots: ParkingLot[]) => void;
+  parkingLotSuggestions?: LocalizedText[];
 };
 
 const STATIC_LANGUAGE_KEYS = ["de", "en", "es", "fr", "it", "pt"] as const;
@@ -590,6 +591,7 @@ export function RouteMapApp({
   onPointsOfInterestChange,
   parkingLots = [],
   onParkingLotsChange,
+  parkingLotSuggestions = [],
 }: RouteMapAppProps): JSX.Element {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -2144,6 +2146,32 @@ export function RouteMapApp({
     [onParkingLotsChange, parkingLots],
   );
 
+  const onApplyParkingNamePreset = useCallback(
+    (parkingLotIndex: number, preset: LocalizedText): void => {
+      if (!onParkingLotsChange) {
+        return;
+      }
+
+      if (parkingLotIndex < 0 || parkingLotIndex >= parkingLots.length) {
+        return;
+      }
+
+      const next = parkingLots.map((parkingLot, index) => {
+        if (index !== parkingLotIndex) {
+          return parkingLot;
+        }
+
+        return {
+          ...parkingLot,
+          name: normalizeLocalizedText(preset),
+        };
+      });
+
+      onParkingLotsChange(next);
+    },
+    [onParkingLotsChange, parkingLots],
+  );
+
   const openParkingPasteModal = useCallback((): void => {
     if (!parkingEditor) {
       return;
@@ -2898,6 +2926,18 @@ export function RouteMapApp({
                   onParkingNameChange(parkingEditor.index, activeParkingLanguage, event.target.value)
                 }
               />
+              <div className="parking-name-presets">
+                {parkingLotSuggestions.map((preset, presetIndex) => (
+                  <button
+                    key={`${preset.en}-${presetIndex}`}
+                    type="button"
+                    className="parking-name-preset-button"
+                    onClick={() => onApplyParkingNamePreset(parkingEditor.index, preset)}
+                  >
+                    {`Set to "${preset.en}"`}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : null}

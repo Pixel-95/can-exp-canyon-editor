@@ -1,0 +1,34 @@
+[
+  {
+    "de": "Großer Parkplatz",
+    "en": "Big parking lot",
+    "es": "Gran aparcamiento",
+    "fr": "Grand parking",
+    "it": "Grande parcheggio",
+    "pt": "Grande parque de estacionamento"
+  },
+  {
+    "de": "Schotterfläche",
+    "en": "Gravel area",
+    "es": "Zona de grava",
+    "fr": "Zone de gravier",
+    "it": "Area sterrata",
+    "pt": "Área de gravilha"
+  },
+  {
+    "de": "Wenige Parkmöglichkeiten am Straßenrand",
+    "en": "Few spots along roadside",
+    "es": "Pocas plazas al borde de la carretera",
+    "fr": "Quelques places en bord de route",
+    "it": "Pochi posti lungo la strada",
+    "pt": "Poucos lugares à beira da estrada"
+  },
+  {
+    "de": "Wenige Parkmöglichkeiten an der Kreuzung",
+    "en": "Few spots at the junction",
+    "es": "Pocas plazas en el cruce",
+    "fr": "Quelques places au carrefour",
+    "it": "Pochi posti all'incrocio",
+    "pt": "Poucos lugares na interseção"
+  }
+]

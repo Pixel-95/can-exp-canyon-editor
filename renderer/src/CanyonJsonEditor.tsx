@@ -32,8 +32,9 @@ type CanyonJsonEditorProps = {
 };
 
 const DEFAULT_JSON_PATH = "data/Kobelache/data.json";
-const COUNTRY_ASSET_PATH = "assets/en.json";
-const SPECIAL_NOTES_ASSET_PATH = "assets/possible_special_notes.json";
+const COUNTRY_ASSET_PATH = "assets/countries_and_regions.json";
+const SPECIAL_NOTES_ASSET_PATH = "assets/special_notes_possibilities.json";
+const PARKING_LOT_SUGGESTIONS_ASSET_PATH = "assets/parking_lot_suggestions.json";
 const DEFAULT_LANGUAGE_STORAGE_KEY = "canyon-editor.default-language";
 const LANGUAGE_KEY_PATTERN = /^[a-z]{2}(?:-[A-Za-z]{2})?$/i;
 const STATIC_LANGUAGE_KEYS = ["de", "en", "es", "fr", "it", "pt"] as const;
@@ -537,6 +538,29 @@ function parseStaticLanguagePastePayload(payload: unknown): { value: JsonObject 
   return { value: output, error: null };
 }
 
+function parseParkingLotSuggestionsFromAsset(payload: unknown): LocalizedText[] {
+  if (!Array.isArray(payload)) {
+    return [];
+  }
+
+  const suggestions: LocalizedText[] = [];
+  for (const entry of payload) {
+    const validation = parseStaticLanguagePastePayload(entry);
+    if (!validation.value) {
+      continue;
+    }
+
+    const suggestion: LocalizedText = {};
+    for (const language of STATIC_LANGUAGE_KEYS) {
+      suggestion[language] = typeof validation.value[language] === "string" ? validation.value[language] : "";
+    }
+
+    suggestions.push(suggestion);
+  }
+
+  return suggestions;
+}
+
 function createEmptyNewCanyonData(template: JsonObject, canyonName: string): JsonObject {
   const description: JsonObject = {};
   for (const language of STATIC_LANGUAGE_KEYS) {
@@ -786,6 +810,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   const [statusMessage, setStatusMessage] = useState("Loading data/Kobelache/data.json...");
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [specialNoteDefinitions, setSpecialNoteDefinitions] = useState<SpecialNoteDefinition[]>([]);
+  const [parkingLotSuggestions, setParkingLotSuggestions] = useState<LocalizedText[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({});
@@ -952,6 +977,33 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     void loadInitialJson().catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "Unexpected initialization error.";
       setStatusMessage(message);
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let canceled = false;
+
+    async function loadParkingLotSuggestions(): Promise<void> {
+      const result = await window.api.loadJsonFromPath(PARKING_LOT_SUGGESTIONS_ASSET_PATH);
+      if (canceled) {
+        return;
+      }
+
+      if (result.canceled || !result.data) {
+        return;
+      }
+
+      setParkingLotSuggestions(parseParkingLotSuggestionsFromAsset(result.data));
+    }
+
+    void loadParkingLotSuggestions().catch(() => {
+      if (!canceled) {
+        setParkingLotSuggestions([]);
+      }
     });
 
     return () => {
@@ -1611,7 +1663,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                         Remove
                       </button>
                     <p className="json-special-note-resolved">
-                      Unknown special note entry. Add it to `assets/possible_special_notes.json` or remove it.
+                      Unknown special note entry. Add it to `assets/special_notes_possibilities.json` or remove it.
                     </p>
                   </div>
                 );
@@ -1921,6 +1973,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                       onPointsOfInterestChange={onPointsOfInterestChange}
                       parkingLots={parkingLots}
                       onParkingLotsChange={onParkingLotsChange}
+                      parkingLotSuggestions={parkingLotSuggestions}
                     />
                   </div>
                 </div>
@@ -2363,6 +2416,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       overviewCoordinate,
       pointsOfInterest,
       parkingLots,
+      parkingLotSuggestions,
       onNumberDraftChange,
       onOverviewCoordinateSet,
       onPointsOfInterestChange,
