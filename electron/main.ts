@@ -36,6 +36,7 @@ type PickFileFilter = {
 
 type PickFileRequest = {
   baseDir?: string | null;
+  defaultPath?: string | null;
   title?: string;
   filters?: PickFileFilter[];
 };
@@ -339,6 +340,10 @@ ipcMain.handle("json:pick-file", async (_event, request: PickFileRequest): Promi
 
   const openResult = await dialog.showOpenDialog(mainWindow, {
     title: request?.title ?? "Select file",
+    defaultPath:
+      request?.defaultPath && request.defaultPath.trim()
+        ? toAbsolutePath(request.defaultPath.trim())
+        : undefined,
     properties: ["openFile"],
     filters: request?.filters?.length
       ? request.filters

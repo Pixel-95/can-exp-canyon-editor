@@ -32,6 +32,7 @@ declare global {
       }>;
       pickFile: (request: {
         baseDir?: string | null;
+        defaultPath?: string | null;
         title?: string;
         filters?: Array<{ name: string; extensions: string[] }>;
       }) => Promise<{

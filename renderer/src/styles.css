@@ -859,10 +859,59 @@ button {
   line-height: 1;
 }
 
-.json-difficulties-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+.json-difficulties-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.json-difficulty-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.json-difficulty-stepper {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.json-difficulty-stepper button {
+  width: 1.2rem;
+  height: 0.95rem;
+  border: 1px solid #94a3b8;
+  border-radius: 4px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.json-difficulty-static {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.json-input-field .json-difficulty-digit-input {
+  width: 2.25rem;
+  text-align: center;
+  padding: 6px 4px;
+  font-weight: 700;
+}
+
+.json-input-field .json-difficulty-roman-input {
+  width: 3.25rem;
+  text-align: center;
+  padding: 6px 4px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .json-horizontal-fields {
@@ -890,17 +939,6 @@ button {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
-}
-
-.json-difficulty-item {
-  display: grid;
-  gap: 3px;
-}
-
-.json-difficulty-item span {
-  font-size: 0.75rem;
-  color: #475569;
-  font-weight: 600;
 }
 
 .json-location-row {
@@ -988,8 +1026,8 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .json-difficulties-row {
-    grid-template-columns: 1fr;
+  .json-difficulties-inline {
+    gap: 6px;
   }
 
   .json-location-row {

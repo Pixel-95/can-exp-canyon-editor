@@ -1,0 +1,48 @@
+{
+  "possible_special_notes": [
+    {
+      "icon": "📞",
+      "text": {
+        "en": "Since this canyon is located below a reservoir and it's occasionally drained, registration at {{REGISTRATION_PHONE}} is mandatory.",
+        "de": "Da dieser Canyon unterhalb eines Stausees liegt und dieser gelegentlich abgelassen wird, ist eine Anmeldung unter {{REGISTRATION_PHONE}} zwingend erforderlich.",
+        "es": "Dado que este cañón se encuentra debajo de un embalse y este se vacía ocasionalmente, es imprescindible inscribirse en el {{REGISTRATION_PHONE}}.",
+        "fr": "Étant donné que ce canyon est situé en aval d'un réservoir et que celui-ci est occasionnellement vidé, une inscription au {{REGISTRATION_PHONE}} est impérative.",
+        "it": "Dato che questo canyon si trova sotto un bacino idrico e quest'ultimo viene occasionalmente svuotato, è obbligatoria la registrazione al {{REGISTRATION_PHONE}}.",
+        "pt": "Uma vez que este cânion está localizado abaixo de um reservatório e este é ocasionalmente esvaziado, o registro em {{REGISTRATION_PHONE}} é obrigatório."
+      }
+    },
+    {
+      "icon": "🚤",
+      "text": {
+        "de": "Da dieser Abschnitt im Meer endet, empfiehlt es sich, ein Boot bei den ansässigen Anbietern als Rücktransport zu organisieren.",
+        "en": "Since this section ends in the sea, it is recommended to organize a boat with local providers for the return transfer.",
+        "es": "Dado que esta sección termina en el mar, se recomienda organizar un barco con proveedores locales para el traslado de regreso.",
+        "fr": "Comme cette section se termine dans la mer, il est recommandé d'organiser un bateau auprès des prestataires locaux pour le retour.",
+        "it": "Poiché questa sezione termina nel mare, si consiglia di organizzare un trasferimento in barca con operatori locali.",
+        "pt": "Como esta secção termina no mar, recomenda-se organizar um barco com operadores locais para o transporte de volta."
+      }
+    },
+    {
+      "icon": "🌊",
+      "text": {
+        "de": "Da dieser Canyon direkt am Meer endet, empfiehlt es sich, auf die Gezeiten und den Wellengang zu achten.",
+        "en": "Since this canyon ends directly at the sea, it is recommended to pay attention to tides and wave conditions.",
+        "es": "Como este cañón termina directamente en el mar, se recomienda prestar atención a las mareas y a las condiciones del oleaje.",
+        "fr": "Comme ce canyon se termine directement dans la mer, il est recommandé de faire attention aux marées et aux conditions de la houle.",
+        "it": "Poiché questo canyon termina direttamente sul mare, è consigliato prestare attenzione alle maree e alle condizioni delle onde.",
+        "pt": "Como este cânion termina diretamente no mar, recomenda-se prestar atenção às marés e às condições das ondas."
+      }
+    },
+    {
+      "icon": "🔦",
+      "text": {
+        "en": "Since this canyon is partially in complete darkness, headlamps are absolutely necessary.",
+        "de": "Da sich dieser Canyon teilweise in kompletter Dunkelheit befindet, sind Stirnlampen absolut notwendig.",
+        "es": "Dado que este cañón se encuentra parcialmente en completa oscuridad, las linternas frontales son absolutamente necesarias.",
+        "fr": "Étant donné que ce canyon est partiellement plongé dans l'obscurité totale, les lampes frontales sont absolument nécessaires.",
+        "it": "Dato che questo canyon si trova parzialmente in completa oscurità, le lampade frontali sono assolutamente necessarie.",
+        "pt": "Uma vez que este cânion está parcialmente em completa escuridão, as lanternas de cabeça são absolutamente necessárias."
+      }
+    }
+  ]
+}

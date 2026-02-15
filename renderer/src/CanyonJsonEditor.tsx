@@ -37,6 +37,16 @@ const SECTION_DURATION_KEYS = [
   "exit_with_shuttle",
 ] as const;
 const SECTION_DIMENSION_KEYS = ["elevation_start", "elevation_exit", "horizontal_length"] as const;
+const COMMITMENT_ROMAN_BY_VALUE = ["0", "I", "II", "III", "IV", "V", "VI"] as const;
+const COMMITMENT_VALUE_BY_ROMAN: Record<string, number> = {
+  0: 0,
+  I: 1,
+  II: 2,
+  III: 3,
+  IV: 4,
+  V: 5,
+  VI: 6,
+};
 const IGNORED_KEYS = new Set([
   "coordinates",
   "parking_lots",
@@ -154,6 +164,40 @@ function getDirectoryPath(filePath: string | null): string | null {
   }
 
   return normalized.slice(0, slashIndex);
+}
+
+function formatCommitmentDifficulty(value: JsonValue): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "";
+  }
+
+  if (!Number.isInteger(value) || value < 0 || value >= COMMITMENT_ROMAN_BY_VALUE.length) {
+    return String(value);
+  }
+
+  return COMMITMENT_ROMAN_BY_VALUE[value];
+}
+
+function parseCommitmentDifficulty(value: string): number | null {
+  const normalized = value.trim().toUpperCase();
+  if (!normalized) {
+    return null;
+  }
+
+  return COMMITMENT_VALUE_BY_ROMAN[normalized] ?? null;
+}
+
+function parseArabicDifficulty(value: string): number | null {
+  const normalized = value.trim();
+  if (!/^[0-7]$/.test(normalized)) {
+    return null;
+  }
+
+  return Number.parseInt(normalized, 10);
+}
+
+function clampInRange(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function cloneJsonValue<T>(value: T): T {
@@ -461,6 +505,10 @@ export function CanyonJsonEditor(): JSX.Element {
   const [languageTabs, setLanguageTabs] = useState<Record<string, string>>({});
 
   const baseDirectory = useMemo(() => getDirectoryPath(currentFilePath), [currentFilePath]);
+  const topoDefaultDirectory = useMemo(
+    () => (baseDirectory ? `${baseDirectory}/topos` : null),
+    [baseDirectory],
+  );
   const countryByCode = useMemo(() => {
     return new Map(countries.map((country) => [country.code, country] as const));
   }, [countries]);
@@ -611,10 +659,6 @@ export function CanyonJsonEditor(): JSX.Element {
       return;
     }
 
-    if (selectedCountry.regions.length === 0) {
-      return;
-    }
-
     const regionValue = valueAtPath(canyonData, ["location", "region_code"]);
     if (typeof regionValue !== "string") {
       return;
@@ -626,7 +670,7 @@ export function CanyonJsonEditor(): JSX.Element {
 
     const validRegionCodes = new Set(selectedCountry.regions.map((region) => region.code));
     if (!validRegionCodes.has(regionValue)) {
-      setPathValue(["location", "region_code"], selectedCountry.regions[0]?.code ?? "");
+      setPathValue(["location", "region_code"], "");
     }
   }, [canyonData, countryByCode, selectedCountryCode, setPathValue]);
 
@@ -745,10 +789,93 @@ export function CanyonJsonEditor(): JSX.Element {
     [clearValidationError, setPathValue, setValidationError],
   );
 
+  const onDifficultyArabicDraftChange = useCallback(
+    (path: PathSegment[], nextText: string): void => {
+      const key = toPathKey(path);
+      setInputDrafts((current) => ({
+        ...current,
+        [key]: nextText,
+      }));
+
+      const parsed = parseArabicDifficulty(nextText);
+      if (parsed === null) {
+        setValidationError(key, "Use a single digit from 0 to 7.");
+        return;
+      }
+
+      setPathValue(path, parsed);
+      clearValidationError(key);
+    },
+    [clearValidationError, setPathValue, setValidationError],
+  );
+
+  const onDifficultyRomanDraftChange = useCallback(
+    (path: PathSegment[], nextText: string): void => {
+      const key = toPathKey(path);
+      const normalizedText = nextText.toUpperCase();
+
+      setInputDrafts((current) => ({
+        ...current,
+        [key]: normalizedText,
+      }));
+
+      const parsed = parseCommitmentDifficulty(normalizedText);
+      if (parsed === null) {
+        setValidationError(key, "Use 0, I, II, III, IV, V, or VI.");
+        return;
+      }
+
+      setPathValue(path, parsed);
+      clearValidationError(key);
+    },
+    [clearValidationError, setPathValue, setValidationError],
+  );
+
+  const onDifficultyArabicStep = useCallback(
+    (path: PathSegment[], draftValue: string, storedValue: JsonValue, delta: number): void => {
+      const key = toPathKey(path);
+      const draftNumber = parseArabicDifficulty(draftValue);
+      const storedNumber =
+        typeof storedValue === "number" && Number.isFinite(storedValue)
+          ? clampInRange(Math.trunc(storedValue), 0, 7)
+          : 0;
+      const next = clampInRange((draftNumber ?? storedNumber) + delta, 0, 7);
+
+      setInputDrafts((current) => ({
+        ...current,
+        [key]: String(next),
+      }));
+      setPathValue(path, next);
+      clearValidationError(key);
+    },
+    [clearValidationError, setPathValue],
+  );
+
+  const onDifficultyRomanStep = useCallback(
+    (path: PathSegment[], draftValue: string, storedValue: JsonValue, delta: number): void => {
+      const key = toPathKey(path);
+      const draftNumber = parseCommitmentDifficulty(draftValue);
+      const storedNumber =
+        typeof storedValue === "number" && Number.isFinite(storedValue)
+          ? clampInRange(Math.trunc(storedValue), 0, 6)
+          : 0;
+      const next = clampInRange((draftNumber ?? storedNumber) + delta, 0, 6);
+
+      setInputDrafts((current) => ({
+        ...current,
+        [key]: COMMITMENT_ROMAN_BY_VALUE[next],
+      }));
+      setPathValue(path, next);
+      clearValidationError(key);
+    },
+    [clearValidationError, setPathValue],
+  );
+
   const onTopoFilePick = useCallback(
     async (path: PathSegment[]): Promise<void> => {
       const result = await window.api.pickFile({
         baseDir: baseDirectory,
+        defaultPath: topoDefaultDirectory,
         title: "Select topo file",
         filters: [{ name: "Topo Images", extensions: ["webp", "png", "jpg", "jpeg"] }],
       });
@@ -759,26 +886,15 @@ export function CanyonJsonEditor(): JSX.Element {
 
       setPathValue(path, result.relativePath ?? result.absolutePath ?? "");
     },
-    [baseDirectory, setPathValue],
+    [baseDirectory, setPathValue, topoDefaultDirectory],
   );
 
   const onCountryCodeChange = useCallback(
     (nextCountryCode: string): void => {
       setPathValue(["location", "country_code"], nextCountryCode);
-
-      if (!canyonData) {
-        return;
-      }
-
-      const currentRegion = valueAtPath(canyonData, ["location", "region_code"]);
-      const validRegions = countryByCode.get(nextCountryCode)?.regions ?? [];
-      const validRegionCodes = new Set(validRegions.map((region) => region.code));
-
-      if (typeof currentRegion === "string" && currentRegion && !validRegionCodes.has(currentRegion)) {
-        setPathValue(["location", "region_code"], validRegions[0]?.code ?? "");
-      }
+      setPathValue(["location", "region_code"], "");
     },
-    [canyonData, countryByCode, setPathValue],
+    [setPathValue],
   );
 
   const renderNode = useCallback(
@@ -1170,37 +1286,119 @@ export function CanyonJsonEditor(): JSX.Element {
         }
 
         if (isDifficultiesPath(path)) {
-          const fields: Array<{ key: "vertical" | "aquatic" | "general"; label: string }> = [
-            { key: "vertical", label: "Vertical" },
-            { key: "aquatic", label: "Aquatic" },
-            { key: "general", label: "General" },
-          ];
+          const verticalPath = [...path, "vertical"];
+          const aquaticPath = [...path, "aquatic"];
+          const commitmentPath = [...path, "general"];
+
+          const verticalKey = toPathKey(verticalPath);
+          const aquaticKey = toPathKey(aquaticPath);
+          const commitmentKey = toPathKey(commitmentPath);
+
+          const verticalDisplay =
+            inputDrafts[verticalKey] ?? (typeof value.vertical === "number" ? String(value.vertical) : "");
+          const aquaticDisplay =
+            inputDrafts[aquaticKey] ?? (typeof value.aquatic === "number" ? String(value.aquatic) : "");
+          const commitmentDisplay = inputDrafts[commitmentKey] ?? formatCommitmentDifficulty(value.general);
 
           return (
             <div className="json-input-field">
               <label>{titleCase(label)}</label>
-              <div className="json-difficulties-row">
-                {fields.map((field) => {
-                  const fieldPath = [...path, field.key];
-                  const fieldPathKey = toPathKey(fieldPath);
-                  const fieldValue = value[field.key];
-                  const displayValue =
-                    inputDrafts[fieldPathKey] ??
-                    (typeof fieldValue === "number" ? String(fieldValue) : "");
-
-                  return (
-                    <label key={field.key} className="json-difficulty-item">
-                      <span>{field.label}</span>
-                      <input
-                        type="number"
-                        value={displayValue}
-                        onChange={(event) => onNumberDraftChange(fieldPath, event.target.value)}
-                        onBlur={() => clearDraft(fieldPathKey)}
-                      />
-                    </label>
-                  );
-                })}
+              <div className="json-difficulties-inline">
+                <div className="json-difficulty-token">
+                  <span className="json-difficulty-static">v</span>
+                  <input
+                    id={`field-${verticalKey}`}
+                    className="json-difficulty-digit-input"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-7]"
+                    maxLength={1}
+                    value={verticalDisplay}
+                    onChange={(event) => onDifficultyArabicDraftChange(verticalPath, event.target.value)}
+                    onBlur={() => clearDraft(verticalKey)}
+                    aria-label="Vertical difficulty"
+                  />
+                  <div className="json-difficulty-stepper">
+                    <button
+                      type="button"
+                      aria-label="Increase vertical difficulty"
+                      onClick={() => onDifficultyArabicStep(verticalPath, verticalDisplay, value.vertical, 1)}
+                    >
+                      {"\u25B2"}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Decrease vertical difficulty"
+                      onClick={() => onDifficultyArabicStep(verticalPath, verticalDisplay, value.vertical, -1)}
+                    >
+                      {"\u25BC"}
+                    </button>
+                  </div>
+                </div>
+                <div className="json-difficulty-token">
+                  <span className="json-difficulty-static">a</span>
+                  <input
+                    id={`field-${aquaticKey}`}
+                    className="json-difficulty-digit-input"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-7]"
+                    maxLength={1}
+                    value={aquaticDisplay}
+                    onChange={(event) => onDifficultyArabicDraftChange(aquaticPath, event.target.value)}
+                    onBlur={() => clearDraft(aquaticKey)}
+                    aria-label="Aquatic difficulty"
+                  />
+                  <div className="json-difficulty-stepper">
+                    <button
+                      type="button"
+                      aria-label="Increase aquatic difficulty"
+                      onClick={() => onDifficultyArabicStep(aquaticPath, aquaticDisplay, value.aquatic, 1)}
+                    >
+                      {"\u25B2"}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Decrease aquatic difficulty"
+                      onClick={() => onDifficultyArabicStep(aquaticPath, aquaticDisplay, value.aquatic, -1)}
+                    >
+                      {"\u25BC"}
+                    </button>
+                  </div>
+                </div>
+                <div className="json-difficulty-token">
+                  <input
+                    id={`field-${commitmentKey}`}
+                    className="json-difficulty-roman-input"
+                    type="text"
+                    inputMode="text"
+                    maxLength={3}
+                    value={commitmentDisplay}
+                    onChange={(event) => onDifficultyRomanDraftChange(commitmentPath, event.target.value)}
+                    onBlur={() => clearDraft(commitmentKey)}
+                    aria-label="Commitment difficulty"
+                  />
+                  <div className="json-difficulty-stepper">
+                    <button
+                      type="button"
+                      aria-label="Increase commitment difficulty"
+                      onClick={() => onDifficultyRomanStep(commitmentPath, commitmentDisplay, value.general, 1)}
+                    >
+                      {"\u25B2"}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Decrease commitment difficulty"
+                      onClick={() => onDifficultyRomanStep(commitmentPath, commitmentDisplay, value.general, -1)}
+                    >
+                      {"\u25BC"}
+                    </button>
+                  </div>
+                </div>
               </div>
+              {validationErrors[verticalKey] ? <p className="json-inline-error">{validationErrors[verticalKey]}</p> : null}
+              {validationErrors[aquaticKey] ? <p className="json-inline-error">{validationErrors[aquaticKey]}</p> : null}
+              {validationErrors[commitmentKey] ? <p className="json-inline-error">{validationErrors[commitmentKey]}</p> : null}
             </div>
           );
         }
@@ -1499,6 +1697,10 @@ export function CanyonJsonEditor(): JSX.Element {
       collapsedGroups,
       countries,
       onCountryCodeChange,
+      onDifficultyArabicDraftChange,
+      onDifficultyArabicStep,
+      onDifficultyRomanDraftChange,
+      onDifficultyRomanStep,
       languageTabs,
       onNumberDraftChange,
       onTopoFilePick,
