@@ -814,6 +814,13 @@ button {
   min-height: 74px;
 }
 
+.json-language-content-short-characteristic textarea {
+  height: 74px;
+  min-height: 74px;
+  max-height: 74px;
+  resize: none;
+}
+
 .json-array-body {
   padding: 7px;
   display: grid;

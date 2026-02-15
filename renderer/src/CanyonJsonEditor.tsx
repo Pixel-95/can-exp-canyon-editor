@@ -1273,6 +1273,7 @@ export function CanyonJsonEditor(): JSX.Element {
             : STATIC_LANGUAGE_KEYS[0];
         const cardTitle =
           path.length === 1 && path[0] === "description" ? "Short Characteristic" : titleCase(label);
+        const isShortCharacteristic = path.length === 1 && path[0] === "description";
 
         return (
           <section className="json-card">
@@ -1306,7 +1307,9 @@ export function CanyonJsonEditor(): JSX.Element {
               ))}
             </div>
 
-            <div className="json-language-content">
+            <div
+              className={`json-language-content${isShortCharacteristic ? " json-language-content-short-characteristic" : ""}`}
+            >
               <textarea
                 value={typeof value[activeLanguage] === "string" ? value[activeLanguage] : ""}
                 rows={4}
