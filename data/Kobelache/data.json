@@ -219,7 +219,14 @@
           "pt": "Siga o rio e saia após cerca de 100 m à direita ao longo da corrente de aço sobre a cerca de madeira. Este caminho leva diretamente de volta à pousada Gütle."
         }
       },
-      "special_notes": [],
+      "special_notes": [
+        {
+          "note_id": "registration-reservoir",
+          "params": {
+            "REGISTRATION_PHONE": "+41 91 756 6615"
+          }
+        }
+      ],
       "difficulties": {
         "vertical": 3,
         "aquatic": 3,

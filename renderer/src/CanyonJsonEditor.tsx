@@ -9,9 +9,16 @@ type CountryOption = {
   name: string;
   regions: Array<{ code: string; name: string }>;
 };
+type SpecialNoteDefinition = {
+  noteId: string;
+  icon: string;
+  templateText: string;
+  placeholders: string[];
+};
 
 const DEFAULT_JSON_PATH = "data/Kobelache/data.json";
 const COUNTRY_ASSET_PATH = "assets/en.json";
+const SPECIAL_NOTES_ASSET_PATH = "assets/possible_special_notes.json";
 const LANGUAGE_KEY_PATTERN = /^[a-z]{2}(?:-[A-Za-z]{2})?$/i;
 
 const ROOT_EDITABLE_KEYS = new Set(["name", "description", "location", "sections"]);
@@ -121,9 +128,18 @@ function isTourDimensionsPath(path: PathSegment[]): boolean {
   );
 }
 
+function isSpecialNotesPath(path: PathSegment[]): boolean {
+  return (
+    path.length === 3 &&
+    path[0] === "sections" &&
+    typeof path[1] === "number" &&
+    path[2] === "special_notes"
+  );
+}
+
 function isCompactStringArrayPath(path: PathSegment[]): boolean {
   const lastSegment = path[path.length - 1];
-  return lastSegment === "authors" || lastSegment === "special_notes";
+  return lastSegment === "authors";
 }
 
 function toPathKey(path: PathSegment[]): string {
@@ -268,6 +284,106 @@ function parseCountriesFromAsset(payload: unknown): CountryOption[] {
 
   countries.sort((left, right) => left.name.localeCompare(right.name));
   return countries;
+}
+
+function extractPlaceholders(templateText: string): string[] {
+  const placeholders: string[] = [];
+  const seen = new Set<string>();
+  const matcher = /{{\s*([A-Z0-9_]+)\s*}}/g;
+  let match: RegExpExecArray | null = matcher.exec(templateText);
+
+  while (match) {
+    const key = match[1];
+    if (!seen.has(key)) {
+      seen.add(key);
+      placeholders.push(key);
+    }
+
+    match = matcher.exec(templateText);
+  }
+
+  return placeholders;
+}
+
+function parseSpecialNoteDefinitions(payload: unknown): SpecialNoteDefinition[] {
+  if (!isJsonObject(payload) || !isJsonObject(payload.possible_special_notes)) {
+    return [];
+  }
+
+  const definitions: SpecialNoteDefinition[] = [];
+  const seenNoteIds = new Set<string>();
+  for (const [noteId, rawDefinition] of Object.entries(payload.possible_special_notes)) {
+    if (seenNoteIds.has(noteId)) {
+      continue;
+    }
+
+    if (!isJsonObject(rawDefinition)) {
+      continue;
+    }
+
+    const icon = typeof rawDefinition.icon === "string" ? rawDefinition.icon.trim() : "";
+    const templateText = typeof rawDefinition.text === "string" ? rawDefinition.text : "";
+    if (!icon || !templateText) {
+      continue;
+    }
+
+    definitions.push({
+      noteId,
+      icon,
+      templateText,
+      placeholders: extractPlaceholders(templateText),
+    });
+    seenNoteIds.add(noteId);
+  }
+
+  definitions.sort((left, right) => left.noteId.localeCompare(right.noteId));
+  return definitions;
+}
+
+function normalizeParams(value: JsonValue): Record<string, string> {
+  if (!isJsonObject(value)) {
+    return {};
+  }
+
+  const params: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (typeof raw === "string") {
+      params[key] = raw;
+      continue;
+    }
+
+    if (typeof raw === "number" || typeof raw === "boolean") {
+      params[key] = String(raw);
+    }
+  }
+
+  return params;
+}
+
+function resolveSpecialNoteText(templateText: string, params: Record<string, string>): string {
+  return templateText.replace(/{{\s*([A-Z0-9_]+)\s*}}/g, (match, key: string) => {
+    const value = params[key];
+    return typeof value === "string" && value.trim() ? value : match;
+  });
+}
+
+function getNoteIdFromEntry(
+  entry: JsonValue,
+  noteIdByIcon: Map<string, string>,
+): string | null {
+  if (!isJsonObject(entry)) {
+    return null;
+  }
+
+  if (typeof entry.note_id === "string" && entry.note_id.trim()) {
+    return entry.note_id.trim();
+  }
+
+  if (typeof entry.icon === "string" && entry.icon.trim()) {
+    return noteIdByIcon.get(entry.icon.trim()) ?? null;
+  }
+
+  return null;
 }
 
 function shouldRenderChild(parentPath: PathSegment[], key: string, value: JsonValue): boolean {
@@ -477,7 +593,7 @@ function newArrayItem(path: PathSegment[], arrayValue: JsonValue[]): JsonValue {
   }
 
   const lastSegment = path[path.length - 1];
-  if (lastSegment === "authors" || lastSegment === "special_notes") {
+  if (lastSegment === "authors") {
     return "";
   }
 
@@ -498,6 +614,7 @@ export function CanyonJsonEditor(): JSX.Element {
   const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("Loading data/Kobelache/data.json...");
   const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [specialNoteDefinitions, setSpecialNoteDefinitions] = useState<SpecialNoteDefinition[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({});
@@ -512,6 +629,12 @@ export function CanyonJsonEditor(): JSX.Element {
   const countryByCode = useMemo(() => {
     return new Map(countries.map((country) => [country.code, country] as const));
   }, [countries]);
+  const specialNoteById = useMemo(() => {
+    return new Map(specialNoteDefinitions.map((definition) => [definition.noteId, definition] as const));
+  }, [specialNoteDefinitions]);
+  const specialNoteIdByIcon = useMemo(() => {
+    return new Map(specialNoteDefinitions.map((definition) => [definition.icon, definition.noteId] as const));
+  }, [specialNoteDefinitions]);
   const selectedCountryCode = useMemo(() => {
     if (!canyonData) {
       return "";
@@ -610,6 +733,33 @@ export function CanyonJsonEditor(): JSX.Element {
     void loadInitialJson().catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "Unexpected initialization error.";
       setStatusMessage(message);
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let canceled = false;
+
+    async function loadSpecialNotes(): Promise<void> {
+      const result = await window.api.loadJsonFromPath(SPECIAL_NOTES_ASSET_PATH);
+      if (canceled) {
+        return;
+      }
+
+      if (result.canceled || !result.data) {
+        return;
+      }
+
+      setSpecialNoteDefinitions(parseSpecialNoteDefinitions(result.data));
+    }
+
+    void loadSpecialNotes().catch(() => {
+      if (!canceled) {
+        setSpecialNoteDefinitions([]);
+      }
     });
 
     return () => {
@@ -871,6 +1021,88 @@ export function CanyonJsonEditor(): JSX.Element {
     [clearValidationError, setPathValue],
   );
 
+  const buildSpecialNoteEntry = useCallback(
+    (noteId: string, params: Record<string, string>): JsonObject => {
+      const outputParams: JsonObject = {};
+      for (const [key, value] of Object.entries(params)) {
+        outputParams[key] = value;
+      }
+
+      return {
+        note_id: noteId,
+        params: outputParams,
+      };
+    },
+    [],
+  );
+
+  const onSpecialNoteToggle = useCallback(
+    (path: PathSegment[], currentNotes: JsonValue[], noteId: string, nextSelected: boolean): void => {
+      const filtered = currentNotes.filter((entry) => getNoteIdFromEntry(entry, specialNoteIdByIcon) !== noteId);
+      if (!nextSelected) {
+        setPathValue(path, filtered);
+        return;
+      }
+
+      const definition = specialNoteById.get(noteId);
+      if (!definition) {
+        setPathValue(path, filtered);
+        return;
+      }
+
+      const params: Record<string, string> = {};
+      for (const placeholder of definition.placeholders) {
+        params[placeholder] = "";
+      }
+
+      setPathValue(path, [...filtered, buildSpecialNoteEntry(noteId, params)]);
+    },
+    [buildSpecialNoteEntry, setPathValue, specialNoteById, specialNoteIdByIcon],
+  );
+
+  const onSpecialNoteParamChange = useCallback(
+    (
+      path: PathSegment[],
+      currentNotes: JsonValue[],
+      noteId: string,
+      parameterKey: string,
+      parameterValue: string,
+    ): void => {
+      let updatedAny = false;
+      const updatedNotes = currentNotes.map((entry) => {
+        if (!isJsonObject(entry)) {
+          return entry;
+        }
+
+        const resolvedNoteId = getNoteIdFromEntry(entry, specialNoteIdByIcon);
+        if (resolvedNoteId !== noteId) {
+          return entry;
+        }
+
+        const currentParams = normalizeParams(entry.params ?? null);
+        const nextParams = {
+          ...currentParams,
+          [parameterKey]: parameterValue,
+        };
+        updatedAny = true;
+        return buildSpecialNoteEntry(noteId, nextParams);
+      });
+
+      if (updatedAny) {
+        setPathValue(path, updatedNotes);
+      }
+    },
+    [buildSpecialNoteEntry, setPathValue, specialNoteIdByIcon],
+  );
+
+  const onSpecialNoteRemoveUnknown = useCallback(
+    (path: PathSegment[], currentNotes: JsonValue[], indexToRemove: number): void => {
+      const nextNotes = currentNotes.filter((_, index) => index !== indexToRemove);
+      setPathValue(path, nextNotes);
+    },
+    [setPathValue],
+  );
+
   const onTopoFilePick = useCallback(
     async (path: PathSegment[]): Promise<void> => {
       const result = await window.api.pickFile({
@@ -1016,6 +1248,122 @@ export function CanyonJsonEditor(): JSX.Element {
 
       if (Array.isArray(value)) {
         const isSectionsArray = isSectionsArrayPath(path);
+
+        if (isSpecialNotesPath(path)) {
+          const selectedByNoteId = new Map<string, { index: number; params: Record<string, string> }>();
+          const unknownEntries: Array<{ index: number; entry: JsonValue }> = [];
+
+          for (let index = 0; index < value.length; index += 1) {
+            const entry = value[index];
+            const noteId = getNoteIdFromEntry(entry, specialNoteIdByIcon);
+            if (!noteId || !specialNoteById.has(noteId)) {
+              unknownEntries.push({ index, entry });
+              continue;
+            }
+
+            if (!selectedByNoteId.has(noteId)) {
+              const params = isJsonObject(entry) ? normalizeParams(entry.params ?? null) : {};
+              selectedByNoteId.set(noteId, { index, params });
+            }
+          }
+
+          const selectedNoteIds = new Set(selectedByNoteId.keys());
+
+          return (
+            <div className="json-input-field json-special-notes-field">
+              <label>{titleCase(label)}</label>
+              {specialNoteDefinitions.length === 0 ? (
+                <p className="json-empty-text">No special note definitions available.</p>
+              ) : (
+                <div className="json-special-note-options">
+                  {specialNoteDefinitions.map((definition) => {
+                    const selected = selectedByNoteId.get(definition.noteId);
+                    const currentParams = { ...(selected?.params ?? {}) };
+                    for (const placeholder of definition.placeholders) {
+                      if (!(placeholder in currentParams)) {
+                        currentParams[placeholder] = "";
+                      }
+                    }
+
+                    const resolvedText = resolveSpecialNoteText(definition.templateText, currentParams);
+
+                    return (
+                      <div key={definition.noteId} className="json-special-note-option">
+                      <input
+                        type="checkbox"
+                        checked={selectedNoteIds.has(definition.noteId)}
+                        onChange={(event) =>
+                          onSpecialNoteToggle(path, value, definition.noteId, event.target.checked)
+                        }
+                      />
+                      <span className="json-special-note-icon">{definition.icon}</span>
+                      <span className="json-special-note-option-body">
+                        <span className="json-special-note-option-head">
+                          <span className="json-special-note-key">{definition.noteId}</span>
+                          {selected && definition.placeholders.length > 0 ? (
+                            <span className="json-special-note-inline-params">
+                              {definition.placeholders.map((placeholder) => (
+                                <label key={placeholder} className="json-special-note-inline-param">
+                                  <span>{placeholder}</span>
+                                  <input
+                                    type="text"
+                                    value={currentParams[placeholder] ?? ""}
+                                    onChange={(event) =>
+                                      onSpecialNoteParamChange(
+                                        path,
+                                        value,
+                                        definition.noteId,
+                                        placeholder,
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </label>
+                              ))}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="json-special-note-template">{resolvedText}</span>
+                      </span>
+                    </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {unknownEntries.length > 0 ? (
+                <div className="json-special-note-unknown-list">
+                  {unknownEntries.map((unknown) => {
+                let unknownLabel = `Entry ${unknown.index + 1}`;
+                if (isJsonObject(unknown.entry) && typeof unknown.entry.note_id === "string") {
+                  unknownLabel = unknown.entry.note_id;
+                } else if (isJsonObject(unknown.entry) && typeof unknown.entry.icon === "string") {
+                  unknownLabel = `Legacy icon ${unknown.entry.icon}`;
+                }
+
+                return (
+                  <div key={`${pathKey}.unknown.${unknown.index}`} className="json-special-note-unknown-row">
+                    <div className="json-special-note-unknown-title">
+                        <span className="json-special-note-key">{unknownLabel}</span>
+                    </div>
+                      <button
+                        type="button"
+                        className="json-danger-button"
+                        onClick={() => onSpecialNoteRemoveUnknown(path, value, unknown.index)}
+                      >
+                        Remove
+                      </button>
+                    <p className="json-special-note-resolved">
+                      Unknown special note entry. Add it to `assets/possible_special_notes.json` or remove it.
+                    </p>
+                  </div>
+                );
+              })}
+                </div>
+              ) : null}
+            </div>
+          );
+        }
 
         if (isCompactStringArrayPath(path) && value.every((item) => typeof item === "string")) {
           const lastSegment = path[path.length - 1];
@@ -1703,9 +2051,15 @@ export function CanyonJsonEditor(): JSX.Element {
       onDifficultyRomanStep,
       languageTabs,
       onNumberDraftChange,
+      onSpecialNoteParamChange,
+      onSpecialNoteRemoveUnknown,
+      onSpecialNoteToggle,
       onTopoFilePick,
       selectedCountryRegions,
       setPathValue,
+      specialNoteById,
+      specialNoteDefinitions,
+      specialNoteIdByIcon,
       validationErrors,
       inputDrafts,
       setStatusMessage,
