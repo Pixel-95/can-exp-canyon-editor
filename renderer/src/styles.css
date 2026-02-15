@@ -419,6 +419,24 @@ button {
   box-shadow: 0 3px 10px rgba(15, 23, 42, 0.24);
 }
 
+.parking-lot-marker {
+  width: 26px;
+  height: 26px;
+  border: 2px solid #ffffff;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.24);
+}
+
 .poi-editor-popup {
   position: absolute;
   z-index: 25;

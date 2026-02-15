@@ -22,6 +22,10 @@ type PointOfInterest = {
   name: LocalizedText;
   description: LocalizedText;
 };
+type ParkingLot = {
+  coordinates: [number, number];
+  name: LocalizedText;
+};
 type CanyonJsonEditorProps = {
   mapViewMode: "compact" | "expanded";
   onToggleMapView: () => void;
@@ -295,6 +299,38 @@ function serializePointsOfInterest(points: PointOfInterest[]): JsonValue[] {
     coordinates: point.coordinates,
     name: { ...point.name },
     description: { ...point.description },
+  }));
+}
+
+function parseParkingLots(value: JsonValue): ParkingLot[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const parkingLots: ParkingLot[] = [];
+  for (const entry of value) {
+    if (!isJsonObject(entry)) {
+      continue;
+    }
+
+    const coordinates = parseCoordinatePair(entry.coordinates ?? null);
+    if (!coordinates) {
+      continue;
+    }
+
+    parkingLots.push({
+      coordinates,
+      name: normalizeLocalizedText(entry.name ?? null),
+    });
+  }
+
+  return parkingLots;
+}
+
+function serializeParkingLots(parkingLots: ParkingLot[]): JsonValue[] {
+  return parkingLots.map((parkingLot) => ({
+    coordinates: parkingLot.coordinates,
+    name: { ...parkingLot.name },
   }));
 }
 
@@ -813,6 +849,13 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     }
 
     return parsePointsOfInterest(valueAtPath(canyonData, ["points_of_interest"]));
+  }, [canyonData]);
+  const parkingLots = useMemo(() => {
+    if (!canyonData) {
+      return [];
+    }
+
+    return parseParkingLots(valueAtPath(canyonData, ["parking_lots"]));
   }, [canyonData]);
 
   const clearValidationError = useCallback((pathKey: string): void => {
@@ -1354,6 +1397,12 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     },
     [setPathValue],
   );
+  const onParkingLotsChange = useCallback(
+    (nextParkingLots: ParkingLot[]): void => {
+      setPathValue(["parking_lots"], serializeParkingLots(nextParkingLots));
+    },
+    [setPathValue],
+  );
 
   const openLanguagePasteModal = useCallback((path: PathSegment[]): void => {
     setLanguagePasteTargetPath(path);
@@ -1870,6 +1919,8 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                       onSetOverviewCoordinate={onOverviewCoordinateSet}
                       pointsOfInterest={pointsOfInterest}
                       onPointsOfInterestChange={onPointsOfInterestChange}
+                      parkingLots={parkingLots}
+                      onParkingLotsChange={onParkingLotsChange}
                     />
                   </div>
                 </div>
@@ -2311,9 +2362,11 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       languageTabs,
       overviewCoordinate,
       pointsOfInterest,
+      parkingLots,
       onNumberDraftChange,
       onOverviewCoordinateSet,
       onPointsOfInterestChange,
+      onParkingLotsChange,
       openLanguagePasteModal,
       onSpecialNoteParamChange,
       onSpecialNoteRemoveUnknown,

@@ -129,6 +129,10 @@ type PointOfInterest = {
   name: LocalizedText;
   description: LocalizedText;
 };
+type ParkingLot = {
+  coordinates: [number, number];
+  name: LocalizedText;
+};
 type PoiEditorState = {
   index: number;
   language: string;
@@ -136,6 +140,15 @@ type PoiEditorState = {
 type PoiPasteModalState = {
   poiIndex: number;
   field: "name" | "description";
+  draft: string;
+  error: string;
+};
+type ParkingEditorState = {
+  index: number;
+  language: string;
+};
+type ParkingPasteModalState = {
+  parkingLotIndex: number;
   draft: string;
   error: string;
 };
@@ -147,6 +160,8 @@ type RouteMapAppProps = {
   onSetOverviewCoordinate?: (coordinate: [number, number]) => void;
   pointsOfInterest?: PointOfInterest[];
   onPointsOfInterestChange?: (points: PointOfInterest[]) => void;
+  parkingLots?: ParkingLot[];
+  onParkingLotsChange?: (parkingLots: ParkingLot[]) => void;
 };
 
 const STATIC_LANGUAGE_KEYS = ["de", "en", "es", "fr", "it", "pt"] as const;
@@ -573,6 +588,8 @@ export function RouteMapApp({
   onSetOverviewCoordinate,
   pointsOfInterest = [],
   onPointsOfInterestChange,
+  parkingLots = [],
+  onParkingLotsChange,
 }: RouteMapAppProps): JSX.Element {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -580,6 +597,7 @@ export function RouteMapApp({
   const segmentModePopupRef = useRef<mapboxgl.Popup | null>(null);
   const overviewPointMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const poiMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const parkingLotMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const mapPointerCoordinateRef = useRef<Coordinate | null>(null);
   const routePointsRef = useRef<RoutePoint[]>([]);
   const routeFeatureRef = useRef<RouteFeature | null>(null);
@@ -597,6 +615,8 @@ export function RouteMapApp({
   const [activeSubmenu, setActiveSubmenu] = useState<ContextMenuSubmenu | null>(null);
   const [poiEditor, setPoiEditor] = useState<PoiEditorState | null>(null);
   const [poiPasteModal, setPoiPasteModal] = useState<PoiPasteModalState | null>(null);
+  const [parkingEditor, setParkingEditor] = useState<ParkingEditorState | null>(null);
+  const [parkingPasteModal, setParkingPasteModal] = useState<ParkingPasteModalState | null>(null);
   const [coordinateInput, setCoordinateInput] = useState("");
   const [coordinateInputError, setCoordinateInputError] = useState("");
   const [manualCoordinateActionKey, setManualCoordinateActionKey] = useState("");
@@ -618,6 +638,8 @@ export function RouteMapApp({
       setActiveSubmenu(null);
       setPoiEditor(null);
       setPoiPasteModal(null);
+      setParkingEditor(null);
+      setParkingPasteModal(null);
     }
   }, [viewMode]);
 
@@ -1066,6 +1088,8 @@ export function RouteMapApp({
       setActiveSubmenu(null);
       setPoiEditor(null);
       setPoiPasteModal(null);
+      setParkingEditor(null);
+      setParkingPasteModal(null);
       segmentModePopupRef.current?.remove();
       segmentModePopupRef.current = null;
     };
@@ -1095,6 +1119,10 @@ export function RouteMapApp({
         marker.remove();
       }
       poiMarkersRef.current = [];
+      for (const marker of parkingLotMarkersRef.current) {
+        marker.remove();
+      }
+      parkingLotMarkersRef.current = [];
       mapPointerCoordinateRef.current = null;
 
       for (const markerEntry of pointMarkersRef.current.values()) {
@@ -1210,6 +1238,8 @@ export function RouteMapApp({
         setContextMenu(null);
         setActiveSubmenu(null);
         setPoiPasteModal(null);
+        setParkingEditor(null);
+        setParkingPasteModal(null);
         setPoiEditor({
           index,
           language: effectiveDefaultLanguage,
@@ -1222,6 +1252,8 @@ export function RouteMapApp({
           setContextMenu(null);
           setActiveSubmenu(null);
           setPoiPasteModal(null);
+          setParkingEditor(null);
+          setParkingPasteModal(null);
         });
 
         marker.on("dragend", () => {
@@ -1259,6 +1291,97 @@ export function RouteMapApp({
       setPoiPasteModal(null);
     }
   }, [poiEditor, pointsOfInterest.length]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    for (const marker of parkingLotMarkersRef.current) {
+      marker.remove();
+    }
+    parkingLotMarkersRef.current = [];
+
+    parkingLots.forEach((parkingLot, index) => {
+      const markerElement = document.createElement("button");
+      markerElement.type = "button";
+      markerElement.className = "parking-lot-marker";
+      markerElement.textContent = "P";
+      markerElement.setAttribute("aria-label", `Open parking lot ${index + 1}`);
+
+      const marker = new mapboxgl.Marker({
+        element: markerElement,
+        anchor: "bottom",
+        draggable: Boolean(onParkingLotsChange),
+      })
+        .setLngLat(parkingLot.coordinates)
+        .addTo(map);
+
+      markerElement.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (viewModeRef.current !== "expanded") {
+          return;
+        }
+
+        setContextMenu(null);
+        setActiveSubmenu(null);
+        setPoiEditor(null);
+        setPoiPasteModal(null);
+        setParkingPasteModal(null);
+        setParkingEditor({
+          index,
+          language: effectiveDefaultLanguage,
+        });
+      });
+
+      if (onParkingLotsChange) {
+        marker.on("dragstart", () => {
+          suppressMapMenuUntilRef.current = Date.now() + 350;
+          setContextMenu(null);
+          setActiveSubmenu(null);
+          setPoiEditor(null);
+          setPoiPasteModal(null);
+          setParkingPasteModal(null);
+        });
+
+        marker.on("dragend", () => {
+          suppressMapMenuUntilRef.current = Date.now() + 350;
+          const lngLat = marker.getLngLat();
+          const coordinate: [number, number] = [
+            Number(lngLat.lng.toFixed(6)),
+            Number(lngLat.lat.toFixed(6)),
+          ];
+
+          const next = parkingLots.map((currentParkingLot, currentIndex) =>
+            currentIndex === index
+              ? {
+                  ...currentParkingLot,
+                  coordinates: coordinate,
+                }
+              : currentParkingLot,
+          );
+          onParkingLotsChange(next);
+          setStatusText("Parking lot moved.");
+        });
+      }
+
+      parkingLotMarkersRef.current.push(marker);
+    });
+  }, [effectiveDefaultLanguage, onParkingLotsChange, parkingLots]);
+
+  useEffect(() => {
+    if (!parkingEditor) {
+      return;
+    }
+
+    if (parkingEditor.index < 0 || parkingEditor.index >= parkingLots.length) {
+      setParkingEditor(null);
+      setParkingPasteModal(null);
+    }
+  }, [parkingEditor, parkingLots.length]);
 
   useEffect(() => {
     const container = mapContainerRef.current;
@@ -1830,6 +1953,8 @@ export function RouteMapApp({
     setContextMenu(null);
     setActiveSubmenu(null);
     setPoiPasteModal(null);
+    setParkingEditor(null);
+    setParkingPasteModal(null);
     setPoiEditor({
       index: next.length - 1,
       language: effectiveDefaultLanguage,
@@ -1963,6 +2088,159 @@ export function RouteMapApp({
     onPointsOfInterestChange(next);
     setPoiPasteModal(null);
   }, [onPointsOfInterestChange, pointsOfInterest, poiPasteModal]);
+
+  const onAddParkingLotFromContextMenu = useCallback((): void => {
+    if (!contextMenu) {
+      return;
+    }
+
+    if (!onParkingLotsChange) {
+      setContextMenu(null);
+      setActiveSubmenu(null);
+      setStatusText("Parking lots cannot be edited right now.");
+      return;
+    }
+
+    const nextParkingLot: ParkingLot = {
+      coordinates: contextMenu.coordinate,
+      name: createEmptyLocalizedText(),
+    };
+    const next = [...parkingLots, nextParkingLot];
+    onParkingLotsChange(next);
+    setContextMenu(null);
+    setActiveSubmenu(null);
+    setPoiEditor(null);
+    setPoiPasteModal(null);
+    setParkingPasteModal(null);
+    setParkingEditor({
+      index: next.length - 1,
+      language: effectiveDefaultLanguage,
+    });
+    setStatusText("Parking lot added.");
+  }, [contextMenu, effectiveDefaultLanguage, onParkingLotsChange, parkingLots]);
+
+  const onParkingLanguageChange = useCallback((language: string): void => {
+    if (!parkingEditor || !STATIC_LANGUAGE_SET.has(language)) {
+      return;
+    }
+
+    setParkingEditor((current) =>
+      current
+        ? {
+            ...current,
+            language,
+          }
+        : current,
+    );
+  }, [parkingEditor]);
+
+  const onParkingNameChange = useCallback(
+    (parkingLotIndex: number, language: string, nextValue: string): void => {
+      if (!onParkingLotsChange || !STATIC_LANGUAGE_SET.has(language)) {
+        return;
+      }
+
+      if (parkingLotIndex < 0 || parkingLotIndex >= parkingLots.length) {
+        return;
+      }
+
+      const next = parkingLots.map((parkingLot, index) => {
+        if (index !== parkingLotIndex) {
+          return parkingLot;
+        }
+
+        const nextName = normalizeLocalizedText(parkingLot.name);
+        nextName[language] = nextValue;
+
+        return {
+          ...parkingLot,
+          name: nextName,
+        };
+      });
+
+      onParkingLotsChange(next);
+    },
+    [onParkingLotsChange, parkingLots],
+  );
+
+  const openParkingPasteModal = useCallback((): void => {
+    if (!parkingEditor) {
+      return;
+    }
+
+    const parkingLot = parkingLots[parkingEditor.index];
+    if (!parkingLot) {
+      return;
+    }
+
+    setParkingPasteModal({
+      parkingLotIndex: parkingEditor.index,
+      draft: "",
+      error: "",
+    });
+  }, [parkingEditor, parkingLots]);
+
+  const closeParkingPasteModal = useCallback((): void => {
+    setParkingPasteModal(null);
+  }, []);
+
+  const onApplyParkingPaste = useCallback((): void => {
+    if (!parkingPasteModal) {
+      return;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(parkingPasteModal.draft);
+    } catch {
+      setParkingPasteModal((current) =>
+        current
+          ? {
+              ...current,
+              error: "Invalid JSON format.",
+            }
+          : current,
+      );
+      return;
+    }
+
+    const validation = parseLocalizedTextPastePayload(parsed);
+    if (!validation.value || validation.error) {
+      setParkingPasteModal((current) =>
+        current
+          ? {
+              ...current,
+              error: validation.error ?? "Invalid language JSON payload.",
+            }
+          : current,
+      );
+      return;
+    }
+
+    if (!onParkingLotsChange) {
+      setParkingPasteModal(null);
+      return;
+    }
+
+    if (parkingPasteModal.parkingLotIndex < 0 || parkingPasteModal.parkingLotIndex >= parkingLots.length) {
+      setParkingPasteModal(null);
+      return;
+    }
+
+    const next = parkingLots.map((parkingLot, index) => {
+      if (index !== parkingPasteModal.parkingLotIndex) {
+        return parkingLot;
+      }
+
+      return {
+        ...parkingLot,
+        name: validation.value!,
+      };
+    });
+
+    onParkingLotsChange(next);
+    setParkingPasteModal(null);
+  }, [onParkingLotsChange, parkingLots, parkingPasteModal]);
 
   const onSetOverviewCoordinateFromContextMenu = useCallback((): void => {
     if (!contextMenu) {
@@ -2265,6 +2543,42 @@ export function RouteMapApp({
 
     return { left, top };
   }, [activePoi, poiEditor]);
+  const activeParkingLanguage =
+    parkingEditor && STATIC_LANGUAGE_SET.has(parkingEditor.language)
+      ? parkingEditor.language
+      : effectiveDefaultLanguage;
+  const activeParkingLot =
+    parkingEditor && parkingEditor.index >= 0 && parkingEditor.index < parkingLots.length
+      ? parkingLots[parkingEditor.index]
+      : null;
+  const parkingEditorPosition = useMemo(() => {
+    if (!parkingEditor || !activeParkingLot) {
+      return null;
+    }
+
+    const map = mapRef.current;
+    const container = mapContainerRef.current;
+    if (!map || !container) {
+      return null;
+    }
+
+    const projected = map.project(activeParkingLot.coordinates);
+    const popupWidth = 320;
+    const margin = 12;
+    const availableWidth = container.clientWidth;
+    const availableHeight = container.clientHeight;
+
+    const left = Math.min(
+      Math.max(projected.x + 12, margin),
+      Math.max(margin, availableWidth - popupWidth - margin),
+    );
+    const top = Math.min(
+      Math.max(projected.y - 12, margin),
+      Math.max(margin, availableHeight - 180),
+    );
+
+    return { left, top };
+  }, [activeParkingLot, parkingEditor]);
 
   return (
     <div className="app-shell">
@@ -2417,6 +2731,9 @@ export function RouteMapApp({
               role="menu"
               aria-label="Map click menu"
             >
+              <button type="button" onClick={onAddParkingLotFromContextMenu}>
+                Add parking lot
+              </button>
               <button type="button" onClick={onAddPointOfInterestFromContextMenu}>
                 Add point of interest
               </button>
@@ -2553,6 +2870,57 @@ export function RouteMapApp({
           </div>
         ) : null}
 
+        {parkingEditor && activeParkingLot && parkingEditorPosition ? (
+          <div
+            className="poi-editor-popup parking-editor-popup"
+            style={{ left: `${parkingEditorPosition.left}px`, top: `${parkingEditorPosition.top}px` }}
+          >
+            <div className="poi-editor-header">
+              <h4>Parking lot</h4>
+              <button
+                type="button"
+                className="poi-editor-close"
+                onClick={() => {
+                  setParkingEditor(null);
+                  setParkingPasteModal(null);
+                }}
+                aria-label="Close parking lot editor"
+              >
+                X
+              </button>
+            </div>
+
+            <div className="poi-editor-language-tabs">
+              {STATIC_LANGUAGE_KEYS.map((language) => (
+                <button
+                  key={language}
+                  type="button"
+                  className={`poi-editor-language-tab${activeParkingLanguage === language ? " active" : ""}`}
+                  onClick={() => onParkingLanguageChange(language)}
+                >
+                  {language.toUpperCase()}
+                </button>
+              ))}
+            </div>
+
+            <div className="poi-editor-field">
+              <div className="poi-editor-field-head">
+                <label>Name</label>
+                <button type="button" onClick={openParkingPasteModal}>
+                  Paste JSON
+                </button>
+              </div>
+              <input
+                type="text"
+                value={normalizeLocalizedText(activeParkingLot.name)[activeParkingLanguage] ?? ""}
+                onChange={(event) =>
+                  onParkingNameChange(parkingEditor.index, activeParkingLanguage, event.target.value)
+                }
+              />
+            </div>
+          </div>
+        ) : null}
+
         {poiPasteModal ? (
           <div className="json-modal-backdrop" role="presentation">
             <div className="json-modal" role="dialog" aria-modal="true" aria-label="Paste POI language JSON">
@@ -2583,6 +2951,48 @@ export function RouteMapApp({
               {poiPasteModal.error ? <p className="json-inline-error">{poiPasteModal.error}</p> : null}
               <div className="json-modal-actions">
                 <button type="button" className="json-modal-apply" onClick={onApplyPoiPaste}>
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {parkingPasteModal ? (
+          <div className="json-modal-backdrop" role="presentation">
+            <div className="json-modal" role="dialog" aria-modal="true" aria-label="Paste parking lot language JSON">
+              <div className="json-modal-header">
+                <h3>Paste parking lot name JSON</h3>
+                <button
+                  type="button"
+                  className="json-modal-close"
+                  onClick={closeParkingPasteModal}
+                  aria-label="Close"
+                >
+                  X
+                </button>
+              </div>
+              <p className="json-modal-help">
+                Provide valid JSON with exactly these keys: {STATIC_LANGUAGE_KEYS.join(", ")}.
+              </p>
+              <textarea
+                value={parkingPasteModal.draft}
+                rows={12}
+                onChange={(event) =>
+                  setParkingPasteModal((current) =>
+                    current
+                      ? {
+                          ...current,
+                          draft: event.target.value,
+                          error: "",
+                        }
+                      : current,
+                  )
+                }
+              />
+              {parkingPasteModal.error ? <p className="json-inline-error">{parkingPasteModal.error}</p> : null}
+              <div className="json-modal-actions">
+                <button type="button" className="json-modal-apply" onClick={onApplyParkingPaste}>
                   Apply
                 </button>
               </div>
