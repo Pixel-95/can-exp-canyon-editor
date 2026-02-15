@@ -123,6 +123,10 @@ type ManualCoordinateActionOption =
       insertionIndex: number;
     };
 
+type RouteMapAppProps = {
+  viewMode: "compact" | "expanded";
+};
+
 const ROUTE_SOURCE_ID = "walking-route-source";
 const ROUTE_LAYER_ID = "walking-route-layer";
 const TERRAIN_TILE_ZOOM = 14;
@@ -480,7 +484,7 @@ function RoutePointListItem({
   );
 }
 
-export function RouteMapApp(): JSX.Element {
+export function RouteMapApp({ viewMode }: RouteMapAppProps): JSX.Element {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
@@ -983,6 +987,38 @@ export function RouteMapApp(): JSX.Element {
       mapRef.current = null;
     };
   }, [mapboxToken]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      map.resize();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [viewMode]);
+
+  useEffect(() => {
+    const container = mapContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      mapRef.current?.resize();
+    });
+
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;

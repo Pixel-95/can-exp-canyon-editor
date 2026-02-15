@@ -1700,6 +1700,30 @@ export function CanyonJsonEditor(): JSX.Element {
       }
 
       if (isJsonObject(value)) {
+        if (path.length === 0) {
+          const rootName = renderNode(value.name ?? "", ["name"], "name");
+          const rootDescription = renderNode(value.description ?? {}, ["description"], "description");
+          const rootLocation = renderNode(value.location ?? {}, ["location"], "location");
+          const rootSections = renderNode(
+            Array.isArray(value.sections) ? value.sections : [],
+            ["sections"],
+            "sections",
+          );
+
+          return (
+            <div className="json-root-layout">
+              <div className="json-overview-strip">
+                <div className="json-overview-main">
+                  <div className="json-overview-row">{rootName}</div>
+                  <div className="json-overview-row">{rootDescription}</div>
+                  <div className="json-overview-row">{rootLocation}</div>
+                </div>
+              </div>
+              <div className="json-sections-strip">{rootSections}</div>
+            </div>
+          );
+        }
+
         if (isLocationPath(path)) {
           const countryField = renderNode(value.country_code ?? "", [...path, "country_code"], "country_code");
           const regionField = renderNode(value.region_code ?? "", [...path, "region_code"], "region_code");
