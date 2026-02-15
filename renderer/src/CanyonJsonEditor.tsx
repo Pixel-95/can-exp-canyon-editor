@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { RouteMapApp } from "./RouteMapApp";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -14,6 +15,10 @@ type SpecialNoteDefinition = {
   icon: string;
   templateText: string;
   placeholders: string[];
+};
+type CanyonJsonEditorProps = {
+  mapViewMode: "compact" | "expanded";
+  onToggleMapView: () => void;
 };
 
 const DEFAULT_JSON_PATH = "data/Kobelache/data.json";
@@ -210,6 +215,24 @@ function parseArabicDifficulty(value: string): number | null {
 
 function clampInRange(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function parseCoordinatePair(value: JsonValue): [number, number] | null {
+  if (!Array.isArray(value) || value.length < 2) {
+    return null;
+  }
+
+  const [lng, lat] = value;
+  if (
+    typeof lng !== "number" ||
+    !Number.isFinite(lng) ||
+    typeof lat !== "number" ||
+    !Number.isFinite(lat)
+  ) {
+    return null;
+  }
+
+  return [lng, lat];
 }
 
 function cloneJsonValue<T>(value: T): T {
@@ -658,7 +681,7 @@ function isTopoPath(path: PathSegment[]): boolean {
   );
 }
 
-export function CanyonJsonEditor(): JSX.Element {
+export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEditorProps): JSX.Element {
   const [canyonData, setCanyonData] = useState<JsonObject | null>(null);
   const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("Loading data/Kobelache/data.json...");
@@ -702,6 +725,13 @@ export function CanyonJsonEditor(): JSX.Element {
   const selectedCountryRegions = useMemo(() => {
     return countryByCode.get(selectedCountryCode)?.regions ?? [];
   }, [countryByCode, selectedCountryCode]);
+  const overviewCoordinate = useMemo(() => {
+    if (!canyonData) {
+      return null;
+    }
+
+    return parseCoordinatePair(valueAtPath(canyonData, ["coordinates"]));
+  }, [canyonData]);
 
   const clearValidationError = useCallback((pathKey: string): void => {
     setValidationErrors((current) => {
@@ -1221,6 +1251,13 @@ export function CanyonJsonEditor(): JSX.Element {
     [setPathValue],
   );
 
+  const onOverviewCoordinateSet = useCallback(
+    (coordinate: [number, number]): void => {
+      setPathValue(["coordinates"], coordinate);
+    },
+    [setPathValue],
+  );
+
   const openLanguagePasteModal = useCallback((path: PathSegment[]): void => {
     setLanguagePasteTargetPath(path);
     setLanguagePasteDraft("");
@@ -1712,11 +1749,29 @@ export function CanyonJsonEditor(): JSX.Element {
 
           return (
             <div className="json-root-layout">
-              <div className="json-overview-strip">
+              <div className={`json-overview-strip ${mapViewMode}`}>
                 <div className="json-overview-main">
                   <div className="json-overview-row">{rootName}</div>
                   <div className="json-overview-row">{rootDescription}</div>
                   <div className="json-overview-row">{rootLocation}</div>
+                </div>
+                <div className={`json-overview-map-pane ${mapViewMode}`}>
+                  <button
+                    type="button"
+                    className={`json-overview-map-toggle ${mapViewMode}`}
+                    onClick={onToggleMapView}
+                    aria-label={mapViewMode === "expanded" ? "Collapse map" : "Enlarge map"}
+                    title={mapViewMode === "expanded" ? "Collapse map" : "Enlarge map"}
+                  >
+                    {mapViewMode === "expanded" ? ">" : "Enlarge map"}
+                  </button>
+                  <div className="json-overview-map-inner">
+                    <RouteMapApp
+                      viewMode={mapViewMode}
+                      overviewCoordinate={overviewCoordinate}
+                      onSetOverviewCoordinate={onOverviewCoordinateSet}
+                    />
+                  </div>
                 </div>
               </div>
               <div className="json-sections-strip">{rootSections}</div>
@@ -2153,12 +2208,15 @@ export function CanyonJsonEditor(): JSX.Element {
       onDifficultyRomanDraftChange,
       onDifficultyRomanStep,
       languageTabs,
+      overviewCoordinate,
       onNumberDraftChange,
+      onOverviewCoordinateSet,
       openLanguagePasteModal,
       onSpecialNoteParamChange,
       onSpecialNoteRemoveUnknown,
       onSpecialNoteToggle,
       onTopoFilePick,
+      onToggleMapView,
       selectedCountryRegions,
       setPathValue,
       specialNoteById,
@@ -2166,6 +2224,7 @@ export function CanyonJsonEditor(): JSX.Element {
       specialNoteIdByIcon,
       validationErrors,
       inputDrafts,
+      mapViewMode,
     ],
   );
 

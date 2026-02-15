@@ -125,6 +125,8 @@ type ManualCoordinateActionOption =
 
 type RouteMapAppProps = {
   viewMode: "compact" | "expanded";
+  overviewCoordinate?: [number, number] | null;
+  onSetOverviewCoordinate?: (coordinate: [number, number]) => void;
 };
 
 const ROUTE_SOURCE_ID = "walking-route-source";
@@ -484,11 +486,16 @@ function RoutePointListItem({
   );
 }
 
-export function RouteMapApp({ viewMode }: RouteMapAppProps): JSX.Element {
+export function RouteMapApp({
+  viewMode,
+  overviewCoordinate = null,
+  onSetOverviewCoordinate,
+}: RouteMapAppProps): JSX.Element {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const segmentModePopupRef = useRef<mapboxgl.Popup | null>(null);
+  const overviewPointMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const mapPointerCoordinateRef = useRef<Coordinate | null>(null);
   const routePointsRef = useRef<RoutePoint[]>([]);
   const routeFeatureRef = useRef<RouteFeature | null>(null);
@@ -976,6 +983,8 @@ export function RouteMapApp({ viewMode }: RouteMapAppProps): JSX.Element {
 
       segmentModePopupRef.current?.remove();
       segmentModePopupRef.current = null;
+      overviewPointMarkerRef.current?.remove();
+      overviewPointMarkerRef.current = null;
       mapPointerCoordinateRef.current = null;
 
       for (const markerEntry of pointMarkersRef.current.values()) {
@@ -1002,6 +1011,57 @@ export function RouteMapApp({ viewMode }: RouteMapAppProps): JSX.Element {
       window.cancelAnimationFrame(frameId);
     };
   }, [viewMode]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    if (!overviewCoordinate) {
+      overviewPointMarkerRef.current?.remove();
+      overviewPointMarkerRef.current = null;
+      return;
+    }
+
+    const marker = overviewPointMarkerRef.current;
+    if (marker) {
+      marker.setLngLat(overviewCoordinate);
+      return;
+    }
+
+    const markerElement = document.createElement("div");
+    markerElement.className = "overview-point-marker";
+    markerElement.title = "Canyon overview point";
+
+    const overviewMarker = new mapboxgl.Marker({
+      element: markerElement,
+      anchor: "center",
+      draggable: Boolean(onSetOverviewCoordinate),
+    })
+      .setLngLat(overviewCoordinate)
+      .addTo(map);
+
+    if (onSetOverviewCoordinate) {
+      overviewMarker.on("dragstart", () => {
+        suppressMapMenuUntilRef.current = Date.now() + 350;
+        setContextMenu(null);
+        setActiveSubmenu(null);
+      });
+
+      overviewMarker.on("dragend", () => {
+        suppressMapMenuUntilRef.current = Date.now() + 350;
+        const lngLat = overviewMarker.getLngLat();
+        onSetOverviewCoordinate([
+          Number(lngLat.lng.toFixed(6)),
+          Number(lngLat.lat.toFixed(6)),
+        ]);
+        setStatusText("Canyon overview point moved.");
+      });
+    }
+
+    overviewPointMarkerRef.current = overviewMarker;
+  }, [onSetOverviewCoordinate, overviewCoordinate]);
 
   useEffect(() => {
     const container = mapContainerRef.current;
@@ -1551,6 +1611,31 @@ export function RouteMapApp({ viewMode }: RouteMapAppProps): JSX.Element {
     [contextMenu, insertPointAt],
   );
 
+  const onSetOverviewCoordinateFromContextMenu = useCallback((): void => {
+    if (!contextMenu) {
+      return;
+    }
+
+    if (!mapRef.current) {
+      setContextMenu(null);
+      setActiveSubmenu(null);
+      setStatusText("Map is not ready yet.");
+      return;
+    }
+
+    if (!onSetOverviewCoordinate) {
+      setContextMenu(null);
+      setActiveSubmenu(null);
+      setStatusText("Overview point cannot be set right now.");
+      return;
+    }
+
+    onSetOverviewCoordinate(contextMenu.coordinate);
+    setContextMenu(null);
+    setActiveSubmenu(null);
+    setStatusText("Canyon overview point set.");
+  }, [contextMenu, onSetOverviewCoordinate]);
+
   const onDragEnd = useCallback(
     (event: DragEndEvent): void => {
       const { active, over } = event;
@@ -1943,6 +2028,10 @@ export function RouteMapApp({ viewMode }: RouteMapAppProps): JSX.Element {
               role="menu"
               aria-label="Map click menu"
             >
+              <button type="button" onClick={onSetOverviewCoordinateFromContextMenu}>
+                Set canyon overview point
+              </button>
+
               {!hasStartAndEnd ? (
                 <div
                   className="map-context-submenu-wrap"
