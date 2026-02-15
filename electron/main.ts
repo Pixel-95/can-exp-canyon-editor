@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { Menu, app, BrowserWindow, dialog, ipcMain, screen } from "electron";
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 type SaveGeoJSONResult = {
@@ -45,6 +45,13 @@ type PickFileResult = {
   canceled: boolean;
   absolutePath?: string;
   relativePath?: string;
+};
+
+type CreateCanyonFolderResult = {
+  canceled: boolean;
+  folderPath?: string;
+  dataJsonPath?: string;
+  error?: string;
 };
 
 let mainWindow: BrowserWindow | null = null;
@@ -147,6 +154,17 @@ function sanitizeFileName(name: string): string {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
+
+  return cleaned || "canyon";
+}
+
+function sanitizeFolderName(name: string): string {
+  const cleaned = name
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, " ")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
 
   return cleaned || "canyon";
 }
@@ -270,6 +288,42 @@ ipcMain.handle("json:load-path", async (_event, requestedPath: string): Promise<
 ipcMain.handle("json:new-template", (_event, canyonName: string): Record<string, unknown> => {
   return createNewJsonTemplate(canyonName ?? "");
 });
+
+ipcMain.handle(
+  "json:create-canyon-folder",
+  async (_event, canyonName: string): Promise<CreateCanyonFolderResult> => {
+    const rawName = typeof canyonName === "string" ? canyonName.trim() : "";
+    if (!rawName) {
+      return {
+        canceled: false,
+        error: "Canyon name is required.",
+      };
+    }
+
+    const folderName = sanitizeFolderName(rawName);
+    const folderPath = path.join(process.cwd(), "data", folderName);
+    if (existsSync(folderPath)) {
+      return {
+        canceled: false,
+        error: `Target folder already exists: ${folderPath}`,
+      };
+    }
+
+    try {
+      await mkdir(folderPath, { recursive: true });
+      return {
+        canceled: false,
+        folderPath,
+        dataJsonPath: path.join(folderPath, "data.json"),
+      };
+    } catch (error) {
+      return {
+        canceled: false,
+        error: toErrorMessage(error),
+      };
+    }
+  },
+);
 
 ipcMain.handle("json:save", async (_event, request: SaveJsonRequest): Promise<SaveJsonResult> => {
   if (!mainWindow) {

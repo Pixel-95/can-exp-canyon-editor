@@ -37,6 +37,13 @@ type PickFileResult = {
   relativePath?: string;
 };
 
+type CreateCanyonFolderResult = {
+  canceled: boolean;
+  folderPath?: string;
+  dataJsonPath?: string;
+  error?: string;
+};
+
 contextBridge.exposeInMainWorld("api", {
   getMapboxToken: (): Promise<string | null> =>
     ipcRenderer.invoke("config:get-mapbox-token"),
@@ -51,6 +58,8 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("json:load-path", requestedPath),
   createNewJsonTemplate: (canyonName: string): Promise<Record<string, unknown>> =>
     ipcRenderer.invoke("json:new-template", canyonName),
+  createCanyonFolder: (canyonName: string): Promise<CreateCanyonFolderResult> =>
+    ipcRenderer.invoke("json:create-canyon-folder", canyonName),
   saveJson: (request: SaveJsonRequest): Promise<SaveJsonResult> =>
     ipcRenderer.invoke("json:save", request),
   pickFile: (request: PickFileRequest): Promise<PickFileResult> =>

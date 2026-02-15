@@ -164,12 +164,6 @@ function titleCase(value: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function fileName(pathValue: string): string {
-  const normalized = pathValue.replace(/\\/g, "/");
-  const parts = normalized.split("/");
-  return parts[parts.length - 1] || pathValue;
-}
-
 function getDirectoryPath(filePath: string | null): string | null {
   if (!filePath) {
     return null;
@@ -421,6 +415,26 @@ function parseStaticLanguagePastePayload(payload: unknown): { value: JsonObject 
   return { value: output, error: null };
 }
 
+function createEmptyNewCanyonData(template: JsonObject, canyonName: string): JsonObject {
+  const description: JsonObject = {};
+  for (const language of STATIC_LANGUAGE_KEYS) {
+    description[language] = "";
+  }
+
+  const location: JsonObject = {
+    country_code: "",
+    region_code: "",
+  };
+
+  return {
+    ...template,
+    name: canyonName,
+    description,
+    location,
+    sections: [],
+  };
+}
+
 function shouldRenderChild(parentPath: PathSegment[], key: string, value: JsonValue): boolean {
   if (value === null) {
     return false;
@@ -587,7 +601,7 @@ function createDefaultSection(existingSections: JsonValue[]): JsonObject {
 
   return {
     id: maxId + 1,
-    name: "New Section",
+    name: "Part1",
     authors: [],
     descriptions: {
       approach: { en: "" },
@@ -658,6 +672,10 @@ export function CanyonJsonEditor(): JSX.Element {
   const [languagePasteTargetPath, setLanguagePasteTargetPath] = useState<PathSegment[] | null>(null);
   const [languagePasteDraft, setLanguagePasteDraft] = useState("");
   const [languagePasteError, setLanguagePasteError] = useState("");
+  const [topoWarningMessage, setTopoWarningMessage] = useState("");
+  const [isNewCanyonModalOpen, setIsNewCanyonModalOpen] = useState(false);
+  const [newCanyonNameDraft, setNewCanyonNameDraft] = useState("");
+  const [newCanyonNameError, setNewCanyonNameError] = useState("");
 
   const baseDirectory = useMemo(() => getDirectoryPath(currentFilePath), [currentFilePath]);
   const topoDefaultDirectory = useMemo(
@@ -888,27 +906,47 @@ export function CanyonJsonEditor(): JSX.Element {
     setStatusMessage(result.filePath ?? "JSON file");
   }, []);
 
-  const onNewJson = useCallback(async (): Promise<void> => {
-    const canyonName = window.prompt("Canyon name", "New Canyon");
-    if (canyonName === null) {
-      setStatusMessage("New JSON canceled.");
+  const onNewJson = useCallback((): void => {
+    setIsNewCanyonModalOpen(true);
+    setNewCanyonNameDraft("");
+    setNewCanyonNameError("");
+  }, []);
+
+  const onCloseNewCanyonModal = useCallback((): void => {
+    setIsNewCanyonModalOpen(false);
+    setNewCanyonNameError("");
+  }, []);
+
+  const onCreateNewCanyon = useCallback(async (): Promise<void> => {
+    const canyonName = newCanyonNameDraft.trim();
+    if (!canyonName) {
+      setNewCanyonNameError("Canyon name is required.");
+      return;
+    }
+
+    const folderResult = await window.api.createCanyonFolder(canyonName);
+    if (folderResult.error) {
+      setNewCanyonNameError(folderResult.error);
       return;
     }
 
     const template = await window.api.createNewJsonTemplate(canyonName);
     if (!isJsonObject(template)) {
-      setStatusMessage("Could not create JSON template.");
+      setNewCanyonNameError("Could not create JSON template.");
       return;
     }
 
-    setCanyonData(withGeneratedSectionIds(cloneJsonValue(template)));
-    setCurrentFilePath(null);
+    const nextData = createEmptyNewCanyonData(cloneJsonValue(template), canyonName);
+    setCanyonData(withGeneratedSectionIds(nextData));
+    setCurrentFilePath(folderResult.dataJsonPath ?? null);
     setValidationErrors({});
     setInputDrafts({});
     setCollapsedGroups({});
     setLanguageTabs({});
-    setStatusMessage(`Created new JSON: ${canyonName.trim() || "New Canyon"}`);
-  }, []);
+    setIsNewCanyonModalOpen(false);
+    setNewCanyonNameError("");
+    setStatusMessage(`Created new canyon folder: ${folderResult.folderPath ?? "data"}`);
+  }, [newCanyonNameDraft]);
 
   const onSaveJson = useCallback(async (): Promise<void> => {
     if (!canyonData) {
@@ -1143,6 +1181,11 @@ export function CanyonJsonEditor(): JSX.Element {
 
   const onTopoFilePick = useCallback(
     async (path: PathSegment[]): Promise<void> => {
+      if (!baseDirectory) {
+        setStatusMessage("Select or create a canyon JSON first before choosing a topo file.");
+        return;
+      }
+
       const result = await window.api.pickFile({
         baseDir: baseDirectory,
         defaultPath: topoDefaultDirectory,
@@ -1154,9 +1197,20 @@ export function CanyonJsonEditor(): JSX.Element {
         return;
       }
 
-      setPathValue(path, result.relativePath ?? result.absolutePath ?? "");
+      const relativePath = typeof result.relativePath === "string" ? result.relativePath : "";
+      const normalizedRelativePath = relativePath.replace(/\\/g, "/");
+      if (!normalizedRelativePath.startsWith("./topos/")) {
+        setPathValue(path, "");
+        const warningMessage = "Invalid topo selection. The image must be located in the /topos folder.";
+        setStatusMessage(warningMessage);
+        setTopoWarningMessage(warningMessage);
+        return;
+      }
+
+      const storedTopoPath = `/${normalizedRelativePath.slice(2)}`;
+      setPathValue(path, storedTopoPath);
     },
-    [baseDirectory, setPathValue, topoDefaultDirectory],
+    [baseDirectory, setPathValue, setStatusMessage, topoDefaultDirectory],
   );
 
   const onCountryCodeChange = useCallback(
@@ -1535,7 +1589,12 @@ export function CanyonJsonEditor(): JSX.Element {
                   type="button"
                   onClick={() => {
                     const nextItem = newArrayItem(path, value);
+                    const nextSectionPathKey = toPathKey([...path, value.length]);
                     setPathValue(path, [...value, nextItem]);
+                    setCollapsedGroups((current) => ({
+                      ...current,
+                      [nextSectionPathKey]: false,
+                    }));
                   }}
                 >
                   + Add Section
@@ -2030,7 +2089,7 @@ export function CanyonJsonEditor(): JSX.Element {
               <button type="button" onClick={() => void onTopoFilePick(path)}>
                 Select topo file
               </button>
-              <span title={value}>{fileName(value)}</span>
+              <span title={value}>{value || "Not set"}</span>
             </div>
           </div>
         );
@@ -2087,11 +2146,11 @@ export function CanyonJsonEditor(): JSX.Element {
     <div className="json-editor-shell">
       <header className="json-toolbar">
         <div className="json-toolbar-buttons">
-          <button type="button" onClick={() => void onLoadJson()}>
-            Load JSON
-          </button>
           <button type="button" onClick={() => void onNewJson()}>
             New JSON
+          </button>
+          <button type="button" onClick={() => void onLoadJson()}>
+            Load JSON
           </button>
           <button type="button" disabled={!canyonData || isSaving} onClick={() => void onSaveJson()}>
             {isSaving ? "Saving..." : "Save JSON"}
@@ -2136,6 +2195,83 @@ export function CanyonJsonEditor(): JSX.Element {
             <div className="json-modal-actions">
               <button type="button" className="json-modal-apply" onClick={onApplyLanguagePaste}>
                 Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isNewCanyonModalOpen ? (
+        <div className="json-modal-backdrop" role="presentation">
+          <div className="json-modal" role="dialog" aria-modal="true" aria-label="Create new canyon">
+            <div className="json-modal-header">
+              <h3>Create new canyon</h3>
+              <button
+                type="button"
+                className="json-modal-close"
+                onClick={onCloseNewCanyonModal}
+                aria-label="Close"
+              >
+                X
+              </button>
+            </div>
+            <p className="json-modal-help">
+              Enter the canyon name. A new folder will be created in <code>data/</code>.
+            </p>
+            <div className="json-input-field">
+              <label htmlFor="new-canyon-name-input">Canyon name</label>
+              <input
+                id="new-canyon-name-input"
+                type="text"
+                autoFocus
+                value={newCanyonNameDraft}
+                onChange={(event) => {
+                  setNewCanyonNameDraft(event.target.value);
+                  if (newCanyonNameError) {
+                    setNewCanyonNameError("");
+                  }
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void onCreateNewCanyon();
+                  }
+                }}
+              />
+            </div>
+            {newCanyonNameError ? <p className="json-inline-error">{newCanyonNameError}</p> : null}
+            <div className="json-modal-actions">
+              <button type="button" className="json-modal-apply" onClick={() => void onCreateNewCanyon()}>
+                Create new canyon
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {topoWarningMessage ? (
+        <div className="json-modal-backdrop" role="presentation">
+          <div
+            className="json-modal json-modal-error"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Invalid topo selection"
+          >
+            <div className="json-modal-header">
+              <h3>Invalid topo selection</h3>
+              <button
+                type="button"
+                className="json-modal-close"
+                onClick={() => setTopoWarningMessage("")}
+                aria-label="Close"
+              >
+                X
+              </button>
+            </div>
+            <p className="json-modal-help">{topoWarningMessage}</p>
+            <div className="json-modal-actions">
+              <button type="button" className="json-modal-error-close" onClick={() => setTopoWarningMessage("")}>
+                Close
               </button>
             </div>
           </div>

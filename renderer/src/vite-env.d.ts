@@ -21,6 +21,12 @@ declare global {
         error?: string;
       }>;
       createNewJsonTemplate: (canyonName: string) => Promise<Record<string, unknown>>;
+      createCanyonFolder: (canyonName: string) => Promise<{
+        canceled: boolean;
+        folderPath?: string;
+        dataJsonPath?: string;
+        error?: string;
+      }>;
       saveJson: (request: {
         currentFilePath?: string | null;
         jsonString: string;

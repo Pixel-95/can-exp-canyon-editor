@@ -732,6 +732,31 @@ button {
   color: #3f6212;
 }
 
+.json-modal-error {
+  border-color: #fca5a5;
+  background: #fff7f7;
+}
+
+.json-modal-error .json-modal-header h3 {
+  color: #b91c1c;
+}
+
+.json-modal-error .json-modal-help {
+  color: #991b1b;
+}
+
+.json-modal-error .json-modal-close {
+  border-color: #fca5a5;
+  background: #fff1f2;
+  color: #9f1239;
+}
+
+.json-modal-actions .json-modal-error-close {
+  border-color: #fca5a5;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .json-language-header-left {
   display: inline-flex;
   align-items: center;
