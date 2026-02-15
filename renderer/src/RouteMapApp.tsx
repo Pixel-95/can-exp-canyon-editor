@@ -25,6 +25,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Feature, FeatureCollection, LineString } from "geojson";
+import appIcon from "../../build/icon.png";
 
 type Coordinate = [number, number];
 type RoutePointType = "start" | "waypoint" | "end";
@@ -107,6 +108,8 @@ type InsertMenuOption = {
   key: string;
   label: string;
   insertionIndex: number;
+  leftNeighbor: { type: RoutePointType; label: string } | null;
+  rightNeighbor: { type: RoutePointType; label: string } | null;
 };
 
 type ManualCoordinateActionOption =
@@ -452,6 +455,30 @@ function getRoutePointMarkerLabel(point: RoutePoint, routePointIndex: number): s
   }
 
   return String(routePointIndex);
+}
+
+function createInsertMenuOption(
+  points: RoutePoint[],
+  key: string,
+  label: string,
+  insertionIndex: number,
+): InsertMenuOption {
+  const leftIndex = insertionIndex - 1;
+  const rightIndex = insertionIndex;
+  const leftPoint = points[leftIndex] ?? null;
+  const rightPoint = points[rightIndex] ?? null;
+
+  return {
+    key,
+    label,
+    insertionIndex,
+    leftNeighbor: leftPoint
+      ? { type: leftPoint.type, label: getRoutePointMarkerLabel(leftPoint, leftIndex) }
+      : null,
+    rightNeighbor: rightPoint
+      ? { type: rightPoint.type, label: getRoutePointMarkerLabel(rightPoint, rightIndex) }
+      : null,
+  };
 }
 
 function syncRoutePointMarkerElement(
@@ -1172,6 +1199,12 @@ export function RouteMapApp({
     const markerElement = document.createElement("div");
     markerElement.className = "overview-point-marker";
     markerElement.title = "Canyon overview point";
+    const markerLogo = document.createElement("img");
+    markerLogo.className = "overview-point-marker-logo";
+    markerLogo.src = appIcon;
+    markerLogo.alt = "";
+    markerLogo.draggable = false;
+    markerElement.append(markerLogo);
 
     const overviewMarker = new mapboxgl.Marker({
       element: markerElement,
@@ -2407,26 +2440,25 @@ export function RouteMapApp({
 
   const insertMenuOptions = useMemo<InsertMenuOption[]>(() => {
     const options: InsertMenuOption[] = [
-      { key: "before-start", label: "before Start", insertionIndex: 0 },
-      { key: "after-start", label: "after Start", insertionIndex: 1 },
+      createInsertMenuOption(routePoints, "before-start", "before Start", 0),
+      createInsertMenuOption(routePoints, "after-start", "after Start", 1),
     ];
 
     for (let index = 1; index < routePoints.length - 1; index += 1) {
       if (routePoints[index].type === "waypoint") {
-        options.push({
-          key: `after-${routePoints[index].id}`,
-          label: `after Waypoint ${index}`,
-          insertionIndex: index + 1,
-        });
+        options.push(
+          createInsertMenuOption(
+            routePoints,
+            `after-${routePoints[index].id}`,
+            `after Waypoint ${index}`,
+            index + 1,
+          ),
+        );
       }
     }
 
     if (routePoints.length > 1) {
-      options.push({
-        key: "after-end",
-        label: "after End",
-        insertionIndex: routePoints.length,
-      });
+      options.push(createInsertMenuOption(routePoints, "after-end", "after End", routePoints.length));
     }
 
     return options;
@@ -2741,13 +2773,28 @@ export function RouteMapApp({
               aria-label="Map click menu"
             >
               <button type="button" onClick={onAddParkingLotFromContextMenu}>
-                Add parking lot
+                <span className="map-context-menu-item">
+                  <span className="map-menu-icon parking" aria-hidden="true">
+                    P
+                  </span>
+                  <span className="map-context-menu-item-label">Add parking lot</span>
+                </span>
               </button>
               <button type="button" onClick={onAddPointOfInterestFromContextMenu}>
-                Add point of interest
+                <span className="map-context-menu-item">
+                  <span className="map-menu-icon poi" aria-hidden="true">
+                    POI
+                  </span>
+                  <span className="map-context-menu-item-label">Add point of interest</span>
+                </span>
               </button>
               <button type="button" onClick={onSetOverviewCoordinateFromContextMenu}>
-                Set canyon overview point
+                <span className="map-context-menu-item">
+                  <span className="map-menu-icon overview" aria-hidden="true">
+                    <img src={appIcon} alt="" />
+                  </span>
+                  <span className="map-context-menu-item-label">Set canyon overview point</span>
+                </span>
               </button>
 
               {!hasStartAndEnd ? (
@@ -2761,7 +2808,12 @@ export function RouteMapApp({
                     className="map-context-submenu-trigger"
                     onClick={() => setActiveSubmenu((current) => (current === "set" ? null : "set"))}
                   >
-                    Set as ...
+                    <span className="map-context-menu-item">
+                      <span className="map-menu-icon route waypoint" aria-hidden="true">
+                        +
+                      </span>
+                      <span className="map-context-menu-item-label">Set as ...</span>
+                    </span>
                   </button>
 
                   {activeSubmenu === "set" ? (
@@ -2772,7 +2824,15 @@ export function RouteMapApp({
                           type="button"
                           onClick={() => onSetBoundaryPointFromContextMenu(option.target)}
                         >
-                          {option.label}
+                          <span className="map-context-menu-item">
+                            <span
+                              className={`map-menu-icon route ${option.target === "start" ? "start" : "end"}`}
+                              aria-hidden="true"
+                            >
+                              {option.target === "start" ? "S" : "E"}
+                            </span>
+                            <span className="map-context-menu-item-label">{option.label}</span>
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -2789,7 +2849,12 @@ export function RouteMapApp({
                     className="map-context-submenu-trigger"
                     onClick={() => setActiveSubmenu((current) => (current === "insert" ? null : "insert"))}
                   >
-                    Insert ...
+                    <span className="map-context-menu-item">
+                      <span className="map-menu-icon route waypoint" aria-hidden="true">
+                        +
+                      </span>
+                      <span className="map-context-menu-item-label">Insert ...</span>
+                    </span>
                   </button>
 
                   {activeSubmenu === "insert" ? (
@@ -2800,7 +2865,24 @@ export function RouteMapApp({
                     >
                       {insertMenuOptions.map((option) => (
                         <button key={option.key} type="button" onClick={() => onInsertPointAtIndex(option.insertionIndex)}>
-                          {option.label}
+                          <span className="map-context-menu-item">
+                            <span className="map-context-icon-sequence" aria-hidden="true">
+                              {option.leftNeighbor ? (
+                                <span className={`map-menu-icon route ${option.leftNeighbor.type}`}>
+                                  {option.leftNeighbor.label}
+                                </span>
+                              ) : null}
+                              {option.leftNeighbor ? <span className="map-context-icon-separator">-</span> : null}
+                              <span className="map-menu-icon route waypoint">X</span>
+                              {option.rightNeighbor ? <span className="map-context-icon-separator">-</span> : null}
+                              {option.rightNeighbor ? (
+                                <span className={`map-menu-icon route ${option.rightNeighbor.type}`}>
+                                  {option.rightNeighbor.label}
+                                </span>
+                              ) : null}
+                            </span>
+                            <span className="map-context-menu-item-label">{option.label}</span>
+                          </span>
                         </button>
                       ))}
                     </div>

@@ -345,7 +345,7 @@ button {
 
 .map-context-menu {
   position: absolute;
-  min-width: 190px;
+  width: max-content;
   padding: 4px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -362,6 +362,29 @@ button {
   text-align: left;
   background: #ffffff;
   cursor: pointer;
+}
+
+.map-context-menu-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.map-context-menu-item-label {
+  white-space: nowrap;
+}
+
+.map-context-icon-sequence {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.map-context-icon-separator {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .map-context-menu button:hover {
@@ -388,7 +411,7 @@ button {
   position: absolute;
   top: 0;
   left: calc(100% - 1px);
-  min-width: 200px;
+  width: max-content;
   padding: 4px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -404,6 +427,73 @@ button {
 
 .map-context-submenu-insert button {
   min-height: 35px;
+}
+
+.map-menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
+.map-menu-icon.poi {
+  border: 1px solid #0f172a;
+  border-radius: 999px;
+  padding: 2px 5px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.58rem;
+  font-weight: 700;
+}
+
+.map-menu-icon.parking {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid #ffffff;
+  border-radius: 4px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.map-menu-icon.overview {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid #ffffff;
+  border-radius: 999px;
+  background: #0f172a;
+}
+
+.map-menu-icon.overview img {
+  width: 9px;
+  height: 9px;
+  object-fit: contain;
+}
+
+.map-menu-icon.route {
+  min-width: 21px;
+  height: 19px;
+  border: 1.5px solid #ffffff;
+  border-radius: 999px;
+  padding: 0 6px;
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.map-menu-icon.route.start {
+  background: #15803d;
+}
+
+.map-menu-icon.route.waypoint {
+  background: #1d4ed8;
+}
+
+.map-menu-icon.route.end {
+  background: #b91c1c;
 }
 
 .poi-marker {
@@ -596,29 +686,28 @@ button {
 
 .overview-point-marker {
   position: relative;
-  width: 22px;
-  height: 22px;
+  width: 35px;
+  height: 35px;
   border-radius: 999px;
   border: 2px solid #ffffff;
   background: #0f172a;
   box-shadow: 0 3px 10px rgba(15, 23, 42, 0.35);
   cursor: grab;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .overview-point-marker:active {
   cursor: grabbing;
 }
 
-.overview-point-marker::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: #ffffff;
-  transform: translate(-50%, -50%);
+.overview-point-marker-logo {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
 }
 
 .segment-mode-popup {
