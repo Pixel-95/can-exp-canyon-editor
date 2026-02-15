@@ -503,6 +503,7 @@ export function RouteMapApp({
   const routedSegmentCacheRef = useRef<Map<string, CachedRouteSegment>>(new Map());
   const routeAbortControllerRef = useRef<AbortController | null>(null);
   const suppressMapMenuUntilRef = useRef(0);
+  const viewModeRef = useRef<RouteMapAppProps["viewMode"]>(viewMode);
 
   const [mapboxToken, setMapboxToken] = useState<string>("");
   const [mapStyleMode, setMapStyleMode] = useState<MapStyleMode>("outdoors");
@@ -520,6 +521,14 @@ export function RouteMapApp({
 
   routePointsRef.current = routePoints;
   routeFeatureRef.current = routeFeature;
+
+  useEffect(() => {
+    viewModeRef.current = viewMode;
+    if (viewMode === "compact") {
+      setContextMenu(null);
+      setActiveSubmenu(null);
+    }
+  }, [viewMode]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -916,6 +925,10 @@ export function RouteMapApp({
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
     const openMenuForEvent = (event: mapboxgl.MapMouseEvent & mapboxgl.EventData): void => {
+      if (viewModeRef.current !== "expanded") {
+        return;
+      }
+
       if (Date.now() < suppressMapMenuUntilRef.current) {
         return;
       }
