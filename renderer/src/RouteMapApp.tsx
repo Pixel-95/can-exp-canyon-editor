@@ -1883,25 +1883,25 @@ export function RouteMapApp({
 
       const coordinate = mapPointerCoordinateRef.current;
       if (!coordinate) {
-        setStatusText("Move the mouse over the map to insert a point.");
+        setStatusText("Move the mouse over the map to set a boundary point.");
         return;
       }
 
       event.preventDefault();
 
       if (key === "s") {
-        insertPointAt(0, coordinate);
+        setBoundaryPointAtCoordinate("start", coordinate);
         return;
       }
 
-      insertPointAt(routePointsRef.current.length, coordinate);
+      setBoundaryPointAtCoordinate("end", coordinate);
     };
 
     window.addEventListener("keydown", onWindowKeyDown);
     return () => {
       window.removeEventListener("keydown", onWindowKeyDown);
     };
-  }, [insertPointAt]);
+  }, [setBoundaryPointAtCoordinate]);
 
   const onSetBoundaryPointFromContextMenu = useCallback(
     (target: "start" | "end"): void => {
@@ -2773,7 +2773,7 @@ export function RouteMapApp({
               aria-label="Map click menu"
             >
               <button type="button" onClick={onAddParkingLotFromContextMenu}>
-                <span className="map-context-menu-item">
+                <span className="map-context-menu-item map-context-menu-item-main">
                   <span className="map-menu-icon parking" aria-hidden="true">
                     P
                   </span>
@@ -2781,7 +2781,7 @@ export function RouteMapApp({
                 </span>
               </button>
               <button type="button" onClick={onAddPointOfInterestFromContextMenu}>
-                <span className="map-context-menu-item">
+                <span className="map-context-menu-item map-context-menu-item-main">
                   <span className="map-menu-icon poi" aria-hidden="true">
                     POI
                   </span>
@@ -2789,7 +2789,7 @@ export function RouteMapApp({
                 </span>
               </button>
               <button type="button" onClick={onSetOverviewCoordinateFromContextMenu}>
-                <span className="map-context-menu-item">
+                <span className="map-context-menu-item map-context-menu-item-main">
                   <span className="map-menu-icon overview" aria-hidden="true">
                     <img src={appIcon} alt="" />
                   </span>
@@ -2808,7 +2808,7 @@ export function RouteMapApp({
                     className="map-context-submenu-trigger"
                     onClick={() => setActiveSubmenu((current) => (current === "set" ? null : "set"))}
                   >
-                    <span className="map-context-menu-item">
+                    <span className="map-context-menu-item map-context-menu-item-main">
                       <span className="map-menu-icon route waypoint" aria-hidden="true">
                         +
                       </span>
@@ -2849,7 +2849,7 @@ export function RouteMapApp({
                     className="map-context-submenu-trigger"
                     onClick={() => setActiveSubmenu((current) => (current === "insert" ? null : "insert"))}
                   >
-                    <span className="map-context-menu-item">
+                    <span className="map-context-menu-item map-context-menu-item-main">
                       <span className="map-menu-icon route waypoint" aria-hidden="true">
                         +
                       </span>
@@ -2864,24 +2864,40 @@ export function RouteMapApp({
                       aria-label="Insert point"
                     >
                       {insertMenuOptions.map((option) => (
-                        <button key={option.key} type="button" onClick={() => onInsertPointAtIndex(option.insertionIndex)}>
-                          <span className="map-context-menu-item">
+                        <button
+                          key={option.key}
+                          type="button"
+                          aria-label={option.label}
+                          onClick={() => onInsertPointAtIndex(option.insertionIndex)}
+                        >
+                          <span className="map-context-menu-item map-context-menu-item-insert">
                             <span className="map-context-icon-sequence" aria-hidden="true">
                               {option.leftNeighbor ? (
-                                <span className={`map-menu-icon route ${option.leftNeighbor.type}`}>
+                                <span className={`map-menu-icon route map-menu-icon-muted ${option.leftNeighbor.type}`}>
                                   {option.leftNeighbor.label}
                                 </span>
-                              ) : null}
-                              {option.leftNeighbor ? <span className="map-context-icon-separator">-</span> : null}
-                              <span className="map-menu-icon route waypoint">X</span>
-                              {option.rightNeighbor ? <span className="map-context-icon-separator">-</span> : null}
+                              ) : (
+                                <span className="map-menu-icon route map-menu-icon-placeholder" />
+                              )}
+                              <span
+                                className={`map-context-icon-separator${
+                                  option.leftNeighbor ? "" : " map-context-icon-separator-placeholder"
+                                }`}
+                              />
+                              <span className="map-menu-icon route waypoint">+</span>
+                              <span
+                                className={`map-context-icon-separator${
+                                  option.rightNeighbor ? "" : " map-context-icon-separator-placeholder"
+                                }`}
+                              />
                               {option.rightNeighbor ? (
-                                <span className={`map-menu-icon route ${option.rightNeighbor.type}`}>
+                                <span className={`map-menu-icon route map-menu-icon-muted ${option.rightNeighbor.type}`}>
                                   {option.rightNeighbor.label}
                                 </span>
-                              ) : null}
+                              ) : (
+                                <span className="map-menu-icon route map-menu-icon-placeholder" />
+                              )}
                             </span>
-                            <span className="map-context-menu-item-label">{option.label}</span>
                           </span>
                         </button>
                       ))}

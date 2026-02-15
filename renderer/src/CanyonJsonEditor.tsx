@@ -30,6 +30,11 @@ type CanyonJsonEditorProps = {
   mapViewMode: "compact" | "expanded";
   onToggleMapView: () => void;
 };
+type SectionDeleteConfirmState = {
+  path: PathSegment[];
+  index: number;
+  sectionLabel: string;
+};
 
 const DEFAULT_JSON_PATH = "data/Kobelache/data.json";
 const COUNTRY_ASSET_PATH = "assets/countries_and_regions.json";
@@ -835,6 +840,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   const [isNewCanyonModalOpen, setIsNewCanyonModalOpen] = useState(false);
   const [newCanyonNameDraft, setNewCanyonNameDraft] = useState("");
   const [newCanyonNameError, setNewCanyonNameError] = useState("");
+  const [sectionDeleteConfirm, setSectionDeleteConfirm] = useState<SectionDeleteConfirmState | null>(null);
 
   const baseDirectory = useMemo(() => getDirectoryPath(currentFilePath), [currentFilePath]);
   const topoDefaultDirectory = useMemo(
@@ -1491,6 +1497,24 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     setLanguagePasteError("");
   }, [languagePasteDraft, languagePasteTargetPath, setPathValue]);
 
+  const onConfirmSectionDelete = useCallback((): void => {
+    if (!sectionDeleteConfirm) {
+      return;
+    }
+
+    setCanyonData((current) => {
+      if (!current) {
+        return current;
+      }
+      const next = removeArrayIndex(current, sectionDeleteConfirm.path, sectionDeleteConfirm.index);
+      if (!isJsonObject(next)) {
+        return current;
+      }
+      return withGeneratedSectionIds(next);
+    });
+    setSectionDeleteConfirm(null);
+  }, [sectionDeleteConfirm]);
+
   const renderNode = useCallback(
     (value: JsonValue, path: PathSegment[], label: string): JSX.Element | null => {
       if (value === null) {
@@ -1797,15 +1821,10 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                             type="button"
                             className="json-danger-button"
                             onClick={() =>
-                              setCanyonData((current) => {
-                                if (!current) {
-                                  return current;
-                                }
-                                const next = removeArrayIndex(current, path, index);
-                                if (!isJsonObject(next)) {
-                                  return current;
-                                }
-                                return withGeneratedSectionIds(next);
+                              setSectionDeleteConfirm({
+                                path: [...path],
+                                index,
+                                sectionLabel: sectionName.trim() || itemTitle,
                               })
                             }
                           >
@@ -1948,21 +1967,31 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
           return (
             <div className="json-root-layout">
               <div className={`json-overview-strip ${mapViewMode}`}>
+                {mapViewMode === "expanded" ? (
+                  <button
+                    type="button"
+                    className="json-overview-map-backdrop"
+                    onClick={onToggleMapView}
+                    aria-label="Collapse map overlay"
+                  />
+                ) : null}
                 <div className="json-overview-main">
                   <div className="json-overview-row">{rootName}</div>
                   <div className="json-overview-row">{rootDescription}</div>
                   <div className="json-overview-row">{rootLocation}</div>
                 </div>
                 <div className={`json-overview-map-pane ${mapViewMode}`}>
-                  <button
-                    type="button"
-                    className={`json-overview-map-toggle ${mapViewMode}`}
-                    onClick={onToggleMapView}
-                    aria-label={mapViewMode === "expanded" ? "Collapse map" : "Enlarge map"}
-                    title={mapViewMode === "expanded" ? "Collapse map" : "Enlarge map"}
-                  >
-                    {mapViewMode === "expanded" ? ">" : "Enlarge map"}
-                  </button>
+                  {mapViewMode === "compact" ? (
+                    <button
+                      type="button"
+                      className={`json-overview-map-toggle ${mapViewMode}`}
+                      onClick={onToggleMapView}
+                      aria-label="Enlarge map"
+                      title="Enlarge map"
+                    >
+                      Enlarge map
+                    </button>
+                  ) : null}
                   <div className="json-overview-map-inner">
                     <RouteMapApp
                       viewMode={mapViewMode}
@@ -2557,6 +2586,35 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
             <div className="json-modal-actions">
               <button type="button" className="json-modal-apply" onClick={() => void onCreateNewCanyon()}>
                 Create new canyon
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {sectionDeleteConfirm ? (
+        <div className="json-modal-backdrop" role="presentation">
+          <div className="json-modal json-modal-confirm" role="dialog" aria-modal="true" aria-label="Delete section">
+            <div className="json-modal-header">
+              <h3>Delete section</h3>
+              <button
+                type="button"
+                className="json-modal-close"
+                onClick={() => setSectionDeleteConfirm(null)}
+                aria-label="Close"
+              >
+                X
+              </button>
+            </div>
+            <p className="json-modal-help">
+              Do you really want to delete <strong>{sectionDeleteConfirm.sectionLabel}</strong>?
+            </p>
+            <div className="json-modal-actions">
+              <button type="button" className="json-modal-keep" onClick={() => setSectionDeleteConfirm(null)}>
+                Keep
+              </button>
+              <button type="button" className="json-modal-delete" onClick={onConfirmSectionDelete}>
+                Delete
               </button>
             </div>
           </div>

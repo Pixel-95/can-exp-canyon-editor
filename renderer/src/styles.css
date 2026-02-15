@@ -345,7 +345,7 @@ button {
 
 .map-context-menu {
   position: absolute;
-  width: max-content;
+  width: 260px;
   padding: 4px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -370,21 +370,75 @@ button {
   gap: 8px;
 }
 
+.map-context-menu-item-main {
+  display: inline-grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  column-gap: 8px;
+}
+
+.map-context-menu-item-main > .map-menu-icon {
+  justify-self: center;
+}
+
+.map-context-menu-item-main .map-context-menu-item-label {
+  white-space: nowrap;
+  line-height: 1;
+}
+
 .map-context-menu-item-label {
   white-space: nowrap;
+}
+
+.map-context-menu-item-insert {
+  width: max-content;
+  gap: 8px;
+}
+
+.map-context-submenu-insert .map-context-menu-item-label {
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .map-context-icon-sequence {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  width: 109.7px;
+  flex: 0 0 109.7px;
 }
 
 .map-context-icon-separator {
-  color: #64748b;
-  font-size: 0.72rem;
-  font-weight: 700;
-  line-height: 1;
+  position: relative;
+  width: 10px;
+  height: 8px;
+  flex: 0 0 10px;
+  opacity: 0.7;
+}
+
+.map-context-icon-separator::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 7px;
+  border-top: 1.4px solid #64748b;
+  transform: translateY(-50%);
+}
+
+.map-context-icon-separator::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-top: 1.4px solid #64748b;
+  border-right: 1.4px solid #64748b;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.map-context-icon-separator-placeholder {
+  visibility: hidden;
 }
 
 .map-context-menu button:hover {
@@ -411,7 +465,7 @@ button {
   position: absolute;
   top: 0;
   left: calc(100% - 1px);
-  width: max-content;
+  min-width: 200px;
   padding: 4px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -420,13 +474,25 @@ button {
 }
 
 .map-context-submenu-insert {
+  width: fit-content;
+  min-width: 0;
   max-height: calc(10 * 35px + 8px);
   overflow-y: auto;
   overflow-x: hidden;
 }
 
 .map-context-submenu-insert button {
+  width: fit-content;
+  min-width: 0;
+  display: block;
   min-height: 35px;
+}
+
+.map-context-submenu-insert .map-menu-icon.route {
+  min-width: 25px;
+  height: 23px;
+  padding: 0 7px;
+  font-size: 0.74rem;
 }
 
 .map-menu-icon {
@@ -441,35 +507,35 @@ button {
 .map-menu-icon.poi {
   border: 1px solid #0f172a;
   border-radius: 999px;
-  padding: 2px 5px;
+  padding: 2.4px 6px;
   background: #ffffff;
   color: #0f172a;
-  font-size: 0.58rem;
+  font-size: 0.7rem;
   font-weight: 700;
 }
 
 .map-menu-icon.parking {
-  width: 18px;
-  height: 18px;
-  border: 1.5px solid #ffffff;
+  width: 22px;
+  height: 22px;
+  border: 1.8px solid #ffffff;
   border-radius: 4px;
   background: #2563eb;
   color: #ffffff;
-  font-size: 0.65rem;
+  font-size: 0.78rem;
   font-weight: 800;
 }
 
 .map-menu-icon.overview {
-  width: 18px;
-  height: 18px;
+  width: 31px;
+  height: 31px;
   border: 1.5px solid #ffffff;
   border-radius: 999px;
   background: #0f172a;
 }
 
 .map-menu-icon.overview img {
-  width: 9px;
-  height: 9px;
+  width: 18px;
+  height: 18px;
   object-fit: contain;
 }
 
@@ -484,11 +550,23 @@ button {
   font-weight: 700;
 }
 
+.map-menu-icon.route.map-menu-icon-muted {
+  opacity: 0.58;
+}
+
+.map-menu-icon.route.map-menu-icon-placeholder {
+  visibility: hidden;
+}
+
 .map-menu-icon.route.start {
   background: #15803d;
 }
 
 .map-menu-icon.route.waypoint {
+  min-width: 25px;
+  height: 23px;
+  padding: 0 7px;
+  font-size: 0.74rem;
   background: #1d4ed8;
 }
 
@@ -703,8 +781,8 @@ button {
 }
 
 .overview-point-marker-logo {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   object-fit: contain;
   user-select: none;
   pointer-events: none;
@@ -838,7 +916,7 @@ button {
 }
 
 .json-editor-body {
-  overflow-y: auto;
+  overflow-y: scroll;
   overflow-x: hidden;
   padding: 8px;
 }
@@ -886,9 +964,20 @@ button {
   position: fixed;
   top: 0;
   right: 0;
-  width: 80%;
+  width: 90%;
   height: 100%;
   z-index: 70;
+}
+
+.json-overview-map-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  border: 0;
+  background: rgba(15, 23, 42, 0.45);
+  padding: 0;
+  margin: 0;
+  cursor: default;
 }
 
 .json-overview-map-inner {
@@ -1148,6 +1237,27 @@ button {
   border-color: #84cc16;
   background: #ecfccb;
   color: #3f6212;
+}
+
+.json-modal-confirm {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.json-modal-confirm .json-modal-header h3 {
+  color: #b91c1c;
+}
+
+.json-modal-actions .json-modal-keep {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.json-modal-actions .json-modal-delete {
+  border-color: #fca5a5;
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .json-modal-error {
