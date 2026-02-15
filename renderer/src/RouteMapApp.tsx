@@ -123,11 +123,34 @@ type ManualCoordinateActionOption =
       insertionIndex: number;
     };
 
+type LocalizedText = Record<string, string>;
+type PointOfInterest = {
+  coordinates: [number, number];
+  name: LocalizedText;
+  description: LocalizedText;
+};
+type PoiEditorState = {
+  index: number;
+  language: string;
+};
+type PoiPasteModalState = {
+  poiIndex: number;
+  field: "name" | "description";
+  draft: string;
+  error: string;
+};
+
 type RouteMapAppProps = {
   viewMode: "compact" | "expanded";
+  defaultLanguage?: (typeof STATIC_LANGUAGE_KEYS)[number];
   overviewCoordinate?: [number, number] | null;
   onSetOverviewCoordinate?: (coordinate: [number, number]) => void;
+  pointsOfInterest?: PointOfInterest[];
+  onPointsOfInterestChange?: (points: PointOfInterest[]) => void;
 };
+
+const STATIC_LANGUAGE_KEYS = ["de", "en", "es", "fr", "it", "pt"] as const;
+const STATIC_LANGUAGE_SET = new Set<string>(STATIC_LANGUAGE_KEYS);
 
 const ROUTE_SOURCE_ID = "walking-route-source";
 const ROUTE_LAYER_ID = "walking-route-layer";
@@ -284,6 +307,63 @@ function createFilenameSuggestion(date: Date): string {
   const sec = String(date.getSeconds()).padStart(2, "0");
 
   return `route_${yyyy}-${mm}-${dd}_${hh}-${min}-${sec}.geojson`;
+}
+
+function createEmptyLocalizedText(): LocalizedText {
+  const value: LocalizedText = {};
+  for (const language of STATIC_LANGUAGE_KEYS) {
+    value[language] = "";
+  }
+
+  return value;
+}
+
+function normalizeLocalizedText(value: LocalizedText | undefined): LocalizedText {
+  const normalized = createEmptyLocalizedText();
+  if (!value) {
+    return normalized;
+  }
+
+  for (const language of STATIC_LANGUAGE_KEYS) {
+    const current = value[language];
+    normalized[language] = typeof current === "string" ? current : "";
+  }
+
+  return normalized;
+}
+
+function parseLocalizedTextPastePayload(payload: unknown): { value: LocalizedText | null; error: string | null } {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {
+      value: null,
+      error: "The pasted content must be a JSON object.",
+    };
+  }
+
+  const obj = payload as Record<string, unknown>;
+  for (const key of Object.keys(obj)) {
+    if (!STATIC_LANGUAGE_SET.has(key)) {
+      return {
+        value: null,
+        error: `Unsupported language key "${key}". Allowed keys: ${STATIC_LANGUAGE_KEYS.join(", ")}.`,
+      };
+    }
+  }
+
+  const value: LocalizedText = {};
+  for (const language of STATIC_LANGUAGE_KEYS) {
+    const current = obj[language];
+    if (typeof current !== "string") {
+      return {
+        value: null,
+        error: `Language "${language}" must be a string.`,
+      };
+    }
+
+    value[language] = current;
+  }
+
+  return { value, error: null };
 }
 
 function createRoutePointId(): string {
@@ -488,14 +568,18 @@ function RoutePointListItem({
 
 export function RouteMapApp({
   viewMode,
+  defaultLanguage = "en",
   overviewCoordinate = null,
   onSetOverviewCoordinate,
+  pointsOfInterest = [],
+  onPointsOfInterestChange,
 }: RouteMapAppProps): JSX.Element {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const segmentModePopupRef = useRef<mapboxgl.Popup | null>(null);
   const overviewPointMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const poiMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const mapPointerCoordinateRef = useRef<Coordinate | null>(null);
   const routePointsRef = useRef<RoutePoint[]>([]);
   const routeFeatureRef = useRef<RouteFeature | null>(null);
@@ -511,6 +595,8 @@ export function RouteMapApp({
   const [routeFeature, setRouteFeature] = useState<RouteFeature | null>(null);
   const [contextMenu, setContextMenu] = useState<MapContextMenuState>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<ContextMenuSubmenu | null>(null);
+  const [poiEditor, setPoiEditor] = useState<PoiEditorState | null>(null);
+  const [poiPasteModal, setPoiPasteModal] = useState<PoiPasteModalState | null>(null);
   const [coordinateInput, setCoordinateInput] = useState("");
   const [coordinateInputError, setCoordinateInputError] = useState("");
   const [manualCoordinateActionKey, setManualCoordinateActionKey] = useState("");
@@ -518,6 +604,9 @@ export function RouteMapApp({
   const [routeElevationError, setRouteElevationError] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [statusText, setStatusText] = useState("Ready");
+  const effectiveDefaultLanguage: (typeof STATIC_LANGUAGE_KEYS)[number] = STATIC_LANGUAGE_SET.has(defaultLanguage)
+    ? defaultLanguage
+    : "en";
 
   routePointsRef.current = routePoints;
   routeFeatureRef.current = routeFeature;
@@ -527,6 +616,8 @@ export function RouteMapApp({
     if (viewMode === "compact") {
       setContextMenu(null);
       setActiveSubmenu(null);
+      setPoiEditor(null);
+      setPoiPasteModal(null);
     }
   }, [viewMode]);
 
@@ -973,6 +1064,8 @@ export function RouteMapApp({
     const onMapMoveStart = (): void => {
       setContextMenu(null);
       setActiveSubmenu(null);
+      setPoiEditor(null);
+      setPoiPasteModal(null);
       segmentModePopupRef.current?.remove();
       segmentModePopupRef.current = null;
     };
@@ -998,6 +1091,10 @@ export function RouteMapApp({
       segmentModePopupRef.current = null;
       overviewPointMarkerRef.current?.remove();
       overviewPointMarkerRef.current = null;
+      for (const marker of poiMarkersRef.current) {
+        marker.remove();
+      }
+      poiMarkersRef.current = [];
       mapPointerCoordinateRef.current = null;
 
       for (const markerEntry of pointMarkersRef.current.values()) {
@@ -1075,6 +1172,93 @@ export function RouteMapApp({
 
     overviewPointMarkerRef.current = overviewMarker;
   }, [onSetOverviewCoordinate, overviewCoordinate]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    for (const marker of poiMarkersRef.current) {
+      marker.remove();
+    }
+    poiMarkersRef.current = [];
+
+    pointsOfInterest.forEach((poi, index) => {
+      const markerElement = document.createElement("button");
+      markerElement.type = "button";
+      markerElement.className = "poi-marker";
+      markerElement.textContent = "POI";
+      markerElement.setAttribute("aria-label", `Open point of interest ${index + 1}`);
+
+      const marker = new mapboxgl.Marker({
+        element: markerElement,
+        anchor: "bottom",
+        draggable: Boolean(onPointsOfInterestChange),
+      })
+        .setLngLat(poi.coordinates)
+        .addTo(map);
+
+      markerElement.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (viewModeRef.current !== "expanded") {
+          return;
+        }
+
+        setContextMenu(null);
+        setActiveSubmenu(null);
+        setPoiPasteModal(null);
+        setPoiEditor({
+          index,
+          language: effectiveDefaultLanguage,
+        });
+      });
+
+      if (onPointsOfInterestChange) {
+        marker.on("dragstart", () => {
+          suppressMapMenuUntilRef.current = Date.now() + 350;
+          setContextMenu(null);
+          setActiveSubmenu(null);
+          setPoiPasteModal(null);
+        });
+
+        marker.on("dragend", () => {
+          suppressMapMenuUntilRef.current = Date.now() + 350;
+          const lngLat = marker.getLngLat();
+          const coordinate: [number, number] = [
+            Number(lngLat.lng.toFixed(6)),
+            Number(lngLat.lat.toFixed(6)),
+          ];
+
+          const next = pointsOfInterest.map((currentPoi, currentIndex) =>
+            currentIndex === index
+              ? {
+                  ...currentPoi,
+                  coordinates: coordinate,
+                }
+              : currentPoi,
+          );
+          onPointsOfInterestChange(next);
+          setStatusText("Point of interest moved.");
+        });
+      }
+
+      poiMarkersRef.current.push(marker);
+    });
+  }, [effectiveDefaultLanguage, onPointsOfInterestChange, pointsOfInterest]);
+
+  useEffect(() => {
+    if (!poiEditor) {
+      return;
+    }
+
+    if (poiEditor.index < 0 || poiEditor.index >= pointsOfInterest.length) {
+      setPoiEditor(null);
+      setPoiPasteModal(null);
+    }
+  }, [poiEditor, pointsOfInterest.length]);
 
   useEffect(() => {
     const container = mapContainerRef.current;
@@ -1624,6 +1808,162 @@ export function RouteMapApp({
     [contextMenu, insertPointAt],
   );
 
+  const onAddPointOfInterestFromContextMenu = useCallback((): void => {
+    if (!contextMenu) {
+      return;
+    }
+
+    if (!onPointsOfInterestChange) {
+      setContextMenu(null);
+      setActiveSubmenu(null);
+      setStatusText("Points of interest cannot be edited right now.");
+      return;
+    }
+
+    const nextPoi: PointOfInterest = {
+      coordinates: contextMenu.coordinate,
+      name: createEmptyLocalizedText(),
+      description: createEmptyLocalizedText(),
+    };
+    const next = [...pointsOfInterest, nextPoi];
+    onPointsOfInterestChange(next);
+    setContextMenu(null);
+    setActiveSubmenu(null);
+    setPoiPasteModal(null);
+    setPoiEditor({
+      index: next.length - 1,
+      language: effectiveDefaultLanguage,
+    });
+    setStatusText("Point of interest added.");
+  }, [contextMenu, effectiveDefaultLanguage, onPointsOfInterestChange, pointsOfInterest]);
+
+  const onPoiLanguageChange = useCallback((language: string): void => {
+    if (!poiEditor || !STATIC_LANGUAGE_SET.has(language)) {
+      return;
+    }
+
+    setPoiEditor((current) =>
+      current
+        ? {
+            ...current,
+            language,
+          }
+        : current,
+    );
+  }, [poiEditor]);
+
+  const onPoiTextChange = useCallback(
+    (poiIndex: number, field: "name" | "description", language: string, nextValue: string): void => {
+      if (!onPointsOfInterestChange || !STATIC_LANGUAGE_SET.has(language)) {
+        return;
+      }
+
+      if (poiIndex < 0 || poiIndex >= pointsOfInterest.length) {
+        return;
+      }
+
+      const next = pointsOfInterest.map((poi, index) => {
+        if (index !== poiIndex) {
+          return poi;
+        }
+
+        const nextFieldValue = normalizeLocalizedText(poi[field]);
+        nextFieldValue[language] = nextValue;
+
+        return {
+          ...poi,
+          [field]: nextFieldValue,
+        };
+      });
+
+      onPointsOfInterestChange(next);
+    },
+    [onPointsOfInterestChange, pointsOfInterest],
+  );
+
+  const openPoiPasteModal = useCallback(
+    (field: "name" | "description"): void => {
+      if (!poiEditor) {
+        return;
+      }
+
+      const poi = pointsOfInterest[poiEditor.index];
+      if (!poi) {
+        return;
+      }
+
+      setPoiPasteModal({
+        poiIndex: poiEditor.index,
+        field,
+        draft: "",
+        error: "",
+      });
+    },
+    [poiEditor, pointsOfInterest],
+  );
+
+  const closePoiPasteModal = useCallback((): void => {
+    setPoiPasteModal(null);
+  }, []);
+
+  const onApplyPoiPaste = useCallback((): void => {
+    if (!poiPasteModal) {
+      return;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(poiPasteModal.draft);
+    } catch {
+      setPoiPasteModal((current) =>
+        current
+          ? {
+              ...current,
+              error: "Invalid JSON format.",
+            }
+          : current,
+      );
+      return;
+    }
+
+    const validation = parseLocalizedTextPastePayload(parsed);
+    if (!validation.value || validation.error) {
+      setPoiPasteModal((current) =>
+        current
+          ? {
+              ...current,
+              error: validation.error ?? "Invalid language JSON payload.",
+            }
+          : current,
+      );
+      return;
+    }
+
+    if (!onPointsOfInterestChange) {
+      setPoiPasteModal(null);
+      return;
+    }
+
+    if (poiPasteModal.poiIndex < 0 || poiPasteModal.poiIndex >= pointsOfInterest.length) {
+      setPoiPasteModal(null);
+      return;
+    }
+
+    const next = pointsOfInterest.map((poi, index) => {
+      if (index !== poiPasteModal.poiIndex) {
+        return poi;
+      }
+
+      return {
+        ...poi,
+        [poiPasteModal.field]: validation.value!,
+      };
+    });
+
+    onPointsOfInterestChange(next);
+    setPoiPasteModal(null);
+  }, [onPointsOfInterestChange, pointsOfInterest, poiPasteModal]);
+
   const onSetOverviewCoordinateFromContextMenu = useCallback((): void => {
     if (!contextMenu) {
       return;
@@ -1889,6 +2229,42 @@ export function RouteMapApp({
   ]);
 
   const canInsertCoordinate = coordinateInput.trim().length > 0 && manualCoordinateOptions.length > 0;
+  const activePoiLanguage =
+    poiEditor && STATIC_LANGUAGE_SET.has(poiEditor.language)
+      ? poiEditor.language
+      : effectiveDefaultLanguage;
+  const activePoi =
+    poiEditor && poiEditor.index >= 0 && poiEditor.index < pointsOfInterest.length
+      ? pointsOfInterest[poiEditor.index]
+      : null;
+  const poiEditorPosition = useMemo(() => {
+    if (!poiEditor || !activePoi) {
+      return null;
+    }
+
+    const map = mapRef.current;
+    const container = mapContainerRef.current;
+    if (!map || !container) {
+      return null;
+    }
+
+    const projected = map.project(activePoi.coordinates);
+    const popupWidth = 320;
+    const margin = 12;
+    const availableWidth = container.clientWidth;
+    const availableHeight = container.clientHeight;
+
+    const left = Math.min(
+      Math.max(projected.x + 12, margin),
+      Math.max(margin, availableWidth - popupWidth - margin),
+    );
+    const top = Math.min(
+      Math.max(projected.y - 12, margin),
+      Math.max(margin, availableHeight - 220),
+    );
+
+    return { left, top };
+  }, [activePoi, poiEditor]);
 
   return (
     <div className="app-shell">
@@ -2041,6 +2417,9 @@ export function RouteMapApp({
               role="menu"
               aria-label="Map click menu"
             >
+              <button type="button" onClick={onAddPointOfInterestFromContextMenu}>
+                Add point of interest
+              </button>
               <button type="button" onClick={onSetOverviewCoordinateFromContextMenu}>
                 Set canyon overview point
               </button>
@@ -2102,6 +2481,111 @@ export function RouteMapApp({
                   ) : null}
                 </div>
               )}
+            </div>
+          </div>
+        ) : null}
+
+        {poiEditor && activePoi && poiEditorPosition ? (
+          <div
+            className="poi-editor-popup"
+            style={{ left: `${poiEditorPosition.left}px`, top: `${poiEditorPosition.top}px` }}
+          >
+            <div className="poi-editor-header">
+              <h4>POI</h4>
+              <button
+                type="button"
+                className="poi-editor-close"
+                onClick={() => {
+                  setPoiEditor(null);
+                  setPoiPasteModal(null);
+                }}
+                aria-label="Close POI editor"
+              >
+                X
+              </button>
+            </div>
+
+            <div className="poi-editor-language-tabs">
+              {STATIC_LANGUAGE_KEYS.map((language) => (
+                <button
+                  key={language}
+                  type="button"
+                  className={`poi-editor-language-tab${activePoiLanguage === language ? " active" : ""}`}
+                  onClick={() => onPoiLanguageChange(language)}
+                >
+                  {language.toUpperCase()}
+                </button>
+              ))}
+            </div>
+
+            <div className="poi-editor-field">
+              <div className="poi-editor-field-head">
+                <label>Name</label>
+                <button type="button" onClick={() => openPoiPasteModal("name")}>
+                  Paste JSON
+                </button>
+              </div>
+              <input
+                type="text"
+                value={normalizeLocalizedText(activePoi.name)[activePoiLanguage] ?? ""}
+                onChange={(event) =>
+                  onPoiTextChange(poiEditor.index, "name", activePoiLanguage, event.target.value)
+                }
+              />
+            </div>
+
+            <div className="poi-editor-field">
+              <div className="poi-editor-field-head">
+                <label>Description</label>
+                <button type="button" onClick={() => openPoiPasteModal("description")}>
+                  Paste JSON
+                </button>
+              </div>
+              <textarea
+                className="poi-editor-description"
+                rows={3}
+                value={normalizeLocalizedText(activePoi.description)[activePoiLanguage] ?? ""}
+                onChange={(event) =>
+                  onPoiTextChange(poiEditor.index, "description", activePoiLanguage, event.target.value)
+                }
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {poiPasteModal ? (
+          <div className="json-modal-backdrop" role="presentation">
+            <div className="json-modal" role="dialog" aria-modal="true" aria-label="Paste POI language JSON">
+              <div className="json-modal-header">
+                <h3>Paste POI {poiPasteModal.field} JSON</h3>
+                <button type="button" className="json-modal-close" onClick={closePoiPasteModal} aria-label="Close">
+                  X
+                </button>
+              </div>
+              <p className="json-modal-help">
+                Provide valid JSON with exactly these keys: {STATIC_LANGUAGE_KEYS.join(", ")}.
+              </p>
+              <textarea
+                value={poiPasteModal.draft}
+                rows={12}
+                onChange={(event) =>
+                  setPoiPasteModal((current) =>
+                    current
+                      ? {
+                          ...current,
+                          draft: event.target.value,
+                          error: "",
+                        }
+                      : current,
+                  )
+                }
+              />
+              {poiPasteModal.error ? <p className="json-inline-error">{poiPasteModal.error}</p> : null}
+              <div className="json-modal-actions">
+                <button type="button" className="json-modal-apply" onClick={onApplyPoiPaste}>
+                  Apply
+                </button>
+              </div>
             </div>
           </div>
         ) : null}

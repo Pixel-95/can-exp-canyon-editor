@@ -16,6 +16,12 @@ type SpecialNoteDefinition = {
   templateText: string;
   placeholders: string[];
 };
+type LocalizedText = Record<string, string>;
+type PointOfInterest = {
+  coordinates: [number, number];
+  name: LocalizedText;
+  description: LocalizedText;
+};
 type CanyonJsonEditorProps = {
   mapViewMode: "compact" | "expanded";
   onToggleMapView: () => void;
@@ -24,6 +30,7 @@ type CanyonJsonEditorProps = {
 const DEFAULT_JSON_PATH = "data/Kobelache/data.json";
 const COUNTRY_ASSET_PATH = "assets/en.json";
 const SPECIAL_NOTES_ASSET_PATH = "assets/possible_special_notes.json";
+const DEFAULT_LANGUAGE_STORAGE_KEY = "canyon-editor.default-language";
 const LANGUAGE_KEY_PATTERN = /^[a-z]{2}(?:-[A-Za-z]{2})?$/i;
 const STATIC_LANGUAGE_KEYS = ["de", "en", "es", "fr", "it", "pt"] as const;
 const STATIC_LANGUAGE_SET = new Set<string>(STATIC_LANGUAGE_KEYS);
@@ -233,6 +240,62 @@ function parseCoordinatePair(value: JsonValue): [number, number] | null {
   }
 
   return [lng, lat];
+}
+
+function createEmptyLocalizedText(): LocalizedText {
+  const value: LocalizedText = {};
+  for (const language of STATIC_LANGUAGE_KEYS) {
+    value[language] = "";
+  }
+  return value;
+}
+
+function normalizeLocalizedText(value: JsonValue): LocalizedText {
+  if (!isJsonObject(value)) {
+    return createEmptyLocalizedText();
+  }
+
+  const normalized = createEmptyLocalizedText();
+  for (const language of STATIC_LANGUAGE_KEYS) {
+    const current = value[language];
+    normalized[language] = typeof current === "string" ? current : "";
+  }
+
+  return normalized;
+}
+
+function parsePointsOfInterest(value: JsonValue): PointOfInterest[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const points: PointOfInterest[] = [];
+  for (const entry of value) {
+    if (!isJsonObject(entry)) {
+      continue;
+    }
+
+    const coordinates = parseCoordinatePair(entry.coordinates ?? null);
+    if (!coordinates) {
+      continue;
+    }
+
+    points.push({
+      coordinates,
+      name: normalizeLocalizedText(entry.name ?? null),
+      description: normalizeLocalizedText(entry.description ?? null),
+    });
+  }
+
+  return points;
+}
+
+function serializePointsOfInterest(points: PointOfInterest[]): JsonValue[] {
+  return points.map((point) => ({
+    coordinates: point.coordinates,
+    name: { ...point.name },
+    description: { ...point.description },
+  }));
 }
 
 function cloneJsonValue<T>(value: T): T {
@@ -692,6 +755,18 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [languageTabs, setLanguageTabs] = useState<Record<string, string>>({});
+  const [defaultLanguage, setDefaultLanguage] = useState<(typeof STATIC_LANGUAGE_KEYS)[number]>(() => {
+    if (typeof window === "undefined") {
+      return "en";
+    }
+
+    const stored = window.localStorage.getItem(DEFAULT_LANGUAGE_STORAGE_KEY);
+    if (stored && STATIC_LANGUAGE_SET.has(stored)) {
+      return stored as (typeof STATIC_LANGUAGE_KEYS)[number];
+    }
+
+    return "en";
+  });
   const [languagePasteTargetPath, setLanguagePasteTargetPath] = useState<PathSegment[] | null>(null);
   const [languagePasteDraft, setLanguagePasteDraft] = useState("");
   const [languagePasteError, setLanguagePasteError] = useState("");
@@ -731,6 +806,13 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     }
 
     return parseCoordinatePair(valueAtPath(canyonData, ["coordinates"]));
+  }, [canyonData]);
+  const pointsOfInterest = useMemo(() => {
+    if (!canyonData) {
+      return [];
+    }
+
+    return parsePointsOfInterest(valueAtPath(canyonData, ["points_of_interest"]));
   }, [canyonData]);
 
   const clearValidationError = useCallback((pathKey: string): void => {
@@ -787,6 +869,14 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     },
     [clearValidationError],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(DEFAULT_LANGUAGE_STORAGE_KEY, defaultLanguage);
+  }, [defaultLanguage]);
 
   useEffect(() => {
     let canceled = false;
@@ -1258,6 +1348,13 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     [setPathValue],
   );
 
+  const onPointsOfInterestChange = useCallback(
+    (nextPointsOfInterest: PointOfInterest[]): void => {
+      setPathValue(["points_of_interest"], serializePointsOfInterest(nextPointsOfInterest));
+    },
+    [setPathValue],
+  );
+
   const openLanguagePasteModal = useCallback((path: PathSegment[]): void => {
     setLanguagePasteTargetPath(path);
     setLanguagePasteDraft("");
@@ -1307,7 +1404,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
         const activeLanguage =
           languageTabs[pathKey] && STATIC_LANGUAGE_SET.has(languageTabs[pathKey])
             ? languageTabs[pathKey]
-            : STATIC_LANGUAGE_KEYS[0];
+            : defaultLanguage;
         const cardTitle =
           path.length === 1 && path[0] === "description" ? "Short Characteristic" : titleCase(label);
         const isShortCharacteristic = path.length === 1 && path[0] === "description";
@@ -1768,8 +1865,11 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                   <div className="json-overview-map-inner">
                     <RouteMapApp
                       viewMode={mapViewMode}
+                      defaultLanguage={defaultLanguage}
                       overviewCoordinate={overviewCoordinate}
                       onSetOverviewCoordinate={onOverviewCoordinateSet}
+                      pointsOfInterest={pointsOfInterest}
+                      onPointsOfInterestChange={onPointsOfInterestChange}
                     />
                   </div>
                 </div>
@@ -2202,6 +2302,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       clearDraft,
       collapsedGroups,
       countries,
+      defaultLanguage,
       onCountryCodeChange,
       onDifficultyArabicDraftChange,
       onDifficultyArabicStep,
@@ -2209,8 +2310,10 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       onDifficultyRomanStep,
       languageTabs,
       overviewCoordinate,
+      pointsOfInterest,
       onNumberDraftChange,
       onOverviewCoordinateSet,
+      onPointsOfInterestChange,
       openLanguagePasteModal,
       onSpecialNoteParamChange,
       onSpecialNoteRemoveUnknown,
@@ -2241,6 +2344,24 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
           <button type="button" disabled={!canyonData || isSaving} onClick={() => void onSaveJson()}>
             {isSaving ? "Saving..." : "Save JSON"}
           </button>
+          <label className="json-default-language-selector">
+            <span>Default language</span>
+            <select
+              value={defaultLanguage}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                if (STATIC_LANGUAGE_SET.has(nextValue)) {
+                  setDefaultLanguage(nextValue as (typeof STATIC_LANGUAGE_KEYS)[number]);
+                }
+              }}
+            >
+              {STATIC_LANGUAGE_KEYS.map((language) => (
+                <option key={language} value={language}>
+                  {language.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <p className="json-status">{statusMessage}</p>
       </header>
