@@ -235,6 +235,7 @@ export type TrackSnapshot = {
 
 type RouteMapAppProps = {
   viewMode: "compact" | "expanded";
+  onRequestExpandMap?: () => void;
   defaultLanguage?: (typeof STATIC_LANGUAGE_KEYS)[number];
   overviewCoordinate?: [number, number] | null;
   onSetOverviewCoordinate?: (coordinate: [number, number]) => void;
@@ -835,6 +836,7 @@ function RoutePointListItem({
 
 export function RouteMapApp({
   viewMode,
+  onRequestExpandMap,
   defaultLanguage = "en",
   overviewCoordinate = null,
   onSetOverviewCoordinate,
@@ -2081,6 +2083,11 @@ export function RouteMapApp({
     };
 
     const onMapClick = (event: mapboxgl.MapMouseEvent): void => {
+      if (viewModeRef.current !== "expanded") {
+        onRequestExpandMap?.();
+        return;
+      }
+
       if (viewModeRef.current === "expanded") {
         const lineLayerIds = [TRACKS_ACTIVE_LAYER_ID, TRACKS_INACTIVE_LAYER_ID].filter((layerId) =>
           Boolean(map.getLayer(layerId)),
@@ -2168,7 +2175,33 @@ export function RouteMapApp({
       map.remove();
       mapRef.current = null;
     };
-  }, [closeAllMenus, deactivateTrackEditing, mapboxToken]);
+  }, [closeAllMenus, deactivateTrackEditing, mapboxToken, onRequestExpandMap]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    if (viewMode === "expanded") {
+      map.dragPan.enable();
+      map.scrollZoom.enable();
+      map.boxZoom.enable();
+      map.dragRotate.enable();
+      map.keyboard.enable();
+      map.doubleClickZoom.enable();
+      map.touchZoomRotate.enable();
+      return;
+    }
+
+    map.dragPan.disable();
+    map.scrollZoom.disable();
+    map.boxZoom.disable();
+    map.dragRotate.disable();
+    map.keyboard.disable();
+    map.doubleClickZoom.disable();
+    map.touchZoomRotate.disable();
+  }, [viewMode, mapReadyVersion]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -2206,6 +2239,13 @@ export function RouteMapApp({
     const markerElement = document.createElement("div");
     markerElement.className = "overview-point-marker";
     markerElement.title = "Canyon overview point";
+    markerElement.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (viewModeRef.current !== "expanded") {
+        onRequestExpandMap?.();
+      }
+    });
     const markerLogo = document.createElement("img");
     markerLogo.className = "overview-point-marker-logo";
     markerLogo.src = appIcon;
@@ -2216,7 +2256,7 @@ export function RouteMapApp({
     const overviewMarker = new mapboxgl.Marker({
       element: markerElement,
       anchor: "center",
-      draggable: Boolean(onSetOverviewCoordinate),
+      draggable: Boolean(onSetOverviewCoordinate) && viewMode === "expanded",
     })
       .setLngLat(overviewCoordinate)
       .addTo(map);
@@ -2240,7 +2280,15 @@ export function RouteMapApp({
     }
 
     overviewPointMarkerRef.current = overviewMarker;
-  }, [closeAllMenus, deactivateTrackEditing, mapReadyVersion, onSetOverviewCoordinate, overviewCoordinate]);
+  }, [
+    closeAllMenus,
+    deactivateTrackEditing,
+    mapReadyVersion,
+    onRequestExpandMap,
+    onSetOverviewCoordinate,
+    overviewCoordinate,
+    viewMode,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -2269,7 +2317,7 @@ export function RouteMapApp({
       const marker = new mapboxgl.Marker({
         element: markerElement,
         anchor: "bottom",
-        draggable: Boolean(onPointsOfInterestChange),
+        draggable: Boolean(onPointsOfInterestChange) && viewMode === "expanded",
       })
         .setLngLat(poi.coordinates)
         .addTo(map);
@@ -2279,6 +2327,7 @@ export function RouteMapApp({
         event.stopPropagation();
 
         if (viewModeRef.current !== "expanded") {
+          onRequestExpandMap?.();
           return;
         }
 
@@ -2325,8 +2374,10 @@ export function RouteMapApp({
     deactivateTrackEditing,
     effectiveDefaultLanguage,
     mapReadyVersion,
+    onRequestExpandMap,
     onPointsOfInterestChange,
     pointsOfInterest,
+    viewMode,
   ]);
 
   useEffect(() => {
@@ -2361,7 +2412,7 @@ export function RouteMapApp({
       const marker = new mapboxgl.Marker({
         element: markerElement,
         anchor: "bottom",
-        draggable: Boolean(onParkingLotsChange),
+        draggable: Boolean(onParkingLotsChange) && viewMode === "expanded",
       })
         .setLngLat(parkingLot.coordinates)
         .addTo(map);
@@ -2371,6 +2422,7 @@ export function RouteMapApp({
         event.stopPropagation();
 
         if (viewModeRef.current !== "expanded") {
+          onRequestExpandMap?.();
           return;
         }
 
@@ -2417,8 +2469,10 @@ export function RouteMapApp({
     deactivateTrackEditing,
     effectiveDefaultLanguage,
     mapReadyVersion,
+    onRequestExpandMap,
     onParkingLotsChange,
     parkingLots,
+    viewMode,
   ]);
 
   useEffect(() => {
@@ -4134,7 +4188,7 @@ export function RouteMapApp({
         </section>
       </aside>
 
-      <main className="map-area" onContextMenu={(event) => event.preventDefault()}>
+      <main className={`map-area ${viewMode}`} onContextMenu={(event) => event.preventDefault()}>
         <div ref={mapContainerRef} className="map-container" />
         {viewMode === "expanded" ? (
           <div className="map-search-overlay">
@@ -4175,41 +4229,45 @@ export function RouteMapApp({
           {searchErrorMessage ? <p className="map-search-feedback">{searchErrorMessage}</p> : null}
           </div>
         ) : null}
-        <button
-          type="button"
-          className="map-style-toggle"
-          onClick={onToggleMapStyle}
-          aria-label={
-            mapStyleMode === "satellite"
-              ? "Switch map style to outdoors"
-              : "Switch map style to standard satellite"
-          }
-          title={
-            mapStyleMode === "satellite"
-              ? "Switch to Outdoors"
-              : "Switch to Standard Satellite"
-          }
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 3 3 7.5 12 12l9-4.5L12 3Z" />
-            <path d="M3 11.5 12 16l9-4.5" />
-            <path d="M3 15.5 12 20l9-4.5" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          className="map-fit-toggle"
-          onClick={onZoomToEntireCanyon}
-          aria-label="Zoom to entire canyon"
-          title="Zoom to entire canyon"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 9V4h5" />
-            <path d="M15 4h5v5" />
-            <path d="M20 15v5h-5" />
-            <path d="M9 20H4v-5" />
-          </svg>
-        </button>
+        {viewMode === "expanded" ? (
+          <>
+            <button
+              type="button"
+              className="map-style-toggle"
+              onClick={onToggleMapStyle}
+              aria-label={
+                mapStyleMode === "satellite"
+                  ? "Switch map style to outdoors"
+                  : "Switch map style to standard satellite"
+              }
+              title={
+                mapStyleMode === "satellite"
+                  ? "Switch to Outdoors"
+                  : "Switch to Standard Satellite"
+              }
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3 3 7.5 12 12l9-4.5L12 3Z" />
+                <path d="M3 11.5 12 16l9-4.5" />
+                <path d="M3 15.5 12 20l9-4.5" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="map-fit-toggle"
+              onClick={onZoomToEntireCanyon}
+              aria-label="Zoom to entire canyon"
+              title="Zoom to entire canyon"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 9V4h5" />
+                <path d="M15 4h5v5" />
+                <path d="M20 15v5h-5" />
+                <path d="M9 20H4v-5" />
+              </svg>
+            </button>
+          </>
+        ) : null}
 
         {contextMenu ? (
           <div className="map-context-menu-layer">

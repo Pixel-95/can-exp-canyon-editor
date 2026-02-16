@@ -1670,13 +1670,20 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                       <span className="json-special-note-option-body">
                         <span className="json-special-note-option-head">
                           <span className="json-special-note-key">{definition.noteId}</span>
-                          {selected && definition.placeholders.length > 0 ? (
-                            <span className="json-special-note-inline-params">
+                          {definition.placeholders.length > 0 ? (
+                            <span
+                              className={`json-special-note-inline-params${
+                                selected ? " is-active" : " is-inactive"
+                              }`}
+                              aria-hidden={!selected}
+                            >
                               {definition.placeholders.map((placeholder) => (
                                 <label key={placeholder} className="json-special-note-inline-param">
                                   <span>{placeholder}</span>
                                   <input
                                     type="text"
+                                    disabled={!selected}
+                                    tabIndex={selected ? 0 : -1}
                                     value={currentParams[placeholder] ?? ""}
                                     onChange={(event) =>
                                       onSpecialNoteParamChange(
@@ -1802,7 +1809,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                     isJsonObject(item) && typeof item.name === "string" ? item.name : "";
 
                   return (
-                    <article key={itemPathKey} className="json-array-item">
+                    <article id={`json-section-${index}`} key={itemPathKey} className="json-array-item json-section-card">
                       <div className="json-array-item-header">
                         <div className="json-array-item-main">
                           <button
@@ -2006,7 +2013,20 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
           return (
             <div className="json-root-layout">
-              <div className={`json-overview-strip ${mapViewMode}`}>
+              <div className={`json-workspace ${mapViewMode}`}>
+                <div className="json-content-scroll">
+                  <div className="json-content-column">
+                    <section id="json-global-content" className="json-content-group json-content-global">
+                      <div className="json-overview-row">{rootName}</div>
+                      <div className="json-overview-row">{rootDescription}</div>
+                      <div className="json-overview-row">{rootLocation}</div>
+                    </section>
+                    <section id="json-sections-content" className="json-content-group json-content-sections">
+                      <div className="json-sections-strip">{rootSections}</div>
+                    </section>
+                  </div>
+                </div>
+
                 {mapViewMode === "expanded" ? (
                   <button
                     type="button"
@@ -2015,26 +2035,11 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                     aria-label="Collapse map overlay"
                   />
                 ) : null}
-                <div className="json-overview-main">
-                  <div className="json-overview-row">{rootName}</div>
-                  <div className="json-overview-row">{rootDescription}</div>
-                  <div className="json-overview-row">{rootLocation}</div>
-                </div>
-                <div className={`json-overview-map-pane ${mapViewMode}`}>
-                  {mapViewMode === "compact" ? (
-                    <button
-                      type="button"
-                      className={`json-overview-map-toggle ${mapViewMode}`}
-                      onClick={onToggleMapView}
-                      aria-label="Enlarge map"
-                      title="Enlarge map"
-                    >
-                      Enlarge map
-                    </button>
-                  ) : null}
+                <aside id="json-map-tools" className={`json-overview-map-pane ${mapViewMode}`}>
                   <div className="json-overview-map-inner">
                     <RouteMapApp
                       viewMode={mapViewMode}
+                      onRequestExpandMap={onToggleMapView}
                       defaultLanguage={defaultLanguage}
                       overviewCoordinate={overviewCoordinate}
                       onSetOverviewCoordinate={onOverviewCoordinateSet}
@@ -2047,9 +2052,8 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                       onTrackSnapshotChange={onTrackSnapshotChange}
                     />
                   </div>
-                </div>
+                </aside>
               </div>
-              <div className="json-sections-strip">{rootSections}</div>
             </div>
           );
         }
@@ -2083,7 +2087,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
           return (
             <div className="json-input-field">
-              <label>{titleCase(label)}</label>
+              <label>Difficulty</label>
               <div className="json-difficulties-inline">
                 <div className="json-difficulty-token">
                   <span className="json-difficulty-static">v</span>
@@ -2246,28 +2250,82 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
             )
           : entries;
 
+        const sectionAuthorsEntry = isSectionPath(path)
+          ? normalEntries.find(([entryKey]) => entryKey === "authors") ?? null
+          : null;
+        const sectionDifficultyEntry = isSectionPath(path)
+          ? normalEntries.find(([entryKey]) => entryKey === "difficulties") ?? null
+          : null;
+        const sectionBodyEntries = isSectionPath(path)
+          ? normalEntries.filter(([entryKey]) => entryKey !== "authors" && entryKey !== "difficulties")
+          : normalEntries;
+
         const maxRappelValue = isSectionPath(path) ? value.max_rappel_in_meter ?? null : null;
         const recommendedRopesValue = isSectionPath(path) ? value.recommended_ropes ?? null : null;
         const topoValue = isSectionPath(path) && typeof value.topo === "string" ? value.topo : null;
+        const maxRappelPath = isSectionPath(path) ? [...path, "max_rappel_in_meter"] : null;
+        const maxRappelPathKey = maxRappelPath ? toPathKey(maxRappelPath) : "";
+        const maxRappelDisplay =
+          maxRappelPath && typeof maxRappelValue === "number"
+            ? (inputDrafts[maxRappelPathKey] ?? String(maxRappelValue))
+            : maxRappelPath
+              ? (inputDrafts[maxRappelPathKey] ?? "")
+              : "";
+        const recommendedRopesPath = isSectionPath(path) ? [...path, "recommended_ropes"] : null;
+        const recommendedRopesDisplay = typeof recommendedRopesValue === "string" ? recommendedRopesValue : "";
         const objectBody = (
           <div className="json-object-body">
-            {normalEntries.map(([key, child]) => (
+            {isSectionPath(path) && (sectionAuthorsEntry || sectionDifficultyEntry) ? (
+              <div className="json-two-col-row json-section-meta-row">
+                {sectionAuthorsEntry ? (
+                  <div className="json-field-row" key={`${pathKey}.${sectionAuthorsEntry[0]}`}>
+                    {renderNode(sectionAuthorsEntry[1], [...path, sectionAuthorsEntry[0]], sectionAuthorsEntry[0])}
+                  </div>
+                ) : null}
+                {sectionDifficultyEntry ? (
+                  <div className="json-field-row" key={`${pathKey}.${sectionDifficultyEntry[0]}`}>
+                    {renderNode(
+                      sectionDifficultyEntry[1],
+                      [...path, sectionDifficultyEntry[0]],
+                      sectionDifficultyEntry[0],
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {sectionBodyEntries.map(([key, child]) => (
               <div className="json-field-row" key={`${pathKey}.${key}`}>
                 {renderNode(child, [...path, key], key)}
               </div>
             ))}
             {isSectionPath(path) && (maxRappelValue !== null || recommendedRopesValue !== null) ? (
-              <div className="json-two-col-row">
-                {maxRappelValue !== null ? (
-                  <div className="json-field-row">
-                    {renderNode(maxRappelValue, [...path, "max_rappel_in_meter"], "max_rappel_in_meter")}
-                  </div>
-                ) : null}
-                {recommendedRopesValue !== null ? (
-                  <div className="json-field-row">
-                    {renderNode(recommendedRopesValue, [...path, "recommended_ropes"], "recommended_ropes")}
-                  </div>
-                ) : null}
+              <div className="json-input-field json-max-rope-group">
+                <div className="json-two-col-row json-max-rope-row">
+                  {maxRappelValue !== null && maxRappelPath ? (
+                    <label className="json-max-rope-item">
+                      <span className="json-max-rope-group-label">{titleCase("max_rappel_in_meter")}</span>
+                      <input
+                        type="number"
+                        value={maxRappelDisplay}
+                        onChange={(event) => onNumberDraftChange(maxRappelPath, event.target.value)}
+                        onBlur={() => clearDraft(maxRappelPathKey)}
+                      />
+                      {validationErrors[maxRappelPathKey] ? (
+                        <p className="json-inline-error">{validationErrors[maxRappelPathKey]}</p>
+                      ) : null}
+                    </label>
+                  ) : null}
+                  {recommendedRopesValue !== null && recommendedRopesPath ? (
+                    <label className="json-max-rope-item">
+                      <span className="json-max-rope-group-label">{titleCase("recommended_ropes")}</span>
+                      <input
+                        type="text"
+                        value={recommendedRopesDisplay}
+                        onChange={(event) => setPathValue(recommendedRopesPath, event.target.value)}
+                      />
+                    </label>
+                  ) : null}
+                </div>
               </div>
             ) : null}
             {isSectionPath(path) && topoValue !== null ? (

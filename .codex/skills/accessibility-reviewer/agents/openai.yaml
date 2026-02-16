@@ -1,0 +1,6 @@
+interface:
+  display_name: "Accessibility Reviewer"
+  short_description: "Review focus, labels, and keyboard flow"
+  default_prompt: "Use $accessibility-reviewer to run a findings-first accessibility pass after UI changes."
+policy:
+  allow_implicit_invocation: true

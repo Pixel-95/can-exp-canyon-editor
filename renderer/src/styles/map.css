@@ -9,6 +9,15 @@
   height: 100%;
 }
 
+.map-area.compact .mapboxgl-ctrl-top-right {
+  display: none;
+}
+
+.map-area.compact .map-container,
+.map-area.compact .mapboxgl-canvas {
+  cursor: pointer;
+}
+
 .map-search-overlay {
   position: absolute;
   top: 10px;
@@ -318,7 +327,7 @@
   height: 22px;
   border: 1.8px solid var(--color-bg-surface);
   border-radius: 4px;
-  background: var(--color-accent);
+  background: #005EA8;
   color: var(--color-bg-surface);
   font-size: 0.78rem;
   font-weight: 800;
@@ -391,7 +400,7 @@
   height: 26px;
   border: 2px solid var(--color-bg-surface);
   border-radius: 6px;
-  background: var(--color-accent);
+  background: #005EA8;
   color: var(--color-bg-surface);
   display: inline-flex;
   align-items: center;

@@ -47,6 +47,19 @@ Use this file together with `PROJECT_CONTEXT.md`.
 7. Use one accent color for UI chrome/states (`#60A5FA`) and do not use it for route semantic colors.
 8. Keep control styles consistent across buttons/inputs/selects/modals/lists.
 9. Prefer whitespace and subtle separators over nested heavy boxes.
+10. Favor scan-first IA:
+    users should identify file actions, map actions, and JSON content zones at a glance.
+11. Keep explicit active-context cues:
+    active track/section context should be visible without opening nested panels.
+12. Avoid visually dense card nesting unless there is a true semantic boundary.
+
+## Responsive Layout Conventions
+
+1. Keep all controls reachable at `1280x800` without clipping critical actions.
+2. Allow vertical scrolling instead of clipping when space is constrained.
+3. Constrain semantically narrow fields on large screens (country/region/durations/short numeric fields).
+4. Keep long text fields within readable line length on ultra-wide displays.
+5. Expanded map overlay should remain `90%` width unless explicitly changed.
 
 ## Persistence Conventions
 

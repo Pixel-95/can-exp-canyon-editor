@@ -1,6 +1,6 @@
 .app-shell {
   display: grid;
-  grid-template-columns: 372px 1fr;
+  grid-template-columns: 396px 1fr;
   width: 100%;
   height: 100%;
 }
@@ -9,7 +9,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-5);
+  padding: var(--space-4);
   border-right: 1px solid var(--color-border-subtle);
   background: var(--color-bg-elevated);
   overflow-y: auto;
@@ -51,9 +51,8 @@
 }
 
 .editor-host {
-  --compact-map-width: 520px;
+  --compact-map-width: clamp(420px, 33vw, 560px);
   --compact-map-height: 300px;
-  --compact-map-gap: var(--space-3);
   position: relative;
   width: 100%;
   height: 100%;
@@ -69,31 +68,48 @@
 }
 
 .json-editor-body {
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: var(--space-3);
+  overflow: hidden;
+  padding: var(--space-4);
 }
 
 .json-root-layout {
   display: grid;
-  gap: var(--space-3);
+  height: 100%;
+  min-height: 0;
 }
 
-.json-overview-strip {
+.json-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--compact-map-width);
-  gap: var(--compact-map-gap);
+  gap: var(--space-4);
   align-items: stretch;
-  min-height: var(--compact-map-height);
+  height: 100%;
+  min-height: 0;
 }
 
-.json-overview-strip.expanded {
+.json-workspace.expanded {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.json-overview-main {
+.json-content-scroll,
+.json-content-column {
+  min-width: 0;
+}
+
+.json-content-scroll {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  min-height: 0;
+  padding-right: var(--space-1);
+}
+
+.json-content-column {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-4);
+}
+
+.json-content-group {
+  min-width: 0;
 }
 
 .json-overview-row,
@@ -103,12 +119,14 @@
 
 .json-overview-map-pane {
   position: relative;
+  min-width: 0;
 }
 
 .json-overview-map-pane.compact {
   width: var(--compact-map-width);
+  min-height: 0;
   height: 100%;
-  min-height: var(--compact-map-height);
+  align-self: stretch;
 }
 
 .json-overview-map-pane.expanded {
@@ -138,7 +156,7 @@
   inset: 0;
   z-index: 60;
   border: 0;
-  background: rgba(17, 24, 39, 0.32);
+  background: rgba(17, 24, 39, 0.28);
   backdrop-filter: blur(1px);
   padding: 0;
   margin: 0;
@@ -215,26 +233,28 @@
   border-color: color-mix(in srgb, var(--color-border) 65%, var(--color-accent) 35%);
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1440px) {
+  .app-shell {
+    grid-template-columns: 372px 1fr;
+  }
+
   .editor-host {
-    --compact-map-width: calc(100% - 16px);
-    --compact-map-height: 220px;
-    --compact-map-gap: var(--space-2);
+    --compact-map-width: clamp(396px, 34vw, 500px);
   }
 
-  .json-overview-strip {
-    grid-template-columns: 1fr;
-    min-height: 0;
+  .json-workspace {
+    grid-template-columns: minmax(0, 1fr) var(--compact-map-width);
+  }
+}
+
+@media (max-width: 1240px) {
+  .editor-host {
+    --compact-map-width: clamp(340px, 40vw, 460px);
+    --compact-map-height: 250px;
   }
 
-  .json-overview-map-pane.compact {
-    width: 100%;
-    height: 100%;
-    min-height: var(--compact-map-height);
-  }
-
-  .json-overview-map-pane.expanded {
-    width: 90%;
+  .json-editor-body {
+    padding: var(--space-3);
   }
 }
 
@@ -247,7 +267,11 @@
   .control-panel {
     border-right: none;
     border-bottom: 1px solid var(--color-border-subtle);
-    max-height: 45vh;
-    padding: var(--space-4);
+    max-height: 52vh;
+    padding: var(--space-3);
+  }
+
+  .json-overview-map-pane.expanded {
+    width: 90%;
   }
 }

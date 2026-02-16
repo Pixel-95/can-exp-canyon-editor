@@ -1,44 +1,68 @@
 # Multi-Agent Workflow
 
-This repo uses four Codex skills for role-based work in a single chat.
+This repo uses role-based Codex skills in one chat window.
 
-## Agents
+## Core Agents
 
 1. `planner` (`$planner`)
-   Responsibility: define scope, sequence, risks, and validation plan.
-2. `designer` (`$designer`)
-   Responsibility: define the UI visual system and interaction style.
-3. `implementer` (`$implementer`)
-   Responsibility: implement approved plan and design decisions, then run checks.
-4. `reviewer` (`$reviewer`)
-   Responsibility: findings-first review for bugs, regressions, and test gaps.
+   Responsibility: define scope, sequence, risks, and validation gates.
+2. `ia-ux-architect` (`$ia-ux-architect`)
+   Responsibility: define grouping, navigation, and scan-first layout/IA.
+3. `designer` (`$designer`)
+   Responsibility: define visual system tokens and component interaction rules.
+4. `implementer` (`$implementer`)
+   Responsibility: implement approved plan/design with behavior-preserving changes.
+5. `responsive-layout-specialist` (`$responsive-layout-specialist`)
+   Responsibility: tune breakpoints, overflow, and readable widths.
+6. `accessibility-reviewer` (`$accessibility-reviewer`)
+   Responsibility: check focus, keyboard reachability, labels, and practical contrast.
+7. `reviewer` (`$reviewer`)
+   Responsibility: findings-first regression review and risk callout.
 
-## Invocation
+## Invocation Examples
 
-Use one chat and switch role by naming the skill in your prompt.
+1. Planning:
+   `Use $planner for <task>`
+2. IA:
+   `Use $ia-ux-architect to propose grouping and navigation`
+3. Visual design:
+   `Use $designer to define tokens and component rules`
+4. Implementation:
+   `Use $implementer to apply the approved IA/design without behavior changes`
+5. Responsive pass:
+   `Use $responsive-layout-specialist to tune breakpoints and widths`
+6. Accessibility pass:
+   `Use $accessibility-reviewer on the latest UI changes`
+7. Final review:
+   `Use $reviewer on the latest changes`
 
-1. Planning: `Use $planner for <task>`
-2. Design: `Use $designer to define UI system and interaction rules`
-3. Implementation: `Use $implementer to execute the approved plan and design spec`
-4. Review: `Use $reviewer on the latest changes`
+## Collaboration Order
 
-## Collaboration Contract
+Use this order for non-trivial UI work:
 
-1. Start with `$planner` for non-trivial work.
-2. For UI or UX work, run `$designer` after planning and before implementation.
-3. Execute with `$implementer` only after plan approval and design direction are clear.
-4. Gate with `$reviewer` before final acceptance.
-5. If reviewer finds issues:
-   Return to `$implementer` for fixes.
-6. If issues require design changes:
-   Return to `$designer`, then `$implementer`, then re-run `$reviewer`.
+1. `$planner`
+2. `$ia-ux-architect`
+3. `$designer`
+4. `$implementer`
+5. `$responsive-layout-specialist`
+6. `$accessibility-reviewer`
+7. `$reviewer`
+
+If reviewer finds issues:
+
+1. Return to `$implementer` for fixes.
+2. Re-run `$responsive-layout-specialist` and `$accessibility-reviewer` when affected.
+3. Re-run `$reviewer` for final gate.
 
 ## Skill Locations
 
 1. `.codex/skills/planner`
-2. `.codex/skills/designer`
-3. `.codex/skills/implementer`
-4. `.codex/skills/reviewer`
+2. `.codex/skills/ia-ux-architect`
+3. `.codex/skills/designer`
+4. `.codex/skills/implementer`
+5. `.codex/skills/responsive-layout-specialist`
+6. `.codex/skills/accessibility-reviewer`
+7. `.codex/skills/reviewer`
 
 ## Project Skills
 

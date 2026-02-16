@@ -56,6 +56,20 @@ It edits one canyon JSON payload plus linked track GeoJSON files.
 6. Map overlays/context menus/marker UI live in `renderer/src/styles/map.css`.
 7. JSON editor visual system lives in `renderer/src/styles/json-editor.css`.
 
+## UI Workflow Baseline
+
+For significant UI/UX changes, use this order:
+
+1. IA and grouping design first.
+2. Visual system/token refinement second.
+3. Implementation third (UI-only where required).
+4. Responsive and accessibility passes before final review.
+
+Target responsive baseline:
+
+1. `1280x800` (13-inch class) is the minimum primary layout target.
+2. `1366x768`, `1920x1080`, and `2560x1440` are required verification sizes.
+
 ## Canyon Data Model (High-Level)
 
 Core root keys used by editor:

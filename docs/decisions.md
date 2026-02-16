@@ -23,3 +23,15 @@
    no map/edit/save/load/data model changes.
 4. Route semantic colors remain unchanged:
    section `#FF0000`, access `#000000` (`#FFFFFF` in satellite).
+
+## 2026-02-16: Clarity-First IA Redesign v2 (No Behavior Change)
+
+1. Adopted a three-zone editor workspace:
+   scope rail, content column, and map column/overlay.
+2. Prioritized one-glance ownership clarity:
+   file actions vs map actions vs JSON content zones.
+3. Kept all existing behavior, IPC contracts, and data formats unchanged.
+4. Added workflow skills for repeatable UI quality gates:
+   `ia-ux-architect`, `responsive-layout-specialist`, `accessibility-reviewer`.
+5. Set responsive verification baseline to
+   `1280x800`, `1366x768`, `1920x1080`, `2560x1440`.
