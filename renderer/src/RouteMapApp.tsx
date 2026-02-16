@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
 import mapboxgl from "mapbox-gl";
 import {
@@ -77,6 +78,8 @@ type RouteProperties = {
   end: Coordinate;
   waypoints: Coordinate[];
   segments: RouteSegmentSummary[];
+  elevation_start_m?: number;
+  elevation_end_m?: number;
   generated_at: string;
 };
 
@@ -92,11 +95,6 @@ type DirectionsResponse = {
   code?: string;
   message?: string;
   routes?: DirectionsRoute[];
-};
-
-type RouteElevations = {
-  startM: number;
-  endM: number;
 };
 
 type InsertMenuOption = {
@@ -150,6 +148,10 @@ type ParkingPasteModalState = {
   draft: string;
   error: string;
 };
+type AccessDeleteModalState = {
+  trackId: string;
+  displayName: string;
+} | null;
 
 export type SectionTrackBinding = {
   sectionIndex: number;
@@ -625,6 +627,58 @@ function normalizeTrackLink(link: string): string {
   return `./${normalized}`;
 }
 
+function expandBoundsByRatio(bounds: mapboxgl.LngLatBounds, ratio: number): mapboxgl.LngLatBounds {
+  const west = bounds.getWest();
+  const east = bounds.getEast();
+  const south = bounds.getSouth();
+  const north = bounds.getNorth();
+
+  let lngSpan = east - west;
+  let latSpan = north - south;
+
+  if (lngSpan === 0 && latSpan === 0) {
+    const delta = 0.0015;
+    return new mapboxgl.LngLatBounds(
+      [Math.max(-180, west - delta), Math.max(-85, south - delta)],
+      [Math.min(180, east + delta), Math.min(85, north + delta)],
+    );
+  }
+
+  if (lngSpan === 0) {
+    lngSpan = Math.max(latSpan * 0.5, 0.001);
+  }
+  if (latSpan === 0) {
+    latSpan = Math.max(lngSpan * 0.5, 0.001);
+  }
+
+  const lngPadding = lngSpan * ratio;
+  const latPadding = latSpan * ratio;
+
+  const minLng = Math.max(-180, west - lngPadding);
+  const maxLng = Math.min(180, east + lngPadding);
+  const minLat = Math.max(-85, south - latPadding);
+  const maxLat = Math.min(85, north + latPadding);
+
+  return new mapboxgl.LngLatBounds([minLng, minLat], [maxLng, maxLat]);
+}
+
+function getTrackDisplayNameFromFilePath(filePath: string, fallback: string): string {
+  const normalized = normalizeTrackLink(filePath);
+  if (!normalized) {
+    return fallback;
+  }
+
+  const withoutQuery = normalized.split(/[?#]/)[0] ?? normalized;
+  const segments = withoutQuery.split("/");
+  const lastSegment = segments[segments.length - 1]?.trim() ?? "";
+  if (!lastSegment) {
+    return fallback;
+  }
+
+  const withoutExtension = lastSegment.replace(/\.json$/i, "").trim();
+  return withoutExtension || fallback;
+}
+
 function parseRouteSegmentsFromProperties(raw: unknown): RouteSegmentSummary[] {
   if (!Array.isArray(raw)) {
     return [];
@@ -683,6 +737,12 @@ function buildRouteFeatureFromRaw(
       end,
       waypoints,
       segments,
+      ...(Number.isFinite(Number(rawProperties.elevation_start_m))
+        ? { elevation_start_m: Number(rawProperties.elevation_start_m) }
+        : {}),
+      ...(Number.isFinite(Number(rawProperties.elevation_end_m))
+        ? { elevation_end_m: Number(rawProperties.elevation_end_m) }
+        : {}),
       generated_at:
         typeof rawProperties.generated_at === "string"
           ? rawProperties.generated_at
@@ -912,11 +972,10 @@ export function RouteMapApp({
   const [poiPasteModal, setPoiPasteModal] = useState<PoiPasteModalState | null>(null);
   const [parkingEditor, setParkingEditor] = useState<ParkingEditorState | null>(null);
   const [parkingPasteModal, setParkingPasteModal] = useState<ParkingPasteModalState | null>(null);
+  const [accessDeleteModal, setAccessDeleteModal] = useState<AccessDeleteModalState>(null);
   const [coordinateInput, setCoordinateInput] = useState("");
   const [coordinateInputError, setCoordinateInputError] = useState("");
   const [manualCoordinateActionKey, setManualCoordinateActionKey] = useState("");
-  const [routeElevations, setRouteElevations] = useState<RouteElevations | null>(null);
-  const [routeElevationError, setRouteElevationError] = useState<string>("");
   const setStatusText = useCallback((_message: string): void => {
     // Status toasts are intentionally disabled.
   }, []);
@@ -939,6 +998,12 @@ export function RouteMapApp({
     setPoiPasteModal(null);
     setParkingEditor(null);
     setParkingPasteModal(null);
+    segmentModePopupRef.current?.remove();
+    segmentModePopupRef.current = null;
+  }, []);
+
+  const deactivateTrackEditing = useCallback((): void => {
+    setActiveTrackId(null);
     segmentModePopupRef.current?.remove();
     segmentModePopupRef.current = null;
   }, []);
@@ -1078,7 +1143,10 @@ export function RouteMapApp({
             ...existing,
             kind: "access",
             color: "black",
-            displayName: existing.displayName || `Access ${accessBinding.accessIndex + 1}`,
+            displayName: getTrackDisplayNameFromFilePath(
+              normalizedPath,
+              existing.displayName || `Access ${accessBinding.accessIndex + 1}`,
+            ),
             filePath: normalizedPath,
           };
           nextTrackOrder.push(trackId);
@@ -1088,7 +1156,10 @@ export function RouteMapApp({
         nextTracksById[trackId] = {
           id: trackId,
           kind: "access",
-          displayName: `Access ${accessBinding.accessIndex + 1}`,
+          displayName: getTrackDisplayNameFromFilePath(
+            normalizedPath,
+            `Access ${accessBinding.accessIndex + 1}`,
+          ),
           color: "black",
           filePath: normalizedPath,
           routePoints: [],
@@ -1154,19 +1225,7 @@ export function RouteMapApp({
           const parsedTrack = parseTrackPayload(entry.data, track.displayName);
           const persistedDisplayName =
             track.kind === "access"
-              ? (() => {
-                const rawName = parsedTrack.rawFeatureProperties.editor_display_name;
-                if (typeof rawName === "string" && rawName.trim()) {
-                  return rawName.trim();
-                }
-
-                const fallbackName = parsedTrack.rawFeatureProperties.name;
-                if (typeof fallbackName === "string" && fallbackName.trim()) {
-                  return fallbackName.trim();
-                }
-
-                return track.displayName;
-              })()
+              ? getTrackDisplayNameFromFilePath(track.filePath, track.displayName)
               : track.displayName;
 
           nextTracksById[entry.id] = {
@@ -1411,11 +1470,22 @@ export function RouteMapApp({
             "#000000",
             "#000000",
           ],
-          "line-width": 3,
-          "line-opacity": 0.6,
+          "line-width": 4,
+          "line-opacity": 1,
         },
       });
     }
+    map.setPaintProperty(TRACKS_INACTIVE_LAYER_ID, "line-color", [
+      "match",
+      ["get", "kind"],
+      "section",
+      "#FF0000",
+      "access",
+      "#000000",
+      "#000000",
+    ]);
+    map.setPaintProperty(TRACKS_INACTIVE_LAYER_ID, "line-width", 4);
+    map.setPaintProperty(TRACKS_INACTIVE_LAYER_ID, "line-opacity", 1);
 
     if (!map.getLayer(TRACKS_ACTIVE_LAYER_ID)) {
       map.addLayer({
@@ -1433,11 +1503,22 @@ export function RouteMapApp({
             "#000000",
             "#000000",
           ],
-          "line-width": 5,
-          "line-opacity": 0.96,
+          "line-width": 6,
+          "line-opacity": 1,
         },
       });
     }
+    map.setPaintProperty(TRACKS_ACTIVE_LAYER_ID, "line-color", [
+      "match",
+      ["get", "kind"],
+      "section",
+      "#FF0000",
+      "access",
+      "#000000",
+      "#000000",
+    ]);
+    map.setPaintProperty(TRACKS_ACTIVE_LAYER_ID, "line-width", 6);
+    map.setPaintProperty(TRACKS_ACTIVE_LAYER_ID, "line-opacity", 1);
 
     const source = map.getSource(TRACKS_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
     if (!source) {
@@ -1687,6 +1768,22 @@ export function RouteMapApp({
         const start = points[0].coordinates;
         const end = points[points.length - 1].coordinates;
         const waypoints = points.slice(1, -1).map((point) => point.coordinates);
+        let elevationStartM: number | undefined;
+        let elevationEndM: number | undefined;
+        try {
+          const [resolvedStartElevation, resolvedEndElevation] = await Promise.all([
+            getCoordinateElevationMeters(start),
+            getCoordinateElevationMeters(end),
+          ]);
+          if (Number.isFinite(resolvedStartElevation)) {
+            elevationStartM = Math.round(resolvedStartElevation);
+          }
+          if (Number.isFinite(resolvedEndElevation)) {
+            elevationEndM = Math.round(resolvedEndElevation);
+          }
+        } catch {
+          // Ignore elevation lookup errors so route generation can still complete.
+        }
 
         const feature: RouteFeature = {
           type: "Feature",
@@ -1702,6 +1799,8 @@ export function RouteMapApp({
             end,
             waypoints,
             segments,
+            ...(typeof elevationStartM === "number" ? { elevation_start_m: elevationStartM } : {}),
+            ...(typeof elevationEndM === "number" ? { elevation_end_m: elevationEndM } : {}),
             generated_at: new Date().toISOString(),
           },
         };
@@ -1894,6 +1993,7 @@ export function RouteMapApp({
     if (onSetOverviewCoordinate) {
       overviewMarker.on("dragstart", () => {
         suppressMapMenuUntilRef.current = Date.now() + 350;
+        deactivateTrackEditing();
         closeAllMenus();
       });
 
@@ -1909,7 +2009,7 @@ export function RouteMapApp({
     }
 
     overviewPointMarkerRef.current = overviewMarker;
-  }, [closeAllMenus, mapReadyVersion, onSetOverviewCoordinate, overviewCoordinate]);
+  }, [closeAllMenus, deactivateTrackEditing, mapReadyVersion, onSetOverviewCoordinate, overviewCoordinate]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1945,6 +2045,7 @@ export function RouteMapApp({
           return;
         }
 
+        deactivateTrackEditing();
         closeAllMenus();
         setPoiEditor({
           index,
@@ -1955,6 +2056,7 @@ export function RouteMapApp({
       if (onPointsOfInterestChange) {
         marker.on("dragstart", () => {
           suppressMapMenuUntilRef.current = Date.now() + 350;
+          deactivateTrackEditing();
           closeAllMenus();
         });
 
@@ -1981,7 +2083,14 @@ export function RouteMapApp({
 
       poiMarkersRef.current.push(marker);
     });
-  }, [closeAllMenus, effectiveDefaultLanguage, mapReadyVersion, onPointsOfInterestChange, pointsOfInterest]);
+  }, [
+    closeAllMenus,
+    deactivateTrackEditing,
+    effectiveDefaultLanguage,
+    mapReadyVersion,
+    onPointsOfInterestChange,
+    pointsOfInterest,
+  ]);
 
   useEffect(() => {
     if (!poiEditor) {
@@ -2028,6 +2137,7 @@ export function RouteMapApp({
           return;
         }
 
+        deactivateTrackEditing();
         closeAllMenus();
         setParkingEditor({
           index,
@@ -2038,6 +2148,7 @@ export function RouteMapApp({
       if (onParkingLotsChange) {
         marker.on("dragstart", () => {
           suppressMapMenuUntilRef.current = Date.now() + 350;
+          deactivateTrackEditing();
           closeAllMenus();
         });
 
@@ -2064,7 +2175,14 @@ export function RouteMapApp({
 
       parkingLotMarkersRef.current.push(marker);
     });
-  }, [closeAllMenus, effectiveDefaultLanguage, mapReadyVersion, onParkingLotsChange, parkingLots]);
+  }, [
+    closeAllMenus,
+    deactivateTrackEditing,
+    effectiveDefaultLanguage,
+    mapReadyVersion,
+    onParkingLotsChange,
+    parkingLots,
+  ]);
 
   useEffect(() => {
     if (!parkingEditor) {
@@ -2084,7 +2202,13 @@ export function RouteMapApp({
     }
 
     const canyonKey = trackBindings?.canyonFilePath ?? "__default__";
-    if (autoViewportAppliedForKeyRef.current === canyonKey) {
+    const viewportKey = `${canyonKey}|${viewMode}`;
+    if (autoViewportAppliedForKeyRef.current === viewportKey) {
+      return;
+    }
+
+    const expectedTrackCount = (trackBindings?.sections.length ?? 0) + (trackBindings?.access.length ?? 0);
+    if (expectedTrackCount > 0 && trackOrder.length < expectedTrackCount) {
       return;
     }
 
@@ -2099,13 +2223,33 @@ export function RouteMapApp({
     parkingLots.forEach((parkingLot) => {
       coordinates.push(parkingLot.coordinates);
     });
+    trackOrder.forEach((trackId) => {
+      const track = tracksById[trackId];
+      if (!track) {
+        return;
+      }
+
+      const activeFeature = trackId === activeTrackId ? routeFeature : null;
+      const trackFeature = activeFeature ?? track.routeFeature;
+      if (trackFeature?.geometry?.coordinates?.length) {
+        const featureCoordinates = trackFeature.geometry.coordinates
+          .map((coordinate) => toCoordinatePair(coordinate))
+          .filter((coordinate): coordinate is Coordinate => coordinate !== null);
+        coordinates.push(...featureCoordinates);
+      }
+
+      const editablePoints = trackId === activeTrackId ? routePoints : track.routePoints;
+      editablePoints.forEach((point) => {
+        coordinates.push(point.coordinates);
+      });
+    });
 
     if (coordinates.length === 0) {
       return;
     }
 
     const applyInitialView = (): void => {
-      if (autoViewportAppliedForKeyRef.current === canyonKey) {
+      if (autoViewportAppliedForKeyRef.current === viewportKey) {
         return;
       }
 
@@ -2119,14 +2263,15 @@ export function RouteMapApp({
         coordinates.forEach((coordinate) => {
           bounds.extend(coordinate);
         });
-        map.fitBounds(bounds, {
-          padding: 48,
+        const expandedBounds = expandBoundsByRatio(bounds, 0.15);
+        map.fitBounds(expandedBounds, {
+          padding: 24,
           maxZoom: 15,
           duration: 0,
         });
       }
 
-      autoViewportAppliedForKeyRef.current = canyonKey;
+      autoViewportAppliedForKeyRef.current = viewportKey;
     };
 
     if (!map.isStyleLoaded()) {
@@ -2137,7 +2282,21 @@ export function RouteMapApp({
     }
 
     applyInitialView();
-  }, [mapReadyVersion, overviewCoordinate, parkingLots, pointsOfInterest, trackBindings?.canyonFilePath]);
+  }, [
+    activeTrackId,
+    mapReadyVersion,
+    overviewCoordinate,
+    parkingLots,
+    pointsOfInterest,
+    routeFeature,
+    routePoints,
+    trackBindings?.access.length,
+    trackBindings?.canyonFilePath,
+    trackBindings?.sections.length,
+    trackOrder,
+    tracksById,
+    viewMode,
+  ]);
 
   useEffect(() => {
     const container = mapContainerRef.current;
@@ -2201,98 +2360,6 @@ export function RouteMapApp({
   useEffect(() => {
     drawTracks(buildTracksFeatureCollectionSnapshot());
   }, [activeTrackId, buildTracksFeatureCollectionSnapshot, drawTracks, routeFeature, trackOrder, tracksById]);
-
-  useEffect(() => {
-    if (!routeFeature || !mapboxToken) {
-      setRouteElevations(null);
-      setRouteElevationError("");
-      return;
-    }
-
-    const abortController = new AbortController();
-
-    setRouteElevations(null);
-    setRouteElevationError("");
-
-    async function resolveRouteElevations(): Promise<void> {
-      try {
-        const tileCache = new Map<string, Promise<ImageData>>();
-        const loadTileImageData = async (tileX: number, tileY: number): Promise<ImageData> => {
-          const key = `${TERRAIN_TILE_ZOOM}/${tileX}/${tileY}`;
-          const cached = tileCache.get(key);
-          if (cached) {
-            return cached;
-          }
-
-          const promise = (async () => {
-            const url = `https://api.mapbox.com/v4/mapbox.terrain-rgb/${TERRAIN_TILE_ZOOM}/${tileX}/${tileY}@2x.pngraw?access_token=${encodeURIComponent(mapboxToken)}`;
-            const response = await fetch(url, { signal: abortController.signal });
-            if (!response.ok) {
-              throw new Error(`Terrain request failed (${response.status}).`);
-            }
-
-            const blob = await response.blob();
-            const bitmap = await createImageBitmap(blob);
-            const canvas = document.createElement("canvas");
-            canvas.width = bitmap.width;
-            canvas.height = bitmap.height;
-
-            const context = canvas.getContext("2d");
-            if (!context) {
-              bitmap.close();
-              throw new Error("Could not create 2D canvas context for terrain decoding.");
-            }
-
-            context.drawImage(bitmap, 0, 0);
-            bitmap.close();
-            return context.getImageData(0, 0, canvas.width, canvas.height);
-          })();
-
-          tileCache.set(key, promise);
-          return promise;
-        };
-
-        const getElevationAt = async (coordinate: Coordinate): Promise<number> => {
-          const tilePoint = projectLngLatToTilePixel(
-            coordinate[0],
-            coordinate[1],
-            TERRAIN_TILE_ZOOM,
-          );
-          const tileImage = await loadTileImageData(tilePoint.tileX, tilePoint.tileY);
-          return decodeTerrainElevationMeters(tileImage, tilePoint.pixelX, tilePoint.pixelY);
-        };
-
-        const [startElevationM, endElevationM] = await Promise.all([
-          getElevationAt(routeFeature.properties.start),
-          getElevationAt(routeFeature.properties.end),
-        ]);
-
-        if (abortController.signal.aborted) {
-          return;
-        }
-
-        setRouteElevations({
-          startM: Math.round(startElevationM),
-          endM: Math.round(endElevationM),
-        });
-        setRouteElevationError("");
-      } catch (error) {
-        if (abortController.signal.aborted) {
-          return;
-        }
-
-        console.error("Failed to resolve route elevations:", error);
-        setRouteElevations(null);
-        setRouteElevationError("Elevation unavailable for this route.");
-      }
-    }
-
-    void resolveRouteElevations();
-
-    return () => {
-      abortController.abort();
-    };
-  }, [mapboxToken, routeFeature]);
 
   useEffect(() => {
     const selectedTrack = activeTrackId ? tracksById[activeTrackId] ?? null : null;
@@ -2734,6 +2801,7 @@ export function RouteMapApp({
     };
     const next = [...pointsOfInterest, nextPoi];
     onPointsOfInterestChange(next);
+    deactivateTrackEditing();
     setContextMenu(null);
     setActiveSubmenu(null);
     setPoiPasteModal(null);
@@ -2744,7 +2812,7 @@ export function RouteMapApp({
       language: effectiveDefaultLanguage,
     });
     setStatusText("Point of interest added.");
-  }, [contextMenu, effectiveDefaultLanguage, onPointsOfInterestChange, pointsOfInterest]);
+  }, [contextMenu, deactivateTrackEditing, effectiveDefaultLanguage, onPointsOfInterestChange, pointsOfInterest]);
 
   const onPoiLanguageChange = useCallback((language: string): void => {
     if (!poiEditor || !STATIC_LANGUAGE_SET.has(language)) {
@@ -2907,6 +2975,7 @@ export function RouteMapApp({
     };
     const next = [...parkingLots, nextParkingLot];
     onParkingLotsChange(next);
+    deactivateTrackEditing();
     setContextMenu(null);
     setActiveSubmenu(null);
     setPoiEditor(null);
@@ -2917,7 +2986,7 @@ export function RouteMapApp({
       language: effectiveDefaultLanguage,
     });
     setStatusText("Parking lot added.");
-  }, [contextMenu, effectiveDefaultLanguage, onParkingLotsChange, parkingLots]);
+  }, [contextMenu, deactivateTrackEditing, effectiveDefaultLanguage, onParkingLotsChange, parkingLots]);
 
   const onParkingLanguageChange = useCallback((language: string): void => {
     if (!parkingEditor || !STATIC_LANGUAGE_SET.has(language)) {
@@ -3103,11 +3172,12 @@ export function RouteMapApp({
       return;
     }
 
+    deactivateTrackEditing();
     onSetOverviewCoordinate(contextMenu.coordinate);
     setContextMenu(null);
     setActiveSubmenu(null);
     setStatusText("Canyon overview point set.");
-  }, [contextMenu, onSetOverviewCoordinate]);
+  }, [contextMenu, deactivateTrackEditing, onSetOverviewCoordinate]);
 
   const onSelectTrack = useCallback((trackId: string): void => {
     const track = tracksByIdRef.current[trackId];
@@ -3171,10 +3241,24 @@ export function RouteMapApp({
       return;
     }
 
-    const confirmed = window.confirm(`Delete access track "${track.displayName}"?`);
-    if (!confirmed) {
+    closeAllMenus();
+    setAccessDeleteModal({
+      trackId,
+      displayName: track.displayName || trackId,
+    });
+  }, [closeAllMenus]);
+
+  const onCancelDeleteAccessTrack = useCallback((): void => {
+    setAccessDeleteModal(null);
+  }, []);
+
+  const onConfirmDeleteAccessTrack = useCallback((): void => {
+    if (!accessDeleteModal) {
       return;
     }
+
+    const trackId = accessDeleteModal.trackId;
+    setAccessDeleteModal(null);
 
     closeAllMenus();
     setTracksById((current) => {
@@ -3197,7 +3281,7 @@ export function RouteMapApp({
       return nextSectionTrack ?? remainingOrder[0] ?? null;
     });
     setStatusText("Access track deleted.");
-  }, [closeAllMenus]);
+  }, [accessDeleteModal, closeAllMenus, setStatusText]);
 
   const onDragEnd = useCallback(
     (event: DragEndEvent): void => {
@@ -3285,8 +3369,6 @@ export function RouteMapApp({
     setCoordinateInput("");
     setCoordinateInputError("");
     setManualCoordinateActionKey("");
-    setRouteElevations(null);
-    setRouteElevationError("");
     setStatusText("Track cleared.");
   };
 
@@ -3451,6 +3533,22 @@ export function RouteMapApp({
         .filter((track): track is MultiTrackItem => Boolean(track) && track.kind === "access"),
     [trackOrder, tracksById],
   );
+  const onTrackPanelBackgroundClick = useCallback((event: ReactMouseEvent<HTMLElement>): void => {
+    const target = event.target as HTMLElement | null;
+    if (!target) {
+      return;
+    }
+
+    if (target.closest(".track-list-item")) {
+      return;
+    }
+
+    if (target.closest("button, input, select, textarea, label")) {
+      return;
+    }
+
+    deactivateTrackEditing();
+  }, [deactivateTrackEditing]);
   const activePoiLanguage =
     poiEditor && STATIC_LANGUAGE_SET.has(poiEditor.language)
       ? poiEditor.language
@@ -3527,7 +3625,7 @@ export function RouteMapApp({
   return (
     <div className="app-shell">
       <aside className="control-panel">
-        <section className="track-list-panel">
+        <section className="track-list-panel" onClick={onTrackPanelBackgroundClick}>
           <div className="track-list-group">
             <p className="track-list-group-title">Section tracks</p>
             {sectionTracks.length === 0 ? (
@@ -3561,7 +3659,7 @@ export function RouteMapApp({
             {accessTracks.length === 0 ? (
               <p className="track-list-empty">No access tracks.</p>
             ) : (
-              <ul className="track-list">
+              <ul className="track-list track-list-access">
                 {accessTracks.map((track) => (
                   <li key={track.id} className={`track-list-item${activeTrackId === track.id ? " active" : ""}`}>
                     <div className="track-list-main track-list-main-access" onClick={() => onSelectTrack(track.id)}>
@@ -3581,24 +3679,14 @@ export function RouteMapApp({
                         {track.missingFile ? <span className="track-flag warning">!</span> : null}
                       </span>
                     </div>
-                    <div className="track-list-actions-inline">
-                      <button
-                        type="button"
-                        className="track-list-edit-inline"
-                        onClick={() => onSelectTrack(track.id)}
-                        aria-label={`Edit access track ${track.displayName || track.id}`}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="track-list-delete track-list-delete-inline"
-                        onClick={() => onDeleteAccessTrack(track.id)}
-                        aria-label={`Delete access track ${track.displayName || track.id}`}
-                      >
-                        X
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className="track-list-delete track-list-delete-inline"
+                      onClick={() => onDeleteAccessTrack(track.id)}
+                      aria-label={`Delete access track ${track.displayName || track.id}`}
+                    >
+                      X
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -3621,15 +3709,6 @@ export function RouteMapApp({
               <p>
                 <strong>Walk Time:</strong> {routeSummary.durationMin} min
               </p>
-              <p>
-                <strong>Start Elevation:</strong>{" "}
-                {routeElevations ? `${routeElevations.startM} m` : routeElevationError ? "Unavailable" : "Loading..."}
-              </p>
-              <p>
-                <strong>End Elevation:</strong>{" "}
-                {routeElevations ? `${routeElevations.endM} m` : routeElevationError ? "Unavailable" : "Loading..."}
-              </p>
-              {routeElevationError ? <p className="route-summary-error">{routeElevationError}</p> : null}
             </>
           ) : (
             <p className="route-summary-empty">{activeTrack ? "No route yet." : "No active track selected."}</p>
@@ -3884,6 +3963,35 @@ export function RouteMapApp({
                   ) : null}
                 </div>
               )) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {accessDeleteModal ? (
+          <div className="json-modal-backdrop" role="presentation">
+            <div className="json-modal json-modal-confirm" role="dialog" aria-modal="true" aria-label="Delete access track">
+              <div className="json-modal-header">
+                <h3>Delete access track?</h3>
+                <button
+                  type="button"
+                  className="json-modal-close"
+                  onClick={onCancelDeleteAccessTrack}
+                  aria-label="Close delete dialog"
+                >
+                  X
+                </button>
+              </div>
+              <p className="json-modal-help">
+                This removes <strong>{accessDeleteModal.displayName}</strong> from this canyon.
+              </p>
+              <div className="json-modal-actions">
+                <button type="button" className="json-modal-keep" onClick={onCancelDeleteAccessTrack}>
+                  Cancel
+                </button>
+                <button type="button" className="json-modal-delete" onClick={onConfirmDeleteAccessTrack}>
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         ) : null}

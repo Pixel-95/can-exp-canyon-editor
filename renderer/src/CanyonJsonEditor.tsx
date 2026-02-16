@@ -54,7 +54,6 @@ const SECTION_EDITABLE_KEYS = new Set([
   "special_notes",
   "difficulties",
   "durations_in_minutes",
-  "tour_dimensions_in_meter",
   "max_rappel_in_meter",
   "recommended_ropes",
   "topo",
@@ -67,7 +66,6 @@ const SECTION_DURATION_KEYS = [
   "exit_no_shuttle",
   "exit_with_shuttle",
 ] as const;
-const SECTION_DIMENSION_KEYS = ["elevation_start", "elevation_exit", "horizontal_length"] as const;
 const COMMITMENT_ROMAN_BY_VALUE = ["0", "I", "II", "III", "IV", "V", "VI"] as const;
 const COMMITMENT_VALUE_BY_ROMAN: Record<string, number> = {
   0: 0,
@@ -140,15 +138,6 @@ function isDurationsPath(path: PathSegment[]): boolean {
     path[0] === "sections" &&
     typeof path[1] === "number" &&
     path[2] === "durations_in_minutes"
-  );
-}
-
-function isTourDimensionsPath(path: PathSegment[]): boolean {
-  return (
-    path.length === 3 &&
-    path[0] === "sections" &&
-    typeof path[1] === "number" &&
-    path[2] === "tour_dimensions_in_meter"
   );
 }
 
@@ -421,6 +410,161 @@ function cloneJsonValue<T>(value: T): T {
   }
 
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  return value;
+}
+
+function haversineDistanceMeters(from: [number, number], to: [number, number]): number {
+  const toRadians = (value: number): number => (value * Math.PI) / 180;
+  const earthRadiusM = 6371000;
+  const lat1 = toRadians(from[1]);
+  const lat2 = toRadians(to[1]);
+  const deltaLat = lat2 - lat1;
+  const deltaLng = toRadians(to[0] - from[0]);
+  const sinLat = Math.sin(deltaLat / 2);
+  const sinLng = Math.sin(deltaLng / 2);
+  const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+  const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  return earthRadiusM * c;
+}
+
+function normalizeLineCoordinates(rawCoordinates: number[][] | null | undefined): Array<[number, number]> {
+  if (!Array.isArray(rawCoordinates)) {
+    return [];
+  }
+
+  const coordinates: Array<[number, number]> = [];
+  for (const rawCoordinate of rawCoordinates) {
+    if (!Array.isArray(rawCoordinate) || rawCoordinate.length < 2) {
+      continue;
+    }
+    const lng = toFiniteNumber(rawCoordinate[0]);
+    const lat = toFiniteNumber(rawCoordinate[1]);
+    if (lng === null || lat === null) {
+      continue;
+    }
+    coordinates.push([lng, lat]);
+  }
+  return coordinates;
+}
+
+function calculatePolylineDistanceMeters(coordinates: Array<[number, number]>): number {
+  if (coordinates.length < 2) {
+    return 0;
+  }
+
+  let total = 0;
+  for (let index = 1; index < coordinates.length; index += 1) {
+    const previous = coordinates[index - 1];
+    const current = coordinates[index];
+    if (!previous || !current) {
+      continue;
+    }
+    total += haversineDistanceMeters(previous, current);
+  }
+  return total;
+}
+
+function deriveSectionTourDimensions(
+  section: JsonObject,
+  sectionTrack: TrackSnapshot["tracks"][number] | null,
+): {
+  elevation_start: number;
+  elevation_exit: number;
+  horizontal_length: number;
+} {
+  const currentDimensions = isJsonObject(section.tour_dimensions_in_meter)
+    ? section.tour_dimensions_in_meter
+    : {};
+  const currentElevationStart = toFiniteNumber(currentDimensions.elevation_start) ?? 0;
+  const currentElevationExit = toFiniteNumber(currentDimensions.elevation_exit) ?? 0;
+  const currentHorizontalLength = toFiniteNumber(currentDimensions.horizontal_length) ?? 0;
+
+  if (!sectionTrack) {
+    return {
+      elevation_start: Math.round(currentElevationStart),
+      elevation_exit: Math.round(currentElevationExit),
+      horizontal_length: Math.round(Math.max(0, currentHorizontalLength)),
+    };
+  }
+
+  const routeFeature = sectionTrack.routeFeature;
+  const routeProperties = routeFeature?.properties ?? null;
+  const distanceFromProperties = routeProperties ? toFiniteNumber(routeProperties.distance_m) : null;
+  const elevationStartFromProperties = routeProperties
+    ? toFiniteNumber(routeProperties.elevation_start_m)
+    : null;
+  const elevationExitFromProperties = routeProperties
+    ? toFiniteNumber(routeProperties.elevation_end_m)
+    : null;
+  let distanceFromGeometry: number | null = null;
+  if (routeFeature) {
+    const coordinates = normalizeLineCoordinates(routeFeature.geometry.coordinates);
+    if (coordinates.length >= 2) {
+      distanceFromGeometry = calculatePolylineDistanceMeters(coordinates);
+    }
+  }
+  if (distanceFromGeometry === null) {
+    const pointCoordinates = sectionTrack.routePoints
+      .map((point) => point.coordinates)
+      .filter(
+        (coordinate): coordinate is [number, number] =>
+          Array.isArray(coordinate) &&
+          coordinate.length === 2 &&
+          typeof coordinate[0] === "number" &&
+          Number.isFinite(coordinate[0]) &&
+          typeof coordinate[1] === "number" &&
+          Number.isFinite(coordinate[1]),
+      );
+    if (pointCoordinates.length >= 2) {
+      distanceFromGeometry = calculatePolylineDistanceMeters(pointCoordinates);
+    }
+  }
+
+  return {
+    elevation_start: Math.round(elevationStartFromProperties ?? currentElevationStart),
+    elevation_exit: Math.round(elevationExitFromProperties ?? currentElevationExit),
+    horizontal_length: Math.round(
+      Math.max(0, distanceFromProperties ?? distanceFromGeometry ?? currentHorizontalLength),
+    ),
+  };
+}
+
+function withSectionTourDimensionsFromTracks(canyonData: JsonObject, trackSnapshot: TrackSnapshot | null): JsonObject {
+  const sections = Array.isArray(canyonData.sections) ? canyonData.sections : [];
+  if (sections.length === 0) {
+    return canyonData;
+  }
+
+  const sectionTracksByIndex = new Map<number, TrackSnapshot["tracks"][number]>();
+  if (trackSnapshot) {
+    for (const track of trackSnapshot.tracks) {
+      if (track.kind !== "section" || !Number.isInteger(track.sectionIndex)) {
+        continue;
+      }
+      sectionTracksByIndex.set(Number(track.sectionIndex), track);
+    }
+  }
+
+  return {
+    ...canyonData,
+    sections: sections.map((entry, sectionIndex) => {
+      if (!isJsonObject(entry)) {
+        return entry;
+      }
+
+      const sectionTrack = sectionTracksByIndex.get(sectionIndex) ?? null;
+      return {
+        ...entry,
+        tour_dimensions_in_meter: deriveSectionTourDimensions(entry, sectionTrack),
+      };
+    }),
+  };
 }
 
 function isLanguageObject(value: JsonValue): value is JsonObject {
@@ -1270,11 +1414,16 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
     setIsSaving(true);
     try {
+      const trackSnapshot = trackSnapshotRef.current;
+      const canyonDataForSave = withSectionTourDimensionsFromTracks(
+        cloneJsonValue(canyonData),
+        trackSnapshot,
+      );
       const result = await window.api.saveCanyonWithTracks({
         currentFilePath,
-        canyonName: typeof canyonData.name === "string" ? canyonData.name : "canyon",
-        canyonData,
-        trackSnapshot: trackSnapshotRef.current,
+        canyonName: typeof canyonDataForSave.name === "string" ? canyonDataForSave.name : "canyon",
+        canyonData: canyonDataForSave,
+        trackSnapshot,
       });
 
       if (result.canceled) {
@@ -2251,39 +2400,6 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                 style={{ gridTemplateColumns: `repeat(${SECTION_DURATION_KEYS.length}, minmax(0, 1fr))` }}
               >
                 {SECTION_DURATION_KEYS.map((fieldKey) => {
-                  const fieldPath = [...path, fieldKey];
-                  const fieldPathKey = toPathKey(fieldPath);
-                  const fieldValue = value[fieldKey];
-                  const displayValue =
-                    inputDrafts[fieldPathKey] ??
-                    (typeof fieldValue === "number" ? String(fieldValue) : "");
-
-                  return (
-                    <label key={fieldKey} className="json-horizontal-field-item">
-                      <span>{titleCase(fieldKey)}</span>
-                      <input
-                        type="number"
-                        value={displayValue}
-                        onChange={(event) => onNumberDraftChange(fieldPath, event.target.value)}
-                        onBlur={() => clearDraft(fieldPathKey)}
-                      />
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        }
-
-        if (isTourDimensionsPath(path)) {
-          return (
-            <div className="json-input-field">
-              <label>{titleCase(label)}</label>
-              <div
-                className="json-horizontal-fields"
-                style={{ gridTemplateColumns: `repeat(${SECTION_DIMENSION_KEYS.length}, minmax(0, 1fr))` }}
-              >
-                {SECTION_DIMENSION_KEYS.map((fieldKey) => {
                   const fieldPath = [...path, fieldKey];
                   const fieldPathKey = toPathKey(fieldPath);
                   const fieldValue = value[fieldKey];

@@ -78,6 +78,8 @@ declare global {
                   failed: boolean;
                   error?: string;
                 }>;
+                elevation_start_m?: number;
+                elevation_end_m?: number;
                 generated_at: string;
               };
             } | null;

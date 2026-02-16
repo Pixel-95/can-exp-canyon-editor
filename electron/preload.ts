@@ -63,6 +63,8 @@ type RoutePropertiesPayload = {
   end: [number, number];
   waypoints: Array<[number, number]>;
   segments: RouteSegmentSummaryPayload[];
+  elevation_start_m?: number;
+  elevation_end_m?: number;
   generated_at: string;
 };
 
