@@ -1889,6 +1889,15 @@ export function RouteMapApp({
 
       event.preventDefault();
 
+      const boundaryPoints = routePointsRef.current;
+      const hasStartPoint = boundaryPoints.some((point) => point.type === "start");
+      const hasEndPoint = boundaryPoints.some((point) => point.type === "end");
+      if (hasStartPoint && hasEndPoint) {
+        const insertionIndex = key === "s" ? 0 : boundaryPoints.length;
+        insertPointAt(insertionIndex, coordinate);
+        return;
+      }
+
       if (key === "s") {
         setBoundaryPointAtCoordinate("start", coordinate);
         return;
@@ -1901,7 +1910,7 @@ export function RouteMapApp({
     return () => {
       window.removeEventListener("keydown", onWindowKeyDown);
     };
-  }, [setBoundaryPointAtCoordinate]);
+  }, [insertPointAt, setBoundaryPointAtCoordinate]);
 
   const onSetBoundaryPointFromContextMenu = useCallback(
     (target: "start" | "end"): void => {
