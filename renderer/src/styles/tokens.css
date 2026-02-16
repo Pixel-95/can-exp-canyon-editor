@@ -29,16 +29,17 @@
   --color-accent-strong: #2563EB;
   --color-accent-soft: #EFF6FF;
 
-  --color-bg-canvas: #E3E7EC;
+  --color-bg-canvas: #D2D8E0;
   --color-bg-surface: #FFFFFF;
-  --color-bg-elevated: #E8EDF2;
+  --color-bg-elevated: #D8DFE7;
+  --color-bg-frame: #7C8087;
 
-  --color-border-subtle: #E3E6EA;
-  --color-border: #D0D6DE;
+  --color-border-subtle: #AEBAC9;
+  --color-border: #9FAEC0;
 
   --color-text-primary: #111827;
-  --color-text-secondary: #4B5563;
-  --color-text-muted: #6B7280;
+  --color-text-secondary: #334155;
+  --color-text-muted: #475569;
 
   --color-focus: #60A5FA;
 

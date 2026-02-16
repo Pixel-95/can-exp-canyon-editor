@@ -47,7 +47,7 @@
   min-width: 0;
   border: none;
   outline: none;
-  background: transparent;
+  background: var(--color-bg-surface);
   color: var(--color-text-primary);
   font-size: 0.85rem;
   line-height: 1.3;

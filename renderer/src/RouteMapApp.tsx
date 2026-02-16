@@ -2054,8 +2054,8 @@ export function RouteMapApp({
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: MAP_STYLE_BY_MODE[mapStyleMode],
-      center: [8.980786, 46.300597],
-      zoom: 12,
+      center: overviewCoordinate ?? [8.980786, 46.300597],
+      zoom: overviewCoordinate ? 13.5 : 12,
     });
 
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
@@ -2608,7 +2608,16 @@ export function RouteMapApp({
 
   useEffect(() => {
     drawTracks(buildTracksFeatureCollectionSnapshot());
-  }, [activeTrackId, buildTracksFeatureCollectionSnapshot, drawTracks, routeFeature, trackOrder, tracksById]);
+  }, [
+    activeTrackId,
+    buildTracksFeatureCollectionSnapshot,
+    drawTracks,
+    mapReadyVersion,
+    routeFeature,
+    trackOrder,
+    tracksById,
+    viewMode,
+  ]);
 
   useEffect(() => {
     const selectedTrack = activeTrackId ? tracksById[activeTrackId] ?? null : null;

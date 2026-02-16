@@ -102,7 +102,7 @@
 
 .json-collapse-button {
   border: none;
-  background: transparent;
+  background: var(--color-bg-surface);
   padding: 0;
   margin: 0;
   font-weight: 600;
@@ -552,6 +552,38 @@
   gap: 7px;
 }
 
+.json-special-notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.json-special-notes-header label {
+  margin: 0;
+}
+
+.json-special-notes-toggle {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  min-height: 22px;
+  height: 22px;
+  min-width: 26.4px;
+  width: 26.4px;
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.68rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.json-special-notes-toggle:hover {
+  border-color: color-mix(in srgb, var(--color-border) 65%, var(--color-accent) 35%);
+  background: var(--color-bg-elevated);
+}
+
 .json-special-note-options {
   display: grid;
   gap: 6px;
@@ -685,13 +717,13 @@
 }
 
 .json-difficulty-stepper button {
-  width: 1.2rem;
-  height: 0.95rem;
+  width: 1.42rem;
+  height: 1.08rem;
   border: 1px solid var(--color-border);
   border-radius: 4px;
-  background: var(--color-bg-canvas);
+  background: var(--color-bg-surface);
   color: var(--color-text-primary);
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   font-weight: 700;
   line-height: 1;
   padding: 0;
@@ -1009,8 +1041,8 @@
   padding: var(--space-3);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
-  background: var(--color-bg-surface);
-  box-shadow: var(--shadow-sm);
+  background: var(--color-bg-frame);
+  box-shadow: none;
 }
 
 .json-content-sections {
@@ -1060,12 +1092,12 @@
 .json-card-header {
   padding: var(--space-3);
   border-bottom: 1px solid var(--color-border-subtle);
-  background: transparent;
+  background: var(--color-bg-surface);
 }
 
 .json-card-header h3 {
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -1110,6 +1142,115 @@
   max-width: none;
 }
 
+.json-language-card {
+  overflow: hidden;
+}
+
+.json-language-layout {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-areas:
+    "title title"
+    "controls content";
+  gap: var(--space-2);
+  align-items: stretch;
+  padding: var(--space-3);
+}
+
+.json-language-title {
+  grid-area: title;
+}
+
+.json-language-title h3 {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.2;
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.json-language-controls {
+  --language-chip-gap: 6px;
+  grid-area: controls;
+  display: grid;
+  align-content: start;
+  gap: var(--language-chip-gap);
+  width: max-content;
+  min-width: 0;
+}
+
+.json-language-layout .json-language-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, max-content);
+  column-gap: var(--language-chip-gap);
+  row-gap: var(--language-chip-gap);
+  padding: 0;
+  justify-items: start;
+  width: calc((36px * 3) + (var(--language-chip-gap) * 2));
+}
+
+.json-language-layout .json-language-tab {
+  width: 36px;
+  min-width: 0;
+  min-height: 26px;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  padding: 0;
+}
+
+.json-language-layout .json-language-content {
+  grid-area: content;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  align-self: stretch;
+}
+
+.json-language-layout .json-language-content textarea {
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  resize: none;
+}
+
+.json-language-layout .json-language-content-short-characteristic textarea {
+  min-height: 0;
+  height: 100%;
+  max-height: none;
+}
+
+.json-language-layout .json-language-paste {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.json-language-layout .json-language-paste button {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  min-height: 24px;
+  height: 24px;
+  min-width: 0;
+  width: 100%;
+  padding: 0 var(--space-2);
+  line-height: 1.15;
+  font-size: 11px;
+  white-space: nowrap;
+  text-align: center;
+  cursor: pointer;
+}
+
+.json-language-layout .json-language-paste button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-border) 65%, var(--color-accent) 35%);
+  background: var(--color-bg-elevated);
+}
+
 .json-input-field .json-special-note-inline-param input {
   height: 30px;
   min-height: 30px;
@@ -1131,8 +1272,8 @@
 
 .json-array-item {
   border-radius: var(--radius-lg);
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-frame);
+  border: 1px solid var(--color-bg-frame);
 }
 
 .json-array-item-header {
@@ -1169,6 +1310,19 @@
 .json-two-col-row {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
+}
+
+.json-section-meta-row {
+  align-items: stretch;
+}
+
+.json-section-meta-row > .json-field-row {
+  display: flex;
+}
+
+.json-section-meta-row > .json-field-row > .json-input-field {
+  width: 100%;
+  height: 100%;
 }
 
 .json-max-rope-group {
@@ -1216,11 +1370,15 @@
 /* Large-screen readable width constraints */
 @media (min-width: 1500px) {
   .json-location-row > div {
-    max-width: 420px;
+    max-width: none;
   }
 
   .json-two-col-row > .json-field-row {
     max-width: 420px;
+  }
+
+  .json-section-meta-row > .json-field-row {
+    max-width: none;
   }
 
   .json-horizontal-fields .json-horizontal-field-item {
@@ -1253,6 +1411,24 @@
 
   .json-content-sections {
     padding: 0;
+  }
+
+  .json-language-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "title"
+      "controls"
+      "content";
+  }
+
+  .json-language-layout .json-language-tabs {
+    grid-template-columns: repeat(3, max-content);
+  }
+
+  .json-language-layout .json-language-content textarea,
+  .json-language-layout .json-language-content-short-characteristic textarea {
+    min-height: 84px;
+    height: 84px;
   }
 }
 

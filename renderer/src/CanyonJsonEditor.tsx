@@ -1572,45 +1572,50 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
         const isShortCharacteristic = path.length === 1 && path[0] === "description";
 
         return (
-          <section className="json-card">
-            <div className="json-card-header">
-              <div className="json-language-header-left">
+          <section className="json-card json-language-card">
+            <div className="json-language-layout">
+              <div className="json-language-title">
                 <h3>{cardTitle}</h3>
-                <button
-                  type="button"
-                  onClick={() => openLanguagePasteModal(path)}
-                >
-                  Paste JSON
-                </button>
               </div>
-            </div>
 
-            <div className="json-language-tabs">
-              {STATIC_LANGUAGE_KEYS.map((language) => (
-                <button
-                  type="button"
-                  key={language}
-                  className={`json-language-tab${activeLanguage === language ? " active" : ""}`}
-                  onClick={() =>
-                    setLanguageTabs((current) => ({
-                      ...current,
-                      [pathKey]: language,
-                    }))
-                  }
-                >
-                  {language.toUpperCase()}
-                </button>
-              ))}
-            </div>
+              <div className="json-language-controls">
+                <div className="json-language-tabs">
+                  {STATIC_LANGUAGE_KEYS.map((language) => (
+                    <button
+                      type="button"
+                      key={language}
+                      className={`json-language-tab${activeLanguage === language ? " active" : ""}`}
+                      onClick={() =>
+                        setLanguageTabs((current) => ({
+                          ...current,
+                          [pathKey]: language,
+                        }))
+                      }
+                    >
+                      {language.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
 
-            <div
-              className={`json-language-content${isShortCharacteristic ? " json-language-content-short-characteristic" : ""}`}
-            >
-              <textarea
-                value={typeof value[activeLanguage] === "string" ? value[activeLanguage] : ""}
-                rows={4}
-                onChange={(event) => setPathValue([...path, activeLanguage], event.target.value)}
-              />
+                <div className="json-language-paste">
+                  <button
+                    type="button"
+                    onClick={() => openLanguagePasteModal(path)}
+                  >
+                    Paste JSON
+                  </button>
+                </div>
+              </div>
+
+              <div
+                className={`json-language-content${isShortCharacteristic ? " json-language-content-short-characteristic" : ""}`}
+              >
+                <textarea
+                  value={typeof value[activeLanguage] === "string" ? value[activeLanguage] : ""}
+                  rows={4}
+                  onChange={(event) => setPathValue([...path, activeLanguage], event.target.value)}
+                />
+              </div>
             </div>
           </section>
         );
@@ -1638,106 +1643,129 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
           }
 
           const selectedNoteIds = new Set(selectedByNoteId.keys());
+          const specialNotesCollapsed = collapsedGroups[pathKey] ?? true;
 
           return (
             <div className="json-input-field json-special-notes-field">
-              <label>{titleCase(label)}</label>
-              {specialNoteDefinitions.length === 0 ? (
-                <p className="json-empty-text">No special note definitions available.</p>
-              ) : (
-                <div className="json-special-note-options">
-                  {specialNoteDefinitions.map((definition) => {
-                    const selected = selectedByNoteId.get(definition.noteId);
-                    const currentParams = { ...(selected?.params ?? {}) };
-                    for (const placeholder of definition.placeholders) {
-                      if (!(placeholder in currentParams)) {
-                        currentParams[placeholder] = "";
-                      }
-                    }
+              <div className="json-special-notes-header">
+                <label>{titleCase(label)}</label>
+                <button
+                  type="button"
+                  className="json-special-notes-toggle"
+                  aria-expanded={!specialNotesCollapsed}
+                  aria-label={specialNotesCollapsed ? "Expand special notes" : "Collapse special notes"}
+                  onClick={() =>
+                    setCollapsedGroups((current) => ({
+                      ...current,
+                      [pathKey]: !specialNotesCollapsed,
+                    }))
+                  }
+                >
+                  {specialNotesCollapsed ? "\u25BC" : "\u25B2"}
+                </button>
+              </div>
 
-                    const resolvedText = resolveSpecialNoteText(definition.templateText, currentParams);
-
-                    return (
-                      <div key={definition.noteId} className="json-special-note-option">
-                      <input
-                        type="checkbox"
-                        checked={selectedNoteIds.has(definition.noteId)}
-                        onChange={(event) =>
-                          onSpecialNoteToggle(path, value, definition.noteId, event.target.checked)
+              {!specialNotesCollapsed ? (
+                <>
+                  {specialNoteDefinitions.length === 0 ? (
+                    <p className="json-empty-text">No special note definitions available.</p>
+                  ) : (
+                    <div className="json-special-note-options">
+                      {specialNoteDefinitions.map((definition) => {
+                        const selected = selectedByNoteId.get(definition.noteId);
+                        const currentParams = { ...(selected?.params ?? {}) };
+                        for (const placeholder of definition.placeholders) {
+                          if (!(placeholder in currentParams)) {
+                            currentParams[placeholder] = "";
+                          }
                         }
-                      />
-                      <span className="json-special-note-icon">{definition.icon}</span>
-                      <span className="json-special-note-option-body">
-                        <span className="json-special-note-option-head">
-                          <span className="json-special-note-key">{definition.noteId}</span>
-                          {definition.placeholders.length > 0 ? (
-                            <span
-                              className={`json-special-note-inline-params${
-                                selected ? " is-active" : " is-inactive"
-                              }`}
-                              aria-hidden={!selected}
-                            >
-                              {definition.placeholders.map((placeholder) => (
-                                <label key={placeholder} className="json-special-note-inline-param">
-                                  <span>{placeholder}</span>
-                                  <input
-                                    type="text"
-                                    disabled={!selected}
-                                    tabIndex={selected ? 0 : -1}
-                                    value={currentParams[placeholder] ?? ""}
-                                    onChange={(event) =>
-                                      onSpecialNoteParamChange(
-                                        path,
-                                        value,
-                                        definition.noteId,
-                                        placeholder,
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </label>
-                              ))}
+
+                        const resolvedText = resolveSpecialNoteText(definition.templateText, currentParams);
+
+                        return (
+                          <div key={definition.noteId} className="json-special-note-option">
+                            <input
+                              type="checkbox"
+                              checked={selectedNoteIds.has(definition.noteId)}
+                              onChange={(event) =>
+                                onSpecialNoteToggle(path, value, definition.noteId, event.target.checked)
+                              }
+                            />
+                            <span className="json-special-note-icon">{definition.icon}</span>
+                            <span className="json-special-note-option-body">
+                              <span className="json-special-note-option-head">
+                                <span className="json-special-note-key">{definition.noteId}</span>
+                                {definition.placeholders.length > 0 ? (
+                                  <span
+                                    className={`json-special-note-inline-params${
+                                      selected ? " is-active" : " is-inactive"
+                                    }`}
+                                    aria-hidden={!selected}
+                                  >
+                                    {definition.placeholders.map((placeholder) => (
+                                      <label key={placeholder} className="json-special-note-inline-param">
+                                        <span>{placeholder}</span>
+                                        <input
+                                          type="text"
+                                          disabled={!selected}
+                                          tabIndex={selected ? 0 : -1}
+                                          value={currentParams[placeholder] ?? ""}
+                                          onChange={(event) =>
+                                            onSpecialNoteParamChange(
+                                              path,
+                                              value,
+                                              definition.noteId,
+                                              placeholder,
+                                              event.target.value,
+                                            )
+                                          }
+                                        />
+                                      </label>
+                                    ))}
+                                  </span>
+                                ) : null}
+                              </span>
+                              <span className="json-special-note-template">{resolvedText}</span>
                             </span>
-                          ) : null}
-                        </span>
-                        <span className="json-special-note-template">{resolvedText}</span>
-                      </span>
+                          </div>
+                        );
+                      })}
                     </div>
-                    );
-                  })}
-                </div>
-              )}
+                  )}
 
-              {unknownEntries.length > 0 ? (
-                <div className="json-special-note-unknown-list">
-                  {unknownEntries.map((unknown) => {
-                let unknownLabel = `Entry ${unknown.index + 1}`;
-                if (isJsonObject(unknown.entry) && typeof unknown.entry.note_id === "string") {
-                  unknownLabel = unknown.entry.note_id;
-                } else if (isJsonObject(unknown.entry) && typeof unknown.entry.icon === "string") {
-                  unknownLabel = `Legacy icon ${unknown.entry.icon}`;
-                }
+                  {unknownEntries.length > 0 ? (
+                    <div className="json-special-note-unknown-list">
+                      {unknownEntries.map((unknown) => {
+                        let unknownLabel = `Entry ${unknown.index + 1}`;
+                        if (isJsonObject(unknown.entry) && typeof unknown.entry.note_id === "string") {
+                          unknownLabel = unknown.entry.note_id;
+                        } else if (isJsonObject(unknown.entry) && typeof unknown.entry.icon === "string") {
+                          unknownLabel = `Legacy icon ${unknown.entry.icon}`;
+                        }
 
-                return (
-                  <div key={`${pathKey}.unknown.${unknown.index}`} className="json-special-note-unknown-row">
-                    <div className="json-special-note-unknown-title">
-                        <span className="json-special-note-key">{unknownLabel}</span>
+                        return (
+                          <div key={`${pathKey}.unknown.${unknown.index}`} className="json-special-note-unknown-row">
+                            <div className="json-special-note-unknown-title">
+                              <span className="json-special-note-key">{unknownLabel}</span>
+                            </div>
+                            <button
+                              type="button"
+                              className="json-danger-button"
+                              onClick={() => onSpecialNoteRemoveUnknown(path, value, unknown.index)}
+                              aria-label="Delete unknown special note entry"
+                            >
+                              <TrashIcon />
+                            </button>
+                            <p className="json-special-note-resolved">
+                              Unknown special note entry. Add it to `assets/special_notes_possibilities.json` or remove
+                              it.
+                            </p>
+                          </div>
+                        );
+                      })}
                     </div>
-                      <button
-                        type="button"
-                        className="json-danger-button"
-                        onClick={() => onSpecialNoteRemoveUnknown(path, value, unknown.index)}
-                        aria-label="Delete unknown special note entry"
-                      >
-                        <TrashIcon />
-                      </button>
-                    <p className="json-special-note-resolved">
-                      Unknown special note entry. Add it to `assets/special_notes_possibilities.json` or remove it.
-                    </p>
-                  </div>
-                );
-              })}
-                </div>
+                  ) : null}
+                </>
               ) : null}
             </div>
           );
