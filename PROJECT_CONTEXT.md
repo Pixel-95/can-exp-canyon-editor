@@ -76,6 +76,8 @@ Section keys relevant to map/track flow:
 3. Overview point, POIs, and parking lots are canyon-global.
 4. Save action is canyon-level:
    it persists `data.json` and all tracks together.
+5. Map includes a floating location search overlay:
+   submit query -> geocode -> smooth pan/zoom to best match.
 
 ## Save/Load Flow
 

@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type FormEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import mapboxgl from "mapbox-gl";
@@ -95,6 +96,17 @@ type DirectionsResponse = {
   code?: string;
   message?: string;
   routes?: DirectionsRoute[];
+};
+
+type GeocodingFeature = {
+  center?: [number, number];
+  place_name?: string;
+  bbox?: [number, number, number, number];
+};
+
+type GeocodingResponse = {
+  message?: string;
+  features?: GeocodingFeature[];
 };
 
 type InsertMenuOption = {
@@ -957,6 +969,8 @@ export function RouteMapApp({
   const lastLoadedTrackBindingKeyRef = useRef<string>("");
   const newAccessTrackCounterRef = useRef(0);
   const autoViewportAppliedForKeyRef = useRef<string>("");
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
+  const searchDebounceTimeoutRef = useRef<number | null>(null);
 
   const [mapboxToken, setMapboxToken] = useState<string>("");
   const [mapReadyVersion, setMapReadyVersion] = useState(0);
@@ -976,6 +990,9 @@ export function RouteMapApp({
   const [coordinateInput, setCoordinateInput] = useState("");
   const [coordinateInputError, setCoordinateInputError] = useState("");
   const [manualCoordinateActionKey, setManualCoordinateActionKey] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchErrorMessage, setSearchErrorMessage] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const setStatusText = useCallback((_message: string): void => {
     // Status toasts are intentionally disabled.
   }, []);
@@ -1010,10 +1027,9 @@ export function RouteMapApp({
 
   useEffect(() => {
     viewModeRef.current = viewMode;
-    if (viewMode === "compact") {
-      closeAllMenus();
-    }
-  }, [closeAllMenus, viewMode]);
+    deactivateTrackEditing();
+    closeAllMenus();
+  }, [closeAllMenus, deactivateTrackEditing, viewMode]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1532,6 +1548,148 @@ export function RouteMapApp({
     setMapStyleMode((current) => (current === "satellite" ? "outdoors" : "satellite"));
   }, []);
 
+  const clearPendingSearch = useCallback((): void => {
+    if (searchDebounceTimeoutRef.current !== null) {
+      window.clearTimeout(searchDebounceTimeoutRef.current);
+      searchDebounceTimeoutRef.current = null;
+    }
+    searchAbortControllerRef.current?.abort();
+    searchAbortControllerRef.current = null;
+    setIsSearching(false);
+  }, []);
+
+  const runLocationSearch = useCallback(
+    async (rawQuery: string): Promise<void> => {
+      const query = rawQuery.trim();
+      if (!query) {
+        setSearchErrorMessage("Enter a location first.");
+        return;
+      }
+
+      if (!mapboxToken) {
+        setSearchErrorMessage("Map search unavailable: missing Mapbox token.");
+        return;
+      }
+
+      const map = mapRef.current;
+      if (!map) {
+        setSearchErrorMessage("Map is not ready yet.");
+        return;
+      }
+
+      searchAbortControllerRef.current?.abort();
+      const controller = new AbortController();
+      searchAbortControllerRef.current = controller;
+      setIsSearching(true);
+      setSearchErrorMessage("");
+
+      try {
+        const encodedQuery = encodeURIComponent(query);
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedQuery}.json?limit=1&types=place,locality,neighborhood,address,poi&access_token=${encodeURIComponent(mapboxToken)}`;
+        const response = await fetch(url, { signal: controller.signal });
+        const payload = (await response.json()) as GeocodingResponse;
+        if (!response.ok) {
+          throw new Error(payload.message || `Geocoding request failed (${response.status}).`);
+        }
+
+        const bestMatch = Array.isArray(payload.features) ? payload.features[0] : null;
+        if (
+          !bestMatch ||
+          !Array.isArray(bestMatch.center) ||
+          bestMatch.center.length < 2 ||
+          !Number.isFinite(bestMatch.center[0]) ||
+          !Number.isFinite(bestMatch.center[1])
+        ) {
+          setSearchErrorMessage(`No location found for "${query}".`);
+          return;
+        }
+
+        const coordinate: Coordinate = [bestMatch.center[0], bestMatch.center[1]];
+
+        if (
+          Array.isArray(bestMatch.bbox) &&
+          bestMatch.bbox.length === 4 &&
+          bestMatch.bbox.every((value) => Number.isFinite(value))
+        ) {
+          const [west, south, east, north] = bestMatch.bbox;
+          if (west <= east && south <= north) {
+            map.fitBounds(
+              new mapboxgl.LngLatBounds([west, south], [east, north]),
+              {
+                padding: 80,
+                duration: 950,
+                maxZoom: 15,
+              },
+            );
+          } else {
+            map.flyTo({
+              center: coordinate,
+              zoom: Math.max(14, map.getZoom()),
+              duration: 950,
+              essential: true,
+            });
+          }
+        } else {
+          map.flyTo({
+            center: coordinate,
+            zoom: Math.max(14, map.getZoom()),
+            duration: 950,
+            essential: true,
+          });
+        }
+
+        setSearchErrorMessage("");
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        const message = formatError(error);
+        setSearchErrorMessage(message ? `Search failed: ${message}` : "Search failed.");
+      } finally {
+        if (searchAbortControllerRef.current === controller) {
+          searchAbortControllerRef.current = null;
+        }
+        setIsSearching(false);
+      }
+    },
+    [mapboxToken],
+  );
+
+  const queueLocationSearch = useCallback(
+    (query: string): void => {
+      if (searchDebounceTimeoutRef.current !== null) {
+        window.clearTimeout(searchDebounceTimeoutRef.current);
+      }
+
+      searchDebounceTimeoutRef.current = window.setTimeout(() => {
+        searchDebounceTimeoutRef.current = null;
+        void runLocationSearch(query);
+      }, 220);
+    },
+    [runLocationSearch],
+  );
+
+  const onSubmitLocationSearch = useCallback(
+    (event: FormEvent<HTMLFormElement>): void => {
+      event.preventDefault();
+      const query = searchQuery.trim();
+      if (!query) {
+        setSearchErrorMessage("Enter a location first.");
+        return;
+      }
+
+      queueLocationSearch(query);
+    },
+    [queueLocationSearch, searchQuery],
+  );
+
+  const onClearLocationSearch = useCallback((): void => {
+    clearPendingSearch();
+    setSearchQuery("");
+    setSearchErrorMessage("");
+  }, [clearPendingSearch]);
+
   const generateRoute = useCallback(
     async (trackId: string, points: RoutePoint[]): Promise<void> => {
       if (points.length < 2 || points[0]?.type !== "start" || points[points.length - 1]?.type !== "end") {
@@ -1869,7 +2027,27 @@ export function RouteMapApp({
       });
     };
 
-    const onMapClick = (): void => {
+    const onMapClick = (event: mapboxgl.MapMouseEvent & mapboxgl.EventData): void => {
+      if (viewModeRef.current === "expanded") {
+        const lineLayerIds = [TRACKS_ACTIVE_LAYER_ID, TRACKS_INACTIVE_LAYER_ID].filter((layerId) =>
+          Boolean(map.getLayer(layerId)),
+        );
+        if (lineLayerIds.length > 0) {
+          const clickedFeatures = map.queryRenderedFeatures(event.point, {
+            layers: lineLayerIds,
+          });
+          const clickedTrackId = clickedFeatures
+            .map((feature) => (isObjectRecord(feature.properties) ? feature.properties.trackId : null))
+            .find((trackId): trackId is string => typeof trackId === "string");
+          if (clickedTrackId && tracksByIdRef.current[clickedTrackId]) {
+            setActiveTrackId(clickedTrackId);
+            closeAllMenus();
+            return;
+          }
+        }
+      }
+
+      deactivateTrackEditing();
       closeAllMenus();
     };
 
@@ -1937,7 +2115,7 @@ export function RouteMapApp({
       map.remove();
       mapRef.current = null;
     };
-  }, [closeAllMenus, mapboxToken]);
+  }, [closeAllMenus, deactivateTrackEditing, mapboxToken]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -2010,6 +2188,12 @@ export function RouteMapApp({
 
     overviewPointMarkerRef.current = overviewMarker;
   }, [closeAllMenus, deactivateTrackEditing, mapReadyVersion, onSetOverviewCoordinate, overviewCoordinate]);
+
+  useEffect(() => {
+    return () => {
+      clearPendingSearch();
+    };
+  }, [clearPendingSearch]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -3799,6 +3983,45 @@ export function RouteMapApp({
 
       <main className="map-area" onContextMenu={(event) => event.preventDefault()}>
         <div ref={mapContainerRef} className="map-container" />
+        {viewMode === "expanded" ? (
+          <div className="map-search-overlay">
+          <form className="map-search-form" onSubmit={onSubmitLocationSearch}>
+            <button
+              type="submit"
+              className="map-search-submit"
+              aria-label="Search location"
+              disabled={isSearching}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="6" />
+                <path d="m16 16 5 5" />
+              </svg>
+            </button>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                if (searchErrorMessage) {
+                  setSearchErrorMessage("");
+                }
+              }}
+              placeholder="Search location (e.g., Lodrino)"
+              aria-label="Search location"
+            />
+            <button
+              type="button"
+              className="map-search-clear"
+              onClick={onClearLocationSearch}
+              aria-label="Clear search"
+              disabled={!searchQuery && !searchErrorMessage}
+            >
+              &times;
+            </button>
+          </form>
+          {searchErrorMessage ? <p className="map-search-feedback">{searchErrorMessage}</p> : null}
+          </div>
+        ) : null}
         <button
           type="button"
           className="map-style-toggle"
@@ -4227,4 +4450,3 @@ export function RouteMapApp({
     </div>
   );
 }
-

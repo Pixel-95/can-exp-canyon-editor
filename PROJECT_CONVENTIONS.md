@@ -28,6 +28,10 @@ Use this file together with `PROJECT_CONTEXT.md`.
 3. Overview point, POIs, and parking lots are global canyon entities.
 4. Do not break existing editing interactions when extending behavior.
 5. If no track is active, track-edit actions must no-op safely.
+6. Map search must be non-blocking and must not intercept map interaction outside search controls.
+7. Plain left-click on the map canvas should exit edit mode (view mode only).
+8. Toggling map size (maximize/minimize) should reset to view mode (no active edit track).
+9. In expanded mode, clicking a visible route line should set that route to edit mode.
 
 ## Visual Conventions
 
@@ -35,6 +39,7 @@ Use this file together with `PROJECT_CONTEXT.md`.
 2. Access tracks use black `#000000`.
 3. Keep UI minimal and readable; avoid decorative visual noise.
 4. Preserve established interaction patterns unless explicitly changed.
+5. Floating map overlays should be lightweight and centered only when contextually needed.
 
 ## Persistence Conventions
 
