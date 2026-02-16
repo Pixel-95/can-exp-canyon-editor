@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { RouteMapApp } from "./RouteMapApp";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RouteMapApp, type TrackBindings, type TrackSnapshot } from "./RouteMapApp";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -338,6 +338,81 @@ function serializeParkingLots(parkingLots: ParkingLot[]): JsonValue[] {
     coordinates: parkingLot.coordinates,
     name: { ...parkingLot.name },
   }));
+}
+
+function normalizeTrackLink(link: string): string {
+  const normalized = link.replace(/\\/g, "/").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  if (/^[A-Za-z]:\//.test(normalized)) {
+    return normalized;
+  }
+
+  if (normalized.startsWith("./")) {
+    return normalized;
+  }
+
+  if (normalized.startsWith("/")) {
+    return `.${normalized}`;
+  }
+
+  return `./${normalized}`;
+}
+
+function buildTrackBindings(canyonData: JsonObject | null, canyonFilePath: string | null): TrackBindings {
+  if (!canyonData) {
+    return {
+      canyonFilePath,
+      sections: [],
+      access: [],
+    };
+  }
+
+  const sectionsRaw = Array.isArray(canyonData.sections) ? canyonData.sections : [];
+  const sections: TrackBindings["sections"] = sectionsRaw
+    .map((entry, index) => {
+      if (!isJsonObject(entry)) {
+        return null;
+      }
+
+      const sectionId = Number.isFinite(Number(entry.id)) ? Number(entry.id) : index;
+      const sectionName =
+        typeof entry.name === "string" && entry.name.trim() ? entry.name.trim() : `Section ${index + 1}`;
+      const filePath =
+        typeof entry.track_canyon === "string" && entry.track_canyon.trim()
+          ? normalizeTrackLink(entry.track_canyon)
+          : null;
+
+      return {
+        sectionIndex: index,
+        sectionId,
+        sectionName,
+        filePath,
+      };
+    })
+    .filter((entry): entry is TrackBindings["sections"][number] => entry !== null);
+
+  const accessRaw = Array.isArray(canyonData.tracks_access) ? canyonData.tracks_access : [];
+  const access: TrackBindings["access"] = accessRaw
+    .map((entry, index) => {
+      if (typeof entry !== "string" || !entry.trim()) {
+        return null;
+      }
+
+      return {
+        accessIndex: index,
+        filePath: normalizeTrackLink(entry),
+      };
+    })
+    .filter((entry): entry is TrackBindings["access"][number] => entry !== null);
+
+  return {
+    canyonFilePath,
+    sections,
+    access,
+  };
 }
 
 function cloneJsonValue<T>(value: T): T {
@@ -810,6 +885,7 @@ function isTopoPath(path: PathSegment[]): boolean {
 }
 
 export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEditorProps): JSX.Element {
+  const trackSnapshotRef = useRef<TrackSnapshot | null>(null);
   const [canyonData, setCanyonData] = useState<JsonObject | null>(null);
   const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("Loading data/Kobelache/data.json...");
@@ -888,6 +964,14 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
     return parseParkingLots(valueAtPath(canyonData, ["parking_lots"]));
   }, [canyonData]);
+  const trackBindings = useMemo(
+    () => buildTrackBindings(canyonData, currentFilePath),
+    [canyonData, currentFilePath],
+  );
+
+  const onTrackSnapshotChange = useCallback((snapshot: TrackSnapshot): void => {
+    trackSnapshotRef.current = snapshot;
+  }, []);
 
   const clearValidationError = useCallback((pathKey: string): void => {
     setValidationErrors((current) => {
@@ -963,6 +1047,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
       if (!result.canceled && result.data && isJsonObject(result.data)) {
         setCanyonData(withGeneratedSectionIds(cloneJsonValue(result.data)));
+        trackSnapshotRef.current = null;
         setCurrentFilePath(result.filePath ?? null);
         setStatusMessage(result.filePath ?? DEFAULT_JSON_PATH);
         return;
@@ -974,6 +1059,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       }
 
       setCanyonData(isJsonObject(template) ? cloneJsonValue(template) : null);
+      trackSnapshotRef.current = null;
       setCurrentFilePath(null);
       setStatusMessage(
         result.error ? `Could not load default JSON: ${result.error}` : "Started with a new JSON template.",
@@ -1119,6 +1205,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     }
 
     setCanyonData(withGeneratedSectionIds(cloneJsonValue(result.data)));
+    trackSnapshotRef.current = null;
     setCurrentFilePath(result.filePath ?? null);
     setValidationErrors({});
     setInputDrafts({});
@@ -1159,6 +1246,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
     const nextData = createEmptyNewCanyonData(cloneJsonValue(template), canyonName);
     setCanyonData(withGeneratedSectionIds(nextData));
+    trackSnapshotRef.current = null;
     setCurrentFilePath(folderResult.dataJsonPath ?? null);
     setValidationErrors({});
     setInputDrafts({});
@@ -1182,10 +1270,11 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
     setIsSaving(true);
     try {
-      const result = await window.api.saveJson({
+      const result = await window.api.saveCanyonWithTracks({
         currentFilePath,
-        jsonString: JSON.stringify(canyonData, null, 2),
         canyonName: typeof canyonData.name === "string" ? canyonData.name : "canyon",
+        canyonData,
+        trackSnapshot: trackSnapshotRef.current,
       });
 
       if (result.canceled) {
@@ -1200,6 +1289,15 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
       if (result.filePath) {
         setCurrentFilePath(result.filePath);
+      }
+
+      if (result.data && isJsonObject(result.data)) {
+        setCanyonData(withGeneratedSectionIds(cloneJsonValue(result.data)));
+      }
+
+      if (Array.isArray(result.warnings) && result.warnings.length > 0) {
+        setStatusMessage(`Saved with warnings: ${result.warnings.join(" | ")}`);
+        return;
       }
 
       setStatusMessage(`Saved ${result.filePath ?? "JSON file"}`);
@@ -2003,6 +2101,8 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                       parkingLots={parkingLots}
                       onParkingLotsChange={onParkingLotsChange}
                       parkingLotSuggestions={parkingLotSuggestions}
+                      trackBindings={trackBindings}
+                      onTrackSnapshotChange={onTrackSnapshotChange}
                     />
                   </div>
                 </div>
@@ -2446,10 +2546,12 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       pointsOfInterest,
       parkingLots,
       parkingLotSuggestions,
+      trackBindings,
       onNumberDraftChange,
       onOverviewCoordinateSet,
       onPointsOfInterestChange,
       onParkingLotsChange,
+      onTrackSnapshotChange,
       openLanguagePasteModal,
       onSpecialNoteParamChange,
       onSpecialNoteRemoveUnknown,

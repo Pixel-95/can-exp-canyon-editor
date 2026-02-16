@@ -61,6 +61,169 @@ button {
   cursor: not-allowed;
 }
 
+.track-list-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.track-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.track-list-header h2 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.track-add-access {
+  border: 1px solid #94a3b8;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 5px 8px;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.track-list-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.track-list-group-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.track-list-empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.track-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 170px;
+  overflow-y: auto;
+}
+
+.track-list-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px;
+}
+
+.track-list-main {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.track-list-item.active .track-list-main {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.track-list-name-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.track-list-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.82rem;
+}
+
+.track-kind-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.track-kind-dot.section {
+  background: #f97316;
+}
+
+.track-kind-dot.access {
+  background: #111111;
+}
+
+.track-list-flags {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.track-flag {
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.track-flag.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.track-flag.dirty {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.track-list-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.track-list-actions button {
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #334155;
+  padding: 0 7px;
+  cursor: pointer;
+  font-size: 0.74rem;
+}
+
+.track-list-actions .track-list-delete {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #9f1239;
+}
+
 .coordinate-input-panel {
   display: flex;
   flex-direction: column;
@@ -293,6 +456,11 @@ button {
   font-size: 0.9rem;
   line-height: 1.35;
   word-break: break-word;
+}
+
+.status-text-warning {
+  background: #fff7ed;
+  color: #9a3412;
 }
 
 .map-area {
@@ -628,6 +796,23 @@ button {
 .poi-editor-header h4 {
   margin: 0;
   font-size: 0.9rem;
+}
+
+.poi-editor-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.poi-editor-remove {
+  border: 1px solid #fecdd3;
+  border-radius: 7px;
+  background: #fff1f2;
+  color: #9f1239;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  line-height: 1;
 }
 
 .poi-editor-close {

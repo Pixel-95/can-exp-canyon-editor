@@ -58,11 +58,6 @@ type MapContextMenuState = {
   coordinate: Coordinate;
 } | null;
 
-type SaveGeoJSONResult = {
-  canceled: boolean;
-  filePath?: string;
-};
-
 type RouteSegmentSummary = {
   index: number;
   from: Coordinate;
@@ -156,6 +151,50 @@ type ParkingPasteModalState = {
   error: string;
 };
 
+export type SectionTrackBinding = {
+  sectionIndex: number;
+  sectionId: number;
+  sectionName: string;
+  filePath: string | null;
+};
+
+export type AccessTrackBinding = {
+  accessIndex: number;
+  filePath: string;
+};
+
+export type TrackBindings = {
+  canyonFilePath: string | null;
+  sections: SectionTrackBinding[];
+  access: AccessTrackBinding[];
+};
+
+type TrackColor = "orange" | "black";
+type TrackKind = "section" | "access";
+
+export type MultiTrackItem = {
+  id: string;
+  kind: TrackKind;
+  sectionIndex?: number;
+  sectionId?: number;
+  displayName: string;
+  filePath: string;
+  color: TrackColor;
+  routePoints: RoutePoint[];
+  routeFeature: RouteFeature | null;
+  dirty: boolean;
+  missingFile: boolean;
+  legacyFormat: boolean;
+  needsRebuild: boolean;
+  rawFeatureProperties?: Record<string, unknown>;
+};
+
+export type TrackSnapshot = {
+  tracks: MultiTrackItem[];
+  activeTrackId: string | null;
+  warnings: string[];
+};
+
 type RouteMapAppProps = {
   viewMode: "compact" | "expanded";
   defaultLanguage?: (typeof STATIC_LANGUAGE_KEYS)[number];
@@ -166,13 +205,16 @@ type RouteMapAppProps = {
   parkingLots?: ParkingLot[];
   onParkingLotsChange?: (parkingLots: ParkingLot[]) => void;
   parkingLotSuggestions?: LocalizedText[];
+  trackBindings?: TrackBindings | null;
+  onTrackSnapshotChange?: (snapshot: TrackSnapshot) => void;
 };
 
 const STATIC_LANGUAGE_KEYS = ["de", "en", "es", "fr", "it", "pt"] as const;
 const STATIC_LANGUAGE_SET = new Set<string>(STATIC_LANGUAGE_KEYS);
 
-const ROUTE_SOURCE_ID = "walking-route-source";
-const ROUTE_LAYER_ID = "walking-route-layer";
+const TRACKS_SOURCE_ID = "tracks-source";
+const TRACKS_ACTIVE_LAYER_ID = "tracks-active-layer";
+const TRACKS_INACTIVE_LAYER_ID = "tracks-inactive-layer";
 const TERRAIN_TILE_ZOOM = 14;
 const TERRAIN_TILE_SIZE = 512;
 const MAX_ROUTED_SEGMENT_CACHE_ENTRIES = 400;
@@ -181,7 +223,7 @@ const MAP_STYLE_BY_MODE: Record<MapStyleMode, string> = {
   outdoors: "mapbox://styles/mapbox/outdoors-v12",
 };
 
-const EMPTY_ROUTE_GEOJSON: FeatureCollection<LineString> = {
+const EMPTY_TRACKS_GEOJSON: FeatureCollection<LineString> = {
   type: "FeatureCollection",
   features: [],
 };
@@ -315,17 +357,6 @@ function formatError(error: unknown): string {
   }
 
   return "Unexpected error.";
-}
-
-function createFilenameSuggestion(date: Date): string {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  const hh = String(date.getHours()).padStart(2, "0");
-  const min = String(date.getMinutes()).padStart(2, "0");
-  const sec = String(date.getSeconds()).padStart(2, "0");
-
-  return `route_${yyyy}-${mm}-${dd}_${hh}-${min}-${sec}.geojson`;
 }
 
 function createEmptyLocalizedText(): LocalizedText {
@@ -546,6 +577,229 @@ function getInsertedPointSegmentMode(points: RoutePoint[], insertionIndex: numbe
   return points[insertionIndex]?.segmentMode ?? "straight";
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function toCoordinatePair(value: unknown): Coordinate | null {
+  if (!Array.isArray(value) || value.length < 2) {
+    return null;
+  }
+
+  const lng = Number(value[0]);
+  const lat = Number(value[1]);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+    return null;
+  }
+
+  return [Number(lng.toFixed(6)), Number(lat.toFixed(6))];
+}
+
+function toCoordinatesArray(value: unknown): Coordinate[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => toCoordinatePair(entry))
+    .filter((entry): entry is Coordinate => entry !== null);
+}
+
+function normalizeTrackLink(link: string): string {
+  const normalized = link.replace(/\\/g, "/").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  if (/^[A-Za-z]:\//.test(normalized)) {
+    return normalized;
+  }
+
+  if (normalized.startsWith("./")) {
+    return normalized;
+  }
+
+  if (normalized.startsWith("/")) {
+    return `.${normalized}`;
+  }
+
+  return `./${normalized}`;
+}
+
+function parseRouteSegmentsFromProperties(raw: unknown): RouteSegmentSummary[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .map((entry) => {
+      if (!isObjectRecord(entry)) {
+        return null;
+      }
+
+      const from = toCoordinatePair(entry.from);
+      const to = toCoordinatePair(entry.to);
+      if (!from || !to) {
+        return null;
+      }
+
+      return {
+        index: Number.isFinite(Number(entry.index)) ? Number(entry.index) : 0,
+        from,
+        to,
+        mode: entry.mode === "route" ? "route" : "straight",
+        distance_m: Number.isFinite(Number(entry.distance_m)) ? Number(entry.distance_m) : 0,
+        duration_s: Number.isFinite(Number(entry.duration_s)) ? Number(entry.duration_s) : 0,
+        failed: Boolean(entry.failed),
+        ...(typeof entry.error === "string" ? { error: entry.error } : {}),
+      };
+    })
+    .filter((entry): entry is RouteSegmentSummary => entry !== null);
+}
+
+function buildRouteFeatureFromRaw(
+  coordinates: Coordinate[],
+  rawProperties: Record<string, unknown>,
+): RouteFeature | null {
+  if (coordinates.length === 0) {
+    return null;
+  }
+
+  const start = toCoordinatePair(rawProperties.start) ?? coordinates[0];
+  const end = toCoordinatePair(rawProperties.end) ?? coordinates[coordinates.length - 1];
+  const waypoints = toCoordinatesArray(rawProperties.waypoints);
+  const segments = parseRouteSegmentsFromProperties(rawProperties.segments);
+
+  return {
+    type: "Feature",
+    geometry: {
+      type: "LineString",
+      coordinates,
+    },
+    properties: {
+      distance_m: Number.isFinite(Number(rawProperties.distance_m)) ? Number(rawProperties.distance_m) : 0,
+      duration_s: Number.isFinite(Number(rawProperties.duration_s)) ? Number(rawProperties.duration_s) : 0,
+      profile: "walking",
+      start,
+      end,
+      waypoints,
+      segments,
+      generated_at:
+        typeof rawProperties.generated_at === "string"
+          ? rawProperties.generated_at
+          : new Date().toISOString(),
+    },
+  };
+}
+
+function parseTrackPayload(payload: unknown, fallbackDisplayName: string): {
+  routePoints: RoutePoint[];
+  routeFeature: RouteFeature | null;
+  rawFeatureProperties: Record<string, unknown>;
+  legacyFormat: boolean;
+} {
+  let lineFeature: Record<string, unknown> | null = null;
+
+  if (isObjectRecord(payload) && payload.type === "FeatureCollection" && Array.isArray(payload.features)) {
+    for (const feature of payload.features) {
+      if (!isObjectRecord(feature)) {
+        continue;
+      }
+
+      if (!isObjectRecord(feature.geometry) || feature.geometry.type !== "LineString") {
+        continue;
+      }
+
+      lineFeature = feature;
+      break;
+    }
+  } else if (
+    isObjectRecord(payload) &&
+    payload.type === "Feature" &&
+    isObjectRecord(payload.geometry) &&
+    payload.geometry.type === "LineString"
+  ) {
+    lineFeature = payload;
+  }
+
+  if (!lineFeature || !isObjectRecord(lineFeature.geometry)) {
+    return {
+      routePoints: [],
+      routeFeature: null,
+      rawFeatureProperties: {},
+      legacyFormat: false,
+    };
+  }
+
+  const coordinates = toCoordinatesArray(lineFeature.geometry.coordinates);
+  const rawFeatureProperties = isObjectRecord(lineFeature.properties)
+    ? { ...lineFeature.properties }
+    : {};
+  const routeFeature = buildRouteFeatureFromRaw(coordinates, rawFeatureProperties);
+
+  const start = toCoordinatePair(rawFeatureProperties.start);
+  const end = toCoordinatePair(rawFeatureProperties.end);
+  const waypoints = toCoordinatesArray(rawFeatureProperties.waypoints);
+  const segments = parseRouteSegmentsFromProperties(rawFeatureProperties.segments);
+
+  if (start && end) {
+    const nextPoints: RoutePoint[] = [
+      {
+        id: createRoutePointId(),
+        type: "start",
+        coordinates: start,
+      },
+      ...waypoints.map((coordinate) => ({
+        id: createRoutePointId(),
+        type: "waypoint" as const,
+        coordinates: coordinate,
+      })),
+      {
+        id: createRoutePointId(),
+        type: "end",
+        coordinates: end,
+      },
+    ];
+
+    for (let index = 1; index < nextPoints.length; index += 1) {
+      const point = nextPoints[index];
+      const segment = segments.find((candidate) => candidate.index === index);
+      if (!point) {
+        continue;
+      }
+
+      point.segmentMode = segment?.mode ?? "straight";
+    }
+
+    return {
+      routePoints: normalizeRoutePoints(nextPoints),
+      routeFeature,
+      rawFeatureProperties,
+      legacyFormat: false,
+    };
+  }
+
+  const fallbackPoints = coordinates.map((coordinate, index) => ({
+    id: createRoutePointId(),
+    type: index === 0 ? "start" : index === coordinates.length - 1 ? "end" : "waypoint",
+    coordinates: coordinate,
+    ...(index > 0 ? { segmentMode: "straight" as const } : {}),
+  }));
+
+  return {
+    routePoints: normalizeRoutePoints(fallbackPoints),
+    routeFeature,
+    rawFeatureProperties: {
+      ...rawFeatureProperties,
+      name:
+        typeof rawFeatureProperties.name === "string"
+          ? rawFeatureProperties.name
+          : fallbackDisplayName,
+    },
+    legacyFormat: true,
+  };
+}
+
 type RoutePointListItemProps = {
   point: RoutePoint;
   index: number;
@@ -619,6 +873,8 @@ export function RouteMapApp({
   parkingLots = [],
   onParkingLotsChange,
   parkingLotSuggestions = [],
+  trackBindings = null,
+  onTrackSnapshotChange,
 }: RouteMapAppProps): JSX.Element {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -635,11 +891,22 @@ export function RouteMapApp({
   const routeAbortControllerRef = useRef<AbortController | null>(null);
   const suppressMapMenuUntilRef = useRef(0);
   const viewModeRef = useRef<RouteMapAppProps["viewMode"]>(viewMode);
+  const activeTrackIdRef = useRef<string | null>(null);
+  const tracksByIdRef = useRef<Record<string, MultiTrackItem>>({});
+  const trackOrderRef = useRef<string[]>([]);
+  const syncRouteStateFromTrackRef = useRef(false);
+  const lastLoadedTrackBindingKeyRef = useRef<string>("");
+  const newAccessTrackCounterRef = useRef(0);
+  const autoViewportAppliedForKeyRef = useRef<string>("");
 
   const [mapboxToken, setMapboxToken] = useState<string>("");
   const [mapStyleMode, setMapStyleMode] = useState<MapStyleMode>("outdoors");
   const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
   const [routeFeature, setRouteFeature] = useState<RouteFeature | null>(null);
+  const [tracksById, setTracksById] = useState<Record<string, MultiTrackItem>>({});
+  const [trackOrder, setTrackOrder] = useState<string[]>([]);
+  const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
+  const [trackWarnings, setTrackWarnings] = useState<string[]>([]);
   const [contextMenu, setContextMenu] = useState<MapContextMenuState>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<ContextMenuSubmenu | null>(null);
   const [poiEditor, setPoiEditor] = useState<PoiEditorState | null>(null);
@@ -651,14 +918,18 @@ export function RouteMapApp({
   const [manualCoordinateActionKey, setManualCoordinateActionKey] = useState("");
   const [routeElevations, setRouteElevations] = useState<RouteElevations | null>(null);
   const [routeElevationError, setRouteElevationError] = useState<string>("");
-  const [isSaving, setIsSaving] = useState(false);
   const [statusText, setStatusText] = useState("Ready");
   const effectiveDefaultLanguage: (typeof STATIC_LANGUAGE_KEYS)[number] = STATIC_LANGUAGE_SET.has(defaultLanguage)
     ? defaultLanguage
     : "en";
 
+  const activeTrack = activeTrackId ? tracksById[activeTrackId] ?? null : null;
+
   routePointsRef.current = routePoints;
   routeFeatureRef.current = routeFeature;
+  activeTrackIdRef.current = activeTrackId;
+  tracksByIdRef.current = tracksById;
+  trackOrderRef.current = trackOrder;
 
   const closeAllMenus = useCallback((): void => {
     setContextMenu(null);
@@ -724,7 +995,406 @@ export function RouteMapApp({
     routedSegmentCacheRef.current.clear();
   }, [mapboxToken]);
 
-  const drawRoute = useCallback((geometry: LineString | null): void => {
+  useEffect(() => {
+    autoViewportAppliedForKeyRef.current = "";
+  }, [trackBindings?.canyonFilePath]);
+
+  useEffect(() => {
+    const bindingKey = JSON.stringify({
+      canyonFilePath: trackBindings?.canyonFilePath ?? null,
+      sections: (trackBindings?.sections ?? []).map((section) => ({
+        sectionIndex: section.sectionIndex,
+        sectionId: section.sectionId,
+        sectionName: section.sectionName,
+        filePath: normalizeTrackLink(section.filePath ?? ""),
+      })),
+      access: (trackBindings?.access ?? []).map((access) => ({
+        accessIndex: access.accessIndex,
+        filePath: normalizeTrackLink(access.filePath),
+      })),
+    });
+
+    if (bindingKey === lastLoadedTrackBindingKeyRef.current) {
+      return;
+    }
+    lastLoadedTrackBindingKeyRef.current = bindingKey;
+
+    let canceled = false;
+    async function loadTracksFromBindings(): Promise<void> {
+      const existingTracksById = tracksByIdRef.current;
+      const nextTracksById: Record<string, MultiTrackItem> = {};
+      const nextTrackOrder: string[] = [];
+      const nextWarnings: string[] = [];
+      const toLoad: Array<{ id: string; kind: TrackKind; filePath: string }> = [];
+
+      const sectionBindings = trackBindings?.sections ?? [];
+      for (const sectionBinding of sectionBindings) {
+        const trackId = `section:${sectionBinding.sectionIndex}`;
+        const normalizedPath = normalizeTrackLink(sectionBinding.filePath ?? "");
+        const existing = existingTracksById[trackId];
+        if (existing && existing.filePath === normalizedPath) {
+          nextTracksById[trackId] = {
+            ...existing,
+            kind: "section",
+            sectionIndex: sectionBinding.sectionIndex,
+            sectionId: sectionBinding.sectionId,
+            displayName: sectionBinding.sectionName || existing.displayName,
+            color: "orange",
+            filePath: normalizedPath,
+          };
+          nextTrackOrder.push(trackId);
+          continue;
+        }
+
+        nextTracksById[trackId] = {
+          id: trackId,
+          kind: "section",
+          sectionIndex: sectionBinding.sectionIndex,
+          sectionId: sectionBinding.sectionId,
+          displayName: sectionBinding.sectionName || `Section ${sectionBinding.sectionIndex + 1}`,
+          color: "orange",
+          filePath: normalizedPath,
+          routePoints: [],
+          routeFeature: null,
+          dirty: false,
+          missingFile: false,
+          legacyFormat: false,
+          needsRebuild: false,
+        };
+        nextTrackOrder.push(trackId);
+        if (normalizedPath) {
+          toLoad.push({ id: trackId, kind: "section", filePath: normalizedPath });
+        } else {
+          nextTracksById[trackId].missingFile = true;
+          nextWarnings.push(`Section "${nextTracksById[trackId].displayName}" has no track file linked.`);
+        }
+      }
+
+      const accessBindings = trackBindings?.access ?? [];
+      for (const accessBinding of accessBindings) {
+        const trackId = `access:${accessBinding.accessIndex}`;
+        const normalizedPath = normalizeTrackLink(accessBinding.filePath);
+        const existing = existingTracksById[trackId];
+        if (existing && existing.filePath === normalizedPath) {
+          nextTracksById[trackId] = {
+            ...existing,
+            kind: "access",
+            color: "black",
+            displayName: existing.displayName || `Access ${accessBinding.accessIndex + 1}`,
+            filePath: normalizedPath,
+          };
+          nextTrackOrder.push(trackId);
+          continue;
+        }
+
+        nextTracksById[trackId] = {
+          id: trackId,
+          kind: "access",
+          displayName: `Access ${accessBinding.accessIndex + 1}`,
+          color: "black",
+          filePath: normalizedPath,
+          routePoints: [],
+          routeFeature: null,
+          dirty: false,
+          missingFile: false,
+          legacyFormat: false,
+          needsRebuild: false,
+        };
+        nextTrackOrder.push(trackId);
+        if (normalizedPath) {
+          toLoad.push({ id: trackId, kind: "access", filePath: normalizedPath });
+        } else {
+          nextTracksById[trackId].missingFile = true;
+          nextWarnings.push(`Access track ${accessBinding.accessIndex + 1} has no track file linked.`);
+        }
+      }
+
+      for (const existingTrackId of Object.keys(existingTracksById)) {
+        const existing = existingTracksById[existingTrackId];
+        if (!existing || existing.kind !== "access") {
+          continue;
+        }
+
+        if (existing.filePath || !existingTrackId.startsWith("access:new:")) {
+          continue;
+        }
+
+        if (nextTracksById[existingTrackId]) {
+          continue;
+        }
+
+        nextTracksById[existingTrackId] = existing;
+        nextTrackOrder.push(existingTrackId);
+      }
+
+      if (toLoad.length > 0) {
+        const result = await window.api.loadTrackFiles({
+          canyonFilePath: trackBindings?.canyonFilePath ?? null,
+          tracks: toLoad,
+        });
+
+        if (canceled) {
+          return;
+        }
+
+        for (const entry of result.entries) {
+          const track = nextTracksById[entry.id];
+          if (!track) {
+            continue;
+          }
+
+          if (entry.missing || entry.error || !entry.data) {
+            nextTracksById[entry.id] = {
+              ...track,
+              missingFile: true,
+              routePoints: [],
+              routeFeature: null,
+              dirty: false,
+              legacyFormat: false,
+              needsRebuild: false,
+            };
+            nextWarnings.push(
+              entry.error ??
+                `Track file "${track.filePath}" is missing for ${track.kind === "section" ? "section" : "access"} "${track.displayName}".`,
+            );
+            continue;
+          }
+
+          const parsedTrack = parseTrackPayload(entry.data, track.displayName);
+          const persistedDisplayName =
+            track.kind === "access"
+              ? (() => {
+                const rawName = parsedTrack.rawFeatureProperties.editor_display_name;
+                if (typeof rawName === "string" && rawName.trim()) {
+                  return rawName.trim();
+                }
+
+                const fallbackName = parsedTrack.rawFeatureProperties.name;
+                if (typeof fallbackName === "string" && fallbackName.trim()) {
+                  return fallbackName.trim();
+                }
+
+                return track.displayName;
+              })()
+              : track.displayName;
+
+          nextTracksById[entry.id] = {
+            ...track,
+            displayName: persistedDisplayName,
+            routePoints: parsedTrack.routePoints,
+            routeFeature: parsedTrack.routeFeature,
+            rawFeatureProperties: parsedTrack.rawFeatureProperties,
+            missingFile: false,
+            legacyFormat: parsedTrack.legacyFormat,
+            dirty: false,
+            needsRebuild: false,
+          };
+
+          if (parsedTrack.legacyFormat) {
+            nextWarnings.push(
+              `Track "${nextTracksById[entry.id].displayName}" loaded from legacy GeoJSON without editor metadata.`,
+            );
+          }
+        }
+      }
+
+      if (canceled) {
+        return;
+      }
+
+      setTracksById(nextTracksById);
+      setTrackOrder(nextTrackOrder);
+      setTrackWarnings(nextWarnings);
+      setActiveTrackId((current) => {
+        if (current && nextTracksById[current]) {
+          return current;
+        }
+
+        const firstSectionTrackId = nextTrackOrder.find((id) => nextTracksById[id]?.kind === "section");
+        if (firstSectionTrackId) {
+          return firstSectionTrackId;
+        }
+
+        return nextTrackOrder[0] ?? null;
+      });
+    }
+
+    void loadTracksFromBindings().catch((error) => {
+      if (!canceled) {
+        setStatusText(`Failed to load tracks: ${formatError(error)}`);
+      }
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, [trackBindings]);
+
+  useEffect(() => {
+    const selectedTrack = activeTrackId ? tracksById[activeTrackId] ?? null : null;
+    const nextPoints = selectedTrack?.routePoints ?? [];
+    const nextFeature = selectedTrack?.routeFeature ?? null;
+    const pointsChanged = !areRoutePointsEqual(routePointsRef.current, nextPoints);
+
+    if (pointsChanged) {
+      syncRouteStateFromTrackRef.current = true;
+      setRoutePoints(nextPoints);
+    } else {
+      syncRouteStateFromTrackRef.current = false;
+    }
+
+    if (routeFeatureRef.current !== nextFeature) {
+      setRouteFeature(nextFeature);
+    }
+  }, [activeTrackId, tracksById]);
+
+  useEffect(() => {
+    if (!activeTrackIdRef.current) {
+      return;
+    }
+
+    if (syncRouteStateFromTrackRef.current) {
+      syncRouteStateFromTrackRef.current = false;
+      return;
+    }
+
+    setTracksById((current) => {
+      const selectedTrackId = activeTrackIdRef.current;
+      if (!selectedTrackId) {
+        return current;
+      }
+
+      const track = current[selectedTrackId];
+      if (!track) {
+        return current;
+      }
+
+      if (areRoutePointsEqual(track.routePoints, routePoints)) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [selectedTrackId]: {
+          ...track,
+          routePoints,
+          dirty: true,
+          needsRebuild: true,
+          missingFile: false,
+        },
+      };
+    });
+  }, [routePoints]);
+
+  useEffect(() => {
+    if (!activeTrackIdRef.current) {
+      return;
+    }
+
+    setTracksById((current) => {
+      const selectedTrackId = activeTrackIdRef.current;
+      if (!selectedTrackId) {
+        return current;
+      }
+
+      const track = current[selectedTrackId];
+      if (!track) {
+        return current;
+      }
+
+      if (track.routeFeature === routeFeature && !track.needsRebuild) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [selectedTrackId]: {
+          ...track,
+          routeFeature,
+          needsRebuild: false,
+          missingFile: false,
+        },
+      };
+    });
+  }, [routeFeature]);
+
+  useEffect(() => {
+    if (!onTrackSnapshotChange) {
+      return;
+    }
+
+    const snapshotTracks = trackOrder
+      .map((trackId) => {
+        const track = tracksById[trackId];
+        if (!track) {
+          return null;
+        }
+
+        if (trackId !== activeTrackId) {
+          return track;
+        }
+
+        return {
+          ...track,
+          routePoints,
+          routeFeature,
+        };
+      })
+      .filter((track): track is MultiTrackItem => track !== null);
+
+    onTrackSnapshotChange({
+      tracks: snapshotTracks,
+      activeTrackId,
+      warnings: trackWarnings,
+    });
+  }, [activeTrackId, onTrackSnapshotChange, routeFeature, routePoints, trackOrder, trackWarnings, tracksById]);
+
+  const buildTracksFeatureCollectionSnapshot = useCallback((): FeatureCollection<LineString> => {
+    const currentTracksById = tracksByIdRef.current;
+    const currentTrackOrder = trackOrderRef.current;
+    const currentActiveTrackId = activeTrackIdRef.current;
+    const currentActiveRouteFeature = routeFeatureRef.current;
+    const features: Array<Feature<LineString, { trackId: string; kind: TrackKind; active: boolean }>> = [];
+
+    for (const trackId of currentTrackOrder) {
+      const track = currentTracksById[trackId];
+      if (!track) {
+        continue;
+      }
+
+      const feature = trackId === currentActiveTrackId ? currentActiveRouteFeature : track.routeFeature;
+      if (!feature?.geometry?.coordinates?.length) {
+        continue;
+      }
+
+      const coordinates = feature.geometry.coordinates
+        .map((coordinate) => toCoordinatePair(coordinate))
+        .filter((coordinate): coordinate is Coordinate => coordinate !== null);
+      if (coordinates.length < 2) {
+        continue;
+      }
+
+      features.push({
+        type: "Feature",
+        geometry: {
+          type: "LineString",
+          coordinates,
+        },
+        properties: {
+          trackId,
+          kind: track.kind,
+          active: trackId === currentActiveTrackId,
+        },
+      });
+    }
+
+    return {
+      type: "FeatureCollection",
+      features,
+    };
+  }, []);
+
+  const drawTracks = useCallback((collection: FeatureCollection<LineString>): void => {
     const map = mapRef.current;
 
     if (!map) {
@@ -732,45 +1402,67 @@ export function RouteMapApp({
     }
 
     if (!map.isStyleLoaded()) {
-      map.once("idle", () => drawRoute(geometry));
+      map.once("idle", () => drawTracks(collection));
       return;
     }
 
-    if (!map.getSource(ROUTE_SOURCE_ID)) {
-      map.addSource(ROUTE_SOURCE_ID, {
+    if (!map.getSource(TRACKS_SOURCE_ID)) {
+      map.addSource(TRACKS_SOURCE_ID, {
         type: "geojson",
-        data: EMPTY_ROUTE_GEOJSON as GeoJSON.FeatureCollection,
+        data: EMPTY_TRACKS_GEOJSON as GeoJSON.FeatureCollection,
       });
     }
 
-    if (!map.getLayer(ROUTE_LAYER_ID)) {
+    if (!map.getLayer(TRACKS_INACTIVE_LAYER_ID)) {
       map.addLayer({
-        id: ROUTE_LAYER_ID,
+        id: TRACKS_INACTIVE_LAYER_ID,
         type: "line",
-        source: ROUTE_SOURCE_ID,
+        source: TRACKS_SOURCE_ID,
+        filter: ["==", ["get", "active"], false],
         paint: {
-          "line-color": "#f97316",
-          "line-width": 5,
+          "line-color": [
+            "match",
+            ["get", "kind"],
+            "section",
+            "#f97316",
+            "access",
+            "#111111",
+            "#111111",
+          ],
+          "line-width": 3,
+          "line-opacity": 0.6,
         },
       });
     }
 
-    const source = map.getSource(ROUTE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+    if (!map.getLayer(TRACKS_ACTIVE_LAYER_ID)) {
+      map.addLayer({
+        id: TRACKS_ACTIVE_LAYER_ID,
+        type: "line",
+        source: TRACKS_SOURCE_ID,
+        filter: ["==", ["get", "active"], true],
+        paint: {
+          "line-color": [
+            "match",
+            ["get", "kind"],
+            "section",
+            "#f97316",
+            "access",
+            "#111111",
+            "#111111",
+          ],
+          "line-width": 5,
+          "line-opacity": 0.96,
+        },
+      });
+    }
+
+    const source = map.getSource(TRACKS_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
     if (!source) {
       return;
     }
 
-    if (!geometry) {
-      source.setData(EMPTY_ROUTE_GEOJSON as GeoJSON.FeatureCollection);
-      return;
-    }
-
-    const routeGeoJson: Feature<LineString> = {
-      type: "Feature",
-      geometry,
-      properties: {},
-    };
-    source.setData(routeGeoJson as GeoJSON.Feature);
+    source.setData(collection as GeoJSON.FeatureCollection);
   }, []);
 
   const onToggleMapStyle = useCallback((): void => {
@@ -778,9 +1470,11 @@ export function RouteMapApp({
   }, []);
 
   const generateRoute = useCallback(
-    async (points: RoutePoint[]): Promise<void> => {
+    async (trackId: string, points: RoutePoint[]): Promise<void> => {
       if (points.length < 2 || points[0]?.type !== "start" || points[points.length - 1]?.type !== "end") {
-        setRouteFeature(null);
+        if (activeTrackIdRef.current === trackId) {
+          setRouteFeature(null);
+        }
         return;
       }
 
@@ -1030,7 +1724,7 @@ export function RouteMapApp({
           },
         };
 
-        if (controller.signal.aborted) {
+        if (controller.signal.aborted || activeTrackIdRef.current !== trackId) {
           return;
         }
 
@@ -1041,7 +1735,7 @@ export function RouteMapApp({
           setStatusText("Route ready.");
         }
       } catch (error) {
-        if (controller.signal.aborted) {
+        if (controller.signal.aborted || activeTrackIdRef.current !== trackId) {
           return;
         }
 
@@ -1401,6 +2095,68 @@ export function RouteMapApp({
   }, [parkingEditor, parkingLots.length]);
 
   useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    const canyonKey = trackBindings?.canyonFilePath ?? "__default__";
+    if (autoViewportAppliedForKeyRef.current === canyonKey) {
+      return;
+    }
+
+    const coordinates: Coordinate[] = [];
+    if (overviewCoordinate) {
+      coordinates.push(overviewCoordinate);
+    }
+
+    pointsOfInterest.forEach((poi) => {
+      coordinates.push(poi.coordinates);
+    });
+    parkingLots.forEach((parkingLot) => {
+      coordinates.push(parkingLot.coordinates);
+    });
+
+    if (coordinates.length === 0) {
+      return;
+    }
+
+    const applyInitialView = (): void => {
+      if (autoViewportAppliedForKeyRef.current === canyonKey) {
+        return;
+      }
+
+      if (coordinates.length === 1) {
+        map.jumpTo({
+          center: coordinates[0],
+          zoom: Math.max(map.getZoom(), 14),
+        });
+      } else {
+        const bounds = new mapboxgl.LngLatBounds();
+        coordinates.forEach((coordinate) => {
+          bounds.extend(coordinate);
+        });
+        map.fitBounds(bounds, {
+          padding: 48,
+          maxZoom: 15,
+          duration: 0,
+        });
+      }
+
+      autoViewportAppliedForKeyRef.current = canyonKey;
+    };
+
+    if (!map.isStyleLoaded()) {
+      map.once("idle", applyInitialView);
+      return () => {
+        map.off("idle", applyInitialView);
+      };
+    }
+
+    applyInitialView();
+  }, [overviewCoordinate, parkingLots, pointsOfInterest, trackBindings?.canyonFilePath]);
+
+  useEffect(() => {
     const container = mapContainerRef.current;
     if (!container) {
       return;
@@ -1423,19 +2179,19 @@ export function RouteMapApp({
       return;
     }
 
-    const redrawRoute = (): void => {
-      drawRoute(routeFeatureRef.current?.geometry ?? null);
+    const redrawTracks = (): void => {
+      drawTracks(buildTracksFeatureCollectionSnapshot());
     };
 
-    map.once("style.load", redrawRoute);
-    map.once("idle", redrawRoute);
+    map.once("style.load", redrawTracks);
+    map.once("idle", redrawTracks);
     map.setStyle(MAP_STYLE_BY_MODE[mapStyleMode]);
 
     return () => {
-      map.off("style.load", redrawRoute);
-      map.off("idle", redrawRoute);
+      map.off("style.load", redrawTracks);
+      map.off("idle", redrawTracks);
     };
-  }, [drawRoute, mapStyleMode]);
+  }, [buildTracksFeatureCollectionSnapshot, drawTracks, mapStyleMode]);
 
   useEffect(() => {
     if (!contextMenu) {
@@ -1460,8 +2216,8 @@ export function RouteMapApp({
   }, [contextMenu]);
 
   useEffect(() => {
-    drawRoute(routeFeature?.geometry ?? null);
-  }, [drawRoute, routeFeature]);
+    drawTracks(buildTracksFeatureCollectionSnapshot());
+  }, [activeTrackId, buildTracksFeatureCollectionSnapshot, drawTracks, routeFeature, trackOrder, tracksById]);
 
   useEffect(() => {
     if (!routeFeature || !mapboxToken) {
@@ -1556,6 +2312,11 @@ export function RouteMapApp({
   }, [mapboxToken, routeFeature]);
 
   useEffect(() => {
+    const selectedTrack = activeTrackId ? tracksById[activeTrackId] ?? null : null;
+    if (!selectedTrack || !selectedTrack.needsRebuild) {
+      return;
+    }
+
     if (routePoints.length < 2) {
       routeAbortControllerRef.current?.abort();
       routeAbortControllerRef.current = null;
@@ -1563,8 +2324,13 @@ export function RouteMapApp({
       return;
     }
 
-    void generateRoute(routePoints);
-  }, [generateRoute, routePoints]);
+    void generateRoute(activeTrackId, routePoints);
+  }, [activeTrackId, generateRoute, routePoints, tracksById]);
+
+  useEffect(() => {
+    routeAbortControllerRef.current?.abort();
+    routeAbortControllerRef.current = null;
+  }, [activeTrackId]);
 
   useEffect(() => {
     return () => {
@@ -1575,6 +2341,11 @@ export function RouteMapApp({
 
   const applyRoutePointUpdate = useCallback(
     (updater: (current: RoutePoint[]) => RoutePoint[], nextStatusText: string): void => {
+      if (!activeTrackIdRef.current) {
+        setStatusText("Select a track first.");
+        return;
+      }
+
       setRoutePoints((current) => {
         const next = normalizeRoutePoints(updater(current));
         return areRoutePointsEqual(current, next) ? current : next;
@@ -1825,6 +2596,11 @@ export function RouteMapApp({
   }, [applyRoutePointUpdate]);
 
   const insertPointAt = useCallback((insertionIndex: number, coordinate: Coordinate): boolean => {
+    if (!activeTrackIdRef.current) {
+      setStatusText("Select a track first.");
+      return false;
+    }
+
     const safeInsertionIndex = Math.min(Math.max(insertionIndex, 0), routePoints.length);
     const previousPoint = routePoints[safeInsertionIndex - 1];
     const nextPoint = routePoints[safeInsertionIndex];
@@ -2031,6 +2807,22 @@ export function RouteMapApp({
     [onPointsOfInterestChange, pointsOfInterest],
   );
 
+  const onDeletePointOfInterest = useCallback((poiIndex: number): void => {
+    if (!onPointsOfInterestChange) {
+      return;
+    }
+
+    if (poiIndex < 0 || poiIndex >= pointsOfInterest.length) {
+      return;
+    }
+
+    const next = pointsOfInterest.filter((_, index) => index !== poiIndex);
+    onPointsOfInterestChange(next);
+    setPoiEditor(null);
+    setPoiPasteModal(null);
+    setStatusText("Point of interest removed.");
+  }, [onPointsOfInterestChange, pointsOfInterest]);
+
   const openPoiPasteModal = useCallback(
     (field: "name" | "description"): void => {
       if (!poiEditor) {
@@ -2188,6 +2980,22 @@ export function RouteMapApp({
     [onParkingLotsChange, parkingLots],
   );
 
+  const onDeleteParkingLot = useCallback((parkingLotIndex: number): void => {
+    if (!onParkingLotsChange) {
+      return;
+    }
+
+    if (parkingLotIndex < 0 || parkingLotIndex >= parkingLots.length) {
+      return;
+    }
+
+    const next = parkingLots.filter((_, index) => index !== parkingLotIndex);
+    onParkingLotsChange(next);
+    setParkingEditor(null);
+    setParkingPasteModal(null);
+    setStatusText("Parking lot removed.");
+  }, [onParkingLotsChange, parkingLots]);
+
   const onApplyParkingNamePreset = useCallback(
     (parkingLotIndex: number, preset: LocalizedText): void => {
       if (!onParkingLotsChange) {
@@ -2318,6 +3126,114 @@ export function RouteMapApp({
     setStatusText("Canyon overview point set.");
   }, [contextMenu, onSetOverviewCoordinate]);
 
+  const onSelectTrack = useCallback((trackId: string): void => {
+    const track = tracksByIdRef.current[trackId];
+    if (!track) {
+      return;
+    }
+
+    closeAllMenus();
+    setActiveTrackId(trackId);
+    setStatusText(`Active track: ${track.displayName}`);
+  }, [closeAllMenus]);
+
+  const onCreateAccessTrack = useCallback((): void => {
+    const nextCounter = newAccessTrackCounterRef.current + 1;
+    newAccessTrackCounterRef.current = nextCounter;
+    const trackId = `access:new:${nextCounter}`;
+    const accessCount = Object.values(tracksByIdRef.current).filter((track) => track.kind === "access").length;
+
+    const nextTrack: MultiTrackItem = {
+      id: trackId,
+      kind: "access",
+      displayName: `Access ${accessCount + 1}`,
+      filePath: "",
+      color: "black",
+      routePoints: [],
+      routeFeature: null,
+      dirty: true,
+      missingFile: false,
+      legacyFormat: false,
+      needsRebuild: false,
+    };
+
+    setTracksById((current) => ({
+      ...current,
+      [trackId]: nextTrack,
+    }));
+    setTrackOrder((current) => [...current, trackId]);
+    setActiveTrackId(trackId);
+    setStatusText("Access track added.");
+  }, []);
+
+  const onRenameAccessTrack = useCallback((trackId: string): void => {
+    const track = tracksByIdRef.current[trackId];
+    if (!track || track.kind !== "access") {
+      return;
+    }
+
+    const nextName = window.prompt("Rename access track", track.displayName)?.trim();
+    if (typeof nextName !== "string") {
+      return;
+    }
+
+    if (!nextName) {
+      setStatusText("Access track name cannot be empty.");
+      return;
+    }
+
+    setTracksById((current) => {
+      const currentTrack = current[trackId];
+      if (!currentTrack || currentTrack.kind !== "access") {
+        return current;
+      }
+
+      return {
+        ...current,
+        [trackId]: {
+          ...currentTrack,
+          displayName: nextName,
+          dirty: true,
+        },
+      };
+    });
+    setStatusText("Access track renamed.");
+  }, []);
+
+  const onDeleteAccessTrack = useCallback((trackId: string): void => {
+    const track = tracksByIdRef.current[trackId];
+    if (!track || track.kind !== "access") {
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete access track "${track.displayName}"?`);
+    if (!confirmed) {
+      return;
+    }
+
+    closeAllMenus();
+    setTracksById((current) => {
+      if (!(trackId in current)) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[trackId];
+      return next;
+    });
+    setTrackOrder((current) => current.filter((entry) => entry !== trackId));
+    setActiveTrackId((current) => {
+      if (current !== trackId) {
+        return current;
+      }
+
+      const remainingOrder = trackOrderRef.current.filter((entry) => entry !== trackId);
+      const nextSectionTrack = remainingOrder.find((entry) => tracksByIdRef.current[entry]?.kind === "section");
+      return nextSectionTrack ?? remainingOrder[0] ?? null;
+    });
+    setStatusText("Access track deleted.");
+  }, [closeAllMenus]);
+
   const onDragEnd = useCallback(
     (event: DragEndEvent): void => {
       const { active, over } = event;
@@ -2368,39 +3284,13 @@ export function RouteMapApp({
     );
   }, [applyRoutePointUpdate]);
 
-  const onSaveGeoJSON = async (): Promise<void> => {
-    if (!routeFeature) {
-      setStatusText("Generate a route before saving GeoJSON.");
+  const onClear = (): void => {
+    const selectedTrackId = activeTrackIdRef.current;
+    if (!selectedTrackId) {
+      setStatusText("Select a track first.");
       return;
     }
 
-    setIsSaving(true);
-
-    try {
-      const featureCollection: FeatureCollection<LineString, RouteProperties> = {
-        type: "FeatureCollection",
-        features: [routeFeature],
-      };
-
-      const suggestion = createFilenameSuggestion(new Date());
-      const result: SaveGeoJSONResult = await window.api.saveGeoJSON(
-        suggestion,
-        JSON.stringify(featureCollection, null, 2),
-      );
-
-      if (result.canceled) {
-        setStatusText("Save canceled.");
-      } else {
-        setStatusText(`Saved GeoJSON to ${result.filePath}`);
-      }
-    } catch (error) {
-      setStatusText(`Failed to save GeoJSON: ${formatError(error)}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const onClear = (): void => {
     routeAbortControllerRef.current?.abort();
     routeAbortControllerRef.current = null;
     segmentModePopupRef.current?.remove();
@@ -2408,6 +3298,24 @@ export function RouteMapApp({
 
     setRoutePoints([]);
     setRouteFeature(null);
+    setTracksById((current) => {
+      const track = current[selectedTrackId];
+      if (!track) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [selectedTrackId]: {
+          ...track,
+          routePoints: [],
+          routeFeature: null,
+          dirty: true,
+          missingFile: false,
+          needsRebuild: false,
+        },
+      };
+    });
     setContextMenu(null);
     setActiveSubmenu(null);
     setCoordinateInput("");
@@ -2415,10 +3323,9 @@ export function RouteMapApp({
     setManualCoordinateActionKey("");
     setRouteElevations(null);
     setRouteElevationError("");
-    setStatusText("Cleared.");
+    setStatusText("Track cleared.");
   };
 
-  const canSave = Boolean(routeFeature && !isSaving);
   const routeSummary = useMemo(() => {
     if (!routeFeature) {
       return null;
@@ -2474,6 +3381,10 @@ export function RouteMapApp({
   }, [routePoints]);
 
   const manualCoordinateOptions = useMemo<ManualCoordinateActionOption[]>(() => {
+    if (!activeTrackId) {
+      return [];
+    }
+
     if (!hasStartAndEnd) {
       return [
         {
@@ -2497,7 +3408,7 @@ export function RouteMapApp({
       mode: "insert" as const,
       insertionIndex: option.insertionIndex,
     }));
-  }, [hasStartAndEnd, insertMenuOptions]);
+  }, [activeTrackId, hasStartAndEnd, insertMenuOptions]);
 
   useEffect(() => {
     if (manualCoordinateOptions.length === 0) {
@@ -2515,6 +3426,11 @@ export function RouteMapApp({
   const onInsertCoordinateFromInput = useCallback((): void => {
     if (!mapRef.current) {
       setStatusText("Map is not ready yet.");
+      return;
+    }
+
+    if (!activeTrackIdRef.current) {
+      setCoordinateInputError("Select a track first.");
       return;
     }
 
@@ -2557,6 +3473,21 @@ export function RouteMapApp({
   ]);
 
   const canInsertCoordinate = coordinateInput.trim().length > 0 && manualCoordinateOptions.length > 0;
+  const sectionTracks = useMemo(
+    () =>
+      trackOrder
+        .map((trackId) => tracksById[trackId])
+        .filter((track): track is MultiTrackItem => Boolean(track) && track.kind === "section"),
+    [trackOrder, tracksById],
+  );
+  const accessTracks = useMemo(
+    () =>
+      trackOrder
+        .map((trackId) => tracksById[trackId])
+        .filter((track): track is MultiTrackItem => Boolean(track) && track.kind === "access"),
+    [trackOrder, tracksById],
+  );
+  const trackWarningPreview = trackWarnings.join(" | ");
   const activePoiLanguage =
     poiEditor && STATIC_LANGUAGE_SET.has(poiEditor.language)
       ? poiEditor.language
@@ -2633,10 +3564,72 @@ export function RouteMapApp({
   return (
     <div className="app-shell">
       <aside className="control-panel">
+        <section className="track-list-panel">
+          <div className="track-list-header">
+            <h2>Tracks</h2>
+            <button type="button" className="track-add-access" onClick={onCreateAccessTrack}>
+              + Access track
+            </button>
+          </div>
+
+          <div className="track-list-group">
+            <p className="track-list-group-title">Section tracks</p>
+            {sectionTracks.length === 0 ? (
+              <p className="track-list-empty">No section tracks.</p>
+            ) : (
+              <ul className="track-list">
+                {sectionTracks.map((track) => (
+                  <li key={track.id} className={`track-list-item${activeTrackId === track.id ? " active" : ""}`}>
+                    <button type="button" className="track-list-main" onClick={() => onSelectTrack(track.id)}>
+                      <span className="track-list-name-wrap">
+                        <span className={`track-kind-dot ${track.kind}`} aria-hidden="true" />
+                        <span className="track-list-name">{track.displayName}</span>
+                      </span>
+                      <span className="track-list-flags">
+                        {track.missingFile ? <span className="track-flag warning">!</span> : null}
+                        {track.dirty ? <span className="track-flag dirty">*</span> : null}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="track-list-group">
+            <p className="track-list-group-title">Access tracks</p>
+            {accessTracks.length === 0 ? (
+              <p className="track-list-empty">No access tracks.</p>
+            ) : (
+              <ul className="track-list">
+                {accessTracks.map((track) => (
+                  <li key={track.id} className={`track-list-item${activeTrackId === track.id ? " active" : ""}`}>
+                    <button type="button" className="track-list-main" onClick={() => onSelectTrack(track.id)}>
+                      <span className="track-list-name-wrap">
+                        <span className={`track-kind-dot ${track.kind}`} aria-hidden="true" />
+                        <span className="track-list-name">{track.displayName}</span>
+                      </span>
+                      <span className="track-list-flags">
+                        {track.missingFile ? <span className="track-flag warning">!</span> : null}
+                        {track.dirty ? <span className="track-flag dirty">*</span> : null}
+                      </span>
+                    </button>
+                    <div className="track-list-actions">
+                      <button type="button" onClick={() => onRenameAccessTrack(track.id)}>
+                        Rename
+                      </button>
+                      <button type="button" className="track-list-delete" onClick={() => onDeleteAccessTrack(track.id)}>
+                        Delete
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+
         <div className="button-grid">
-          <button type="button" onClick={() => void onSaveGeoJSON()} disabled={!canSave}>
-            {isSaving ? "Saving..." : "Save GeoJSON"}
-          </button>
           <button type="button" onClick={onClear}>
             Clear
           </button>
@@ -2662,7 +3655,7 @@ export function RouteMapApp({
               {routeElevationError ? <p className="route-summary-error">{routeElevationError}</p> : null}
             </>
           ) : (
-            <p className="route-summary-empty">No route yet.</p>
+            <p className="route-summary-empty">{activeTrack ? "No route yet." : "No active track selected."}</p>
           )}
         </section>
 
@@ -2707,7 +3700,7 @@ export function RouteMapApp({
 
         <section className="route-points-panel">
           <div className="route-points-header">
-            <h2>Route Points</h2>
+            <h2>{activeTrack ? `Route Points (${activeTrack.displayName})` : "Route Points"}</h2>
             <button
               type="button"
               className="route-points-invert"
@@ -2723,7 +3716,9 @@ export function RouteMapApp({
               <span>Invert direction</span>
             </button>
           </div>
-          {routePoints.length === 0 ? (
+          {!activeTrack ? (
+            <p className="route-points-empty">Select a track to edit.</p>
+          ) : routePoints.length === 0 ? (
             <p className="route-points-empty">No points yet.</p>
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -2746,6 +3741,7 @@ export function RouteMapApp({
         </section>
 
         <p className="status-text">{statusText}</p>
+        {trackWarningPreview ? <p className="status-text status-text-warning">{trackWarningPreview}</p> : null}
       </aside>
 
       <main className="map-area" onContextMenu={(event) => event.preventDefault()}>
@@ -2806,7 +3802,7 @@ export function RouteMapApp({
                 </span>
               </button>
 
-              {!hasStartAndEnd ? (
+              {activeTrackId ? (!hasStartAndEnd ? (
                 <div
                   className="map-context-submenu-wrap"
                   onMouseEnter={() => setActiveSubmenu("set")}
@@ -2913,7 +3909,7 @@ export function RouteMapApp({
                     </div>
                   ) : null}
                 </div>
-              )}
+              )) : null}
             </div>
           </div>
         ) : null}
@@ -2925,17 +3921,26 @@ export function RouteMapApp({
           >
             <div className="poi-editor-header">
               <h4>POI</h4>
-              <button
-                type="button"
-                className="poi-editor-close"
-                onClick={() => {
-                  setPoiEditor(null);
-                  setPoiPasteModal(null);
-                }}
-                aria-label="Close POI editor"
-              >
-                X
-              </button>
+              <div className="poi-editor-header-actions">
+                <button
+                  type="button"
+                  className="poi-editor-remove"
+                  onClick={() => onDeletePointOfInterest(poiEditor.index)}
+                >
+                  Remove
+                </button>
+                <button
+                  type="button"
+                  className="poi-editor-close"
+                  onClick={() => {
+                    setPoiEditor(null);
+                    setPoiPasteModal(null);
+                  }}
+                  aria-label="Close POI editor"
+                >
+                  X
+                </button>
+              </div>
             </div>
 
             <div className="poi-editor-language-tabs">
@@ -2993,17 +3998,26 @@ export function RouteMapApp({
           >
             <div className="poi-editor-header">
               <h4>Parking lot</h4>
-              <button
-                type="button"
-                className="poi-editor-close"
-                onClick={() => {
-                  setParkingEditor(null);
-                  setParkingPasteModal(null);
-                }}
-                aria-label="Close parking lot editor"
-              >
-                X
-              </button>
+              <div className="poi-editor-header-actions">
+                <button
+                  type="button"
+                  className="poi-editor-remove"
+                  onClick={() => onDeleteParkingLot(parkingEditor.index)}
+                >
+                  Remove
+                </button>
+                <button
+                  type="button"
+                  className="poi-editor-close"
+                  onClick={() => {
+                    setParkingEditor(null);
+                    setParkingPasteModal(null);
+                  }}
+                  aria-label="Close parking lot editor"
+                >
+                  X
+                </button>
+              </div>
             </div>
 
             <div className="poi-editor-language-tabs">

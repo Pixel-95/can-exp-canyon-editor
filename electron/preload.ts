@@ -37,6 +37,103 @@ type PickFileResult = {
   relativePath?: string;
 };
 
+type RoutePointPayload = {
+  id: string;
+  type: "start" | "waypoint" | "end";
+  coordinates: [number, number];
+  segmentMode?: "route" | "straight";
+};
+
+type RouteSegmentSummaryPayload = {
+  index: number;
+  from: [number, number];
+  to: [number, number];
+  mode: "route" | "straight";
+  distance_m: number;
+  duration_s: number;
+  failed: boolean;
+  error?: string;
+};
+
+type RoutePropertiesPayload = {
+  distance_m: number;
+  duration_s: number;
+  profile: "walking";
+  start: [number, number];
+  end: [number, number];
+  waypoints: Array<[number, number]>;
+  segments: RouteSegmentSummaryPayload[];
+  generated_at: string;
+};
+
+type RouteFeaturePayload = {
+  type: "Feature";
+  geometry: {
+    type: "LineString";
+    coordinates: number[][];
+  };
+  properties: RoutePropertiesPayload;
+};
+
+type MultiTrackItemPayload = {
+  id: string;
+  kind: "section" | "access";
+  sectionIndex?: number;
+  sectionId?: number;
+  displayName: string;
+  filePath: string;
+  color: "orange" | "black";
+  routePoints: RoutePointPayload[];
+  routeFeature: RouteFeaturePayload | null;
+  dirty: boolean;
+  missingFile: boolean;
+  legacyFormat: boolean;
+  needsRebuild: boolean;
+  rawFeatureProperties?: Record<string, unknown>;
+};
+
+type TrackSnapshotPayload = {
+  tracks: MultiTrackItemPayload[];
+  activeTrackId: string | null;
+  warnings: string[];
+};
+
+type LoadTrackFilesRequest = {
+  canyonFilePath?: string | null;
+  tracks: Array<{
+    id: string;
+    kind: "section" | "access";
+    filePath: string;
+  }>;
+};
+
+type LoadTrackFilesResult = {
+  entries: Array<{
+    id: string;
+    kind: "section" | "access";
+    filePath: string;
+    absolutePath?: string;
+    missing: boolean;
+    error?: string;
+    data?: unknown;
+  }>;
+};
+
+type SaveCanyonWithTracksRequest = {
+  currentFilePath?: string | null;
+  canyonName?: string;
+  canyonData: unknown;
+  trackSnapshot?: TrackSnapshotPayload | null;
+};
+
+type SaveCanyonWithTracksResult = {
+  canceled: boolean;
+  filePath?: string;
+  error?: string;
+  warnings?: string[];
+  data?: unknown;
+};
+
 type CreateCanyonFolderResult = {
   canceled: boolean;
   folderPath?: string;
@@ -62,6 +159,10 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("json:create-canyon-folder", canyonName),
   saveJson: (request: SaveJsonRequest): Promise<SaveJsonResult> =>
     ipcRenderer.invoke("json:save", request),
+  saveCanyonWithTracks: (request: SaveCanyonWithTracksRequest): Promise<SaveCanyonWithTracksResult> =>
+    ipcRenderer.invoke("json:save-with-tracks", request),
   pickFile: (request: PickFileRequest): Promise<PickFileResult> =>
     ipcRenderer.invoke("json:pick-file", request),
+  loadTrackFiles: (request: LoadTrackFilesRequest): Promise<LoadTrackFilesResult> =>
+    ipcRenderer.invoke("tracks:load-batch", request),
 });
