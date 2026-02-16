@@ -1,0 +1,6 @@
+interface:
+  display_name: "Electron IPC Contracts"
+  short_description: "Synchronize IPC channels and payload types across app layers"
+  default_prompt: "Use $electron-ipc-contracts to update IPC channels and typings without drift."
+policy:
+  allow_implicit_invocation: true

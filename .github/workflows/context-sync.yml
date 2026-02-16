@@ -1,0 +1,31 @@
+name: Context Sync Guard
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  context-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run context sync check (pull request)
+        if: ${{ github.event_name == 'pull_request' }}
+        run: node scripts/check-context-sync.mjs --base origin/${{ github.base_ref }}
+
+      - name: Run context sync check (push with previous commit)
+        if: ${{ github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' }}
+        run: node scripts/check-context-sync.mjs --base ${{ github.event.before }}
+
+      - name: Run context sync check (initial push)
+        if: ${{ github.event_name == 'push' && github.event.before == '0000000000000000000000000000000000000000' }}
+        run: node scripts/check-context-sync.mjs
