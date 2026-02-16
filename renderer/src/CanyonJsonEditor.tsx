@@ -2574,13 +2574,13 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       <header className="json-toolbar">
         <div className="json-toolbar-buttons">
           <button type="button" onClick={() => void onNewJson()}>
-            New JSON
+            New canyon
           </button>
           <button type="button" onClick={() => void onLoadJson()}>
-            Load JSON
+            Load canyon
           </button>
           <button type="button" disabled={!canyonData || isSaving} onClick={() => void onSaveJson()}>
-            {isSaving ? "Saving..." : "Save JSON"}
+            {isSaving ? "Saving..." : "Save canyon"}
           </button>
           <label className="json-default-language-selector">
             <span>Default language</span>

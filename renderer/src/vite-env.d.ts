@@ -81,7 +81,6 @@ declare global {
                 generated_at: string;
               };
             } | null;
-            dirty: boolean;
             missingFile: boolean;
             legacyFormat: boolean;
             needsRebuild: boolean;

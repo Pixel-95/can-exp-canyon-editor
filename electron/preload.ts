@@ -85,7 +85,6 @@ type MultiTrackItemPayload = {
   color: "orange" | "black";
   routePoints: RoutePointPayload[];
   routeFeature: RouteFeaturePayload | null;
-  dirty: boolean;
   missingFile: boolean;
   legacyFormat: boolean;
   needsRebuild: boolean;

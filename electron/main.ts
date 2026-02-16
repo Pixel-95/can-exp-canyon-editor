@@ -77,7 +77,6 @@ type MultiTrackItemPayload = {
   color: "orange" | "black";
   routePoints: RoutePointPayload[];
   routeFeature: RouteFeaturePayload | null;
-  dirty: boolean;
   missingFile: boolean;
   legacyFormat: boolean;
   needsRebuild: boolean;
@@ -1035,7 +1034,6 @@ ipcMain.handle(
             color: "black",
             routePoints: [],
             routeFeature: null,
-            dirty: false,
             missingFile: false,
             legacyFormat: false,
             needsRebuild: false,
@@ -1115,7 +1113,6 @@ ipcMain.handle(
           color: "orange",
           routePoints: [],
           routeFeature: null,
-          dirty: false,
           missingFile: false,
           legacyFormat: false,
           needsRebuild: false,

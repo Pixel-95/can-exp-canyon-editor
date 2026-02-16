@@ -69,18 +69,7 @@ button {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   background: #f8fafc;
-}
-
-.track-list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.track-list-header h2 {
-  margin: 0;
-  font-size: 0.98rem;
+  overflow: hidden;
 }
 
 .track-add-access {
@@ -91,12 +80,22 @@ button {
   padding: 5px 8px;
   cursor: pointer;
   font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .track-list-group {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+}
+
+.track-list-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
 }
 
 .track-list-group-title {
@@ -121,12 +120,14 @@ button {
   gap: 4px;
   max-height: 170px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .track-list-item {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 4px;
+  min-width: 0;
 }
 
 .track-list-main {
@@ -140,6 +141,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
 }
 
 .track-list-item.active .track-list-main {
@@ -147,11 +149,16 @@ button {
   background: #eff6ff;
 }
 
+.track-list-main-access {
+  cursor: text;
+}
+
 .track-list-name-wrap {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   min-width: 0;
+  flex: 1;
 }
 
 .track-list-name {
@@ -159,6 +166,21 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 0.82rem;
+}
+
+.track-list-access-input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.track-list-access-input:focus {
+  outline: none;
 }
 
 .track-kind-dot {
@@ -169,11 +191,11 @@ button {
 }
 
 .track-kind-dot.section {
-  background: #f97316;
+  background: #ff0000;
 }
 
 .track-kind-dot.access {
-  background: #111111;
+  background: #000000;
 }
 
 .track-list-flags {
@@ -198,17 +220,39 @@ button {
   color: #92400e;
 }
 
-.track-flag.dirty {
-  background: #dbeafe;
-  color: #1e3a8a;
+.track-list-delete {
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #334155;
+  padding: 0 8px;
+  cursor: pointer;
+  font-size: 0.78rem;
 }
 
-.track-list-actions {
+.track-list-delete {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #9f1239;
+}
+
+.track-list-delete-inline {
+  width: 26px;
+  min-width: 26px;
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-weight: 700;
+}
+
+.track-list-actions-inline {
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
 }
 
-.track-list-actions button {
+.track-list-edit-inline {
   border: 1px solid #cbd5e1;
   border-radius: 7px;
   background: #ffffff;
@@ -216,12 +260,6 @@ button {
   padding: 0 7px;
   cursor: pointer;
   font-size: 0.74rem;
-}
-
-.track-list-actions .track-list-delete {
-  border-color: #fecdd3;
-  background: #fff1f2;
-  color: #9f1239;
 }
 
 .coordinate-input-panel {
@@ -446,21 +484,6 @@ button {
   min-height: 26px;
   padding: 0;
   cursor: pointer;
-}
-
-.status-text {
-  margin: 0;
-  padding: 10px;
-  border-radius: 8px;
-  background: #eff6ff;
-  font-size: 0.9rem;
-  line-height: 1.35;
-  word-break: break-word;
-}
-
-.status-text-warning {
-  background: #fff7ed;
-  color: #9a3412;
 }
 
 .map-area {
@@ -1015,9 +1038,6 @@ button {
     max-height: 45vh;
   }
 
-  .status-text {
-    margin-top: 0;
-  }
 }
 
 .editor-host {

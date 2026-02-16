@@ -182,7 +182,6 @@ export type MultiTrackItem = {
   color: TrackColor;
   routePoints: RoutePoint[];
   routeFeature: RouteFeature | null;
-  dirty: boolean;
   missingFile: boolean;
   legacyFormat: boolean;
   needsRebuild: boolean;
@@ -900,13 +899,13 @@ export function RouteMapApp({
   const autoViewportAppliedForKeyRef = useRef<string>("");
 
   const [mapboxToken, setMapboxToken] = useState<string>("");
+  const [mapReadyVersion, setMapReadyVersion] = useState(0);
   const [mapStyleMode, setMapStyleMode] = useState<MapStyleMode>("outdoors");
   const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
   const [routeFeature, setRouteFeature] = useState<RouteFeature | null>(null);
   const [tracksById, setTracksById] = useState<Record<string, MultiTrackItem>>({});
   const [trackOrder, setTrackOrder] = useState<string[]>([]);
   const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
-  const [trackWarnings, setTrackWarnings] = useState<string[]>([]);
   const [contextMenu, setContextMenu] = useState<MapContextMenuState>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<ContextMenuSubmenu | null>(null);
   const [poiEditor, setPoiEditor] = useState<PoiEditorState | null>(null);
@@ -918,7 +917,9 @@ export function RouteMapApp({
   const [manualCoordinateActionKey, setManualCoordinateActionKey] = useState("");
   const [routeElevations, setRouteElevations] = useState<RouteElevations | null>(null);
   const [routeElevationError, setRouteElevationError] = useState<string>("");
-  const [statusText, setStatusText] = useState("Ready");
+  const setStatusText = useCallback((_message: string): void => {
+    // Status toasts are intentionally disabled.
+  }, []);
   const effectiveDefaultLanguage: (typeof STATIC_LANGUAGE_KEYS)[number] = STATIC_LANGUAGE_SET.has(defaultLanguage)
     ? defaultLanguage
     : "en";
@@ -1024,7 +1025,6 @@ export function RouteMapApp({
       const existingTracksById = tracksByIdRef.current;
       const nextTracksById: Record<string, MultiTrackItem> = {};
       const nextTrackOrder: string[] = [];
-      const nextWarnings: string[] = [];
       const toLoad: Array<{ id: string; kind: TrackKind; filePath: string }> = [];
 
       const sectionBindings = trackBindings?.sections ?? [];
@@ -1056,7 +1056,6 @@ export function RouteMapApp({
           filePath: normalizedPath,
           routePoints: [],
           routeFeature: null,
-          dirty: false,
           missingFile: false,
           legacyFormat: false,
           needsRebuild: false,
@@ -1066,7 +1065,6 @@ export function RouteMapApp({
           toLoad.push({ id: trackId, kind: "section", filePath: normalizedPath });
         } else {
           nextTracksById[trackId].missingFile = true;
-          nextWarnings.push(`Section "${nextTracksById[trackId].displayName}" has no track file linked.`);
         }
       }
 
@@ -1095,7 +1093,6 @@ export function RouteMapApp({
           filePath: normalizedPath,
           routePoints: [],
           routeFeature: null,
-          dirty: false,
           missingFile: false,
           legacyFormat: false,
           needsRebuild: false,
@@ -1105,7 +1102,6 @@ export function RouteMapApp({
           toLoad.push({ id: trackId, kind: "access", filePath: normalizedPath });
         } else {
           nextTracksById[trackId].missingFile = true;
-          nextWarnings.push(`Access track ${accessBinding.accessIndex + 1} has no track file linked.`);
         }
       }
 
@@ -1149,14 +1145,9 @@ export function RouteMapApp({
               missingFile: true,
               routePoints: [],
               routeFeature: null,
-              dirty: false,
               legacyFormat: false,
               needsRebuild: false,
             };
-            nextWarnings.push(
-              entry.error ??
-                `Track file "${track.filePath}" is missing for ${track.kind === "section" ? "section" : "access"} "${track.displayName}".`,
-            );
             continue;
           }
 
@@ -1186,15 +1177,8 @@ export function RouteMapApp({
             rawFeatureProperties: parsedTrack.rawFeatureProperties,
             missingFile: false,
             legacyFormat: parsedTrack.legacyFormat,
-            dirty: false,
             needsRebuild: false,
           };
-
-          if (parsedTrack.legacyFormat) {
-            nextWarnings.push(
-              `Track "${nextTracksById[entry.id].displayName}" loaded from legacy GeoJSON without editor metadata.`,
-            );
-          }
         }
       }
 
@@ -1204,7 +1188,6 @@ export function RouteMapApp({
 
       setTracksById(nextTracksById);
       setTrackOrder(nextTrackOrder);
-      setTrackWarnings(nextWarnings);
       setActiveTrackId((current) => {
         if (current && nextTracksById[current]) {
           return current;
@@ -1278,7 +1261,6 @@ export function RouteMapApp({
         [selectedTrackId]: {
           ...track,
           routePoints,
-          dirty: true,
           needsRebuild: true,
           missingFile: false,
         },
@@ -1345,9 +1327,9 @@ export function RouteMapApp({
     onTrackSnapshotChange({
       tracks: snapshotTracks,
       activeTrackId,
-      warnings: trackWarnings,
+      warnings: [],
     });
-  }, [activeTrackId, onTrackSnapshotChange, routeFeature, routePoints, trackOrder, trackWarnings, tracksById]);
+  }, [activeTrackId, onTrackSnapshotChange, routeFeature, routePoints, trackOrder, tracksById]);
 
   const buildTracksFeatureCollectionSnapshot = useCallback((): FeatureCollection<LineString> => {
     const currentTracksById = tracksByIdRef.current;
@@ -1424,10 +1406,10 @@ export function RouteMapApp({
             "match",
             ["get", "kind"],
             "section",
-            "#f97316",
+            "#FF0000",
             "access",
-            "#111111",
-            "#111111",
+            "#000000",
+            "#000000",
           ],
           "line-width": 3,
           "line-opacity": 0.6,
@@ -1446,10 +1428,10 @@ export function RouteMapApp({
             "match",
             ["get", "kind"],
             "section",
-            "#f97316",
+            "#FF0000",
             "access",
-            "#111111",
-            "#111111",
+            "#000000",
+            "#000000",
           ],
           "line-width": 5,
           "line-opacity": 0.96,
@@ -1824,6 +1806,7 @@ export function RouteMapApp({
     map.getCanvasContainer().addEventListener("mouseleave", onCanvasMouseLeave);
 
     mapRef.current = map;
+    setMapReadyVersion((current) => current + 1);
 
     return () => {
       map.off("click", onMapClick);
@@ -1926,7 +1909,7 @@ export function RouteMapApp({
     }
 
     overviewPointMarkerRef.current = overviewMarker;
-  }, [closeAllMenus, onSetOverviewCoordinate, overviewCoordinate]);
+  }, [closeAllMenus, mapReadyVersion, onSetOverviewCoordinate, overviewCoordinate]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1998,7 +1981,7 @@ export function RouteMapApp({
 
       poiMarkersRef.current.push(marker);
     });
-  }, [closeAllMenus, effectiveDefaultLanguage, onPointsOfInterestChange, pointsOfInterest]);
+  }, [closeAllMenus, effectiveDefaultLanguage, mapReadyVersion, onPointsOfInterestChange, pointsOfInterest]);
 
   useEffect(() => {
     if (!poiEditor) {
@@ -2081,7 +2064,7 @@ export function RouteMapApp({
 
       parkingLotMarkersRef.current.push(marker);
     });
-  }, [closeAllMenus, effectiveDefaultLanguage, onParkingLotsChange, parkingLots]);
+  }, [closeAllMenus, effectiveDefaultLanguage, mapReadyVersion, onParkingLotsChange, parkingLots]);
 
   useEffect(() => {
     if (!parkingEditor) {
@@ -2154,7 +2137,7 @@ export function RouteMapApp({
     }
 
     applyInitialView();
-  }, [overviewCoordinate, parkingLots, pointsOfInterest, trackBindings?.canyonFilePath]);
+  }, [mapReadyVersion, overviewCoordinate, parkingLots, pointsOfInterest, trackBindings?.canyonFilePath]);
 
   useEffect(() => {
     const container = mapContainerRef.current;
@@ -3151,7 +3134,6 @@ export function RouteMapApp({
       color: "black",
       routePoints: [],
       routeFeature: null,
-      dirty: true,
       missingFile: false,
       legacyFormat: false,
       needsRebuild: false,
@@ -3166,25 +3148,10 @@ export function RouteMapApp({
     setStatusText("Access track added.");
   }, []);
 
-  const onRenameAccessTrack = useCallback((trackId: string): void => {
-    const track = tracksByIdRef.current[trackId];
-    if (!track || track.kind !== "access") {
-      return;
-    }
-
-    const nextName = window.prompt("Rename access track", track.displayName)?.trim();
-    if (typeof nextName !== "string") {
-      return;
-    }
-
-    if (!nextName) {
-      setStatusText("Access track name cannot be empty.");
-      return;
-    }
-
+  const onAccessTrackNameChange = useCallback((trackId: string, nextName: string): void => {
     setTracksById((current) => {
       const currentTrack = current[trackId];
-      if (!currentTrack || currentTrack.kind !== "access") {
+      if (!currentTrack || currentTrack.kind !== "access" || currentTrack.displayName === nextName) {
         return current;
       }
 
@@ -3193,11 +3160,9 @@ export function RouteMapApp({
         [trackId]: {
           ...currentTrack,
           displayName: nextName,
-          dirty: true,
         },
       };
     });
-    setStatusText("Access track renamed.");
   }, []);
 
   const onDeleteAccessTrack = useCallback((trackId: string): void => {
@@ -3310,7 +3275,6 @@ export function RouteMapApp({
           ...track,
           routePoints: [],
           routeFeature: null,
-          dirty: true,
           missingFile: false,
           needsRebuild: false,
         },
@@ -3487,7 +3451,6 @@ export function RouteMapApp({
         .filter((track): track is MultiTrackItem => Boolean(track) && track.kind === "access"),
     [trackOrder, tracksById],
   );
-  const trackWarningPreview = trackWarnings.join(" | ");
   const activePoiLanguage =
     poiEditor && STATIC_LANGUAGE_SET.has(poiEditor.language)
       ? poiEditor.language
@@ -3565,13 +3528,6 @@ export function RouteMapApp({
     <div className="app-shell">
       <aside className="control-panel">
         <section className="track-list-panel">
-          <div className="track-list-header">
-            <h2>Tracks</h2>
-            <button type="button" className="track-add-access" onClick={onCreateAccessTrack}>
-              + Access track
-            </button>
-          </div>
-
           <div className="track-list-group">
             <p className="track-list-group-title">Section tracks</p>
             {sectionTracks.length === 0 ? (
@@ -3587,7 +3543,6 @@ export function RouteMapApp({
                       </span>
                       <span className="track-list-flags">
                         {track.missingFile ? <span className="track-flag warning">!</span> : null}
-                        {track.dirty ? <span className="track-flag dirty">*</span> : null}
                       </span>
                     </button>
                   </li>
@@ -3597,29 +3552,51 @@ export function RouteMapApp({
           </div>
 
           <div className="track-list-group">
-            <p className="track-list-group-title">Access tracks</p>
+            <div className="track-list-group-header">
+              <p className="track-list-group-title">Access tracks</p>
+              <button type="button" className="track-add-access" onClick={onCreateAccessTrack}>
+                Add Access track
+              </button>
+            </div>
             {accessTracks.length === 0 ? (
               <p className="track-list-empty">No access tracks.</p>
             ) : (
               <ul className="track-list">
                 {accessTracks.map((track) => (
                   <li key={track.id} className={`track-list-item${activeTrackId === track.id ? " active" : ""}`}>
-                    <button type="button" className="track-list-main" onClick={() => onSelectTrack(track.id)}>
+                    <div className="track-list-main track-list-main-access" onClick={() => onSelectTrack(track.id)}>
                       <span className="track-list-name-wrap">
                         <span className={`track-kind-dot ${track.kind}`} aria-hidden="true" />
-                        <span className="track-list-name">{track.displayName}</span>
+                        <input
+                          type="text"
+                          className="track-list-access-input"
+                          value={track.displayName}
+                          onFocus={() => onSelectTrack(track.id)}
+                          onClick={() => onSelectTrack(track.id)}
+                          onChange={(event) => onAccessTrackNameChange(track.id, event.target.value)}
+                          aria-label={`Access track ${track.id} name`}
+                        />
                       </span>
                       <span className="track-list-flags">
                         {track.missingFile ? <span className="track-flag warning">!</span> : null}
-                        {track.dirty ? <span className="track-flag dirty">*</span> : null}
                       </span>
-                    </button>
-                    <div className="track-list-actions">
-                      <button type="button" onClick={() => onRenameAccessTrack(track.id)}>
-                        Rename
+                    </div>
+                    <div className="track-list-actions-inline">
+                      <button
+                        type="button"
+                        className="track-list-edit-inline"
+                        onClick={() => onSelectTrack(track.id)}
+                        aria-label={`Edit access track ${track.displayName || track.id}`}
+                      >
+                        Edit
                       </button>
-                      <button type="button" className="track-list-delete" onClick={() => onDeleteAccessTrack(track.id)}>
-                        Delete
+                      <button
+                        type="button"
+                        className="track-list-delete track-list-delete-inline"
+                        onClick={() => onDeleteAccessTrack(track.id)}
+                        aria-label={`Delete access track ${track.displayName || track.id}`}
+                      >
+                        X
                       </button>
                     </div>
                   </li>
@@ -3739,9 +3716,6 @@ export function RouteMapApp({
             </DndContext>
           )}
         </section>
-
-        <p className="status-text">{statusText}</p>
-        {trackWarningPreview ? <p className="status-text status-text-warning">{trackWarningPreview}</p> : null}
       </aside>
 
       <main className="map-area" onContextMenu={(event) => event.preventDefault()}>
