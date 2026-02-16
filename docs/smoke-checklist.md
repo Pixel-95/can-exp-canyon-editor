@@ -12,3 +12,7 @@ Run this checklist after refactor changes to ensure no behavior regressions.
 8. Edit POIs and parking lots, including drag + remove.
 9. Save canyon and confirm track files + `data.json` links are written as before.
 10. Reload saved canyon and confirm state matches.
+11. Verify toolbar and form controls use consistent visual style and focus ring behavior.
+12. Verify map overlay (compact/expanded) transitions are smooth and controls remain discoverable.
+13. Verify no control is missing after restyle (tracks, insert/set, invert, clear, map controls, modals).
+14. Verify small-screen usability: controls remain reachable via vertical scroll where needed.

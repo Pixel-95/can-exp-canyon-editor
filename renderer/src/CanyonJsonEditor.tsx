@@ -45,6 +45,14 @@ const DEFAULT_LANGUAGE_STORAGE_KEY = "canyon-editor.default-language";
 const LANGUAGE_KEY_PATTERN = /^[a-z]{2}(?:-[A-Za-z]{2})?$/i;
 const STATIC_LANGUAGE_KEYS = ["de", "en", "es", "fr", "it", "pt"] as const;
 const STATIC_LANGUAGE_SET = new Set<string>(STATIC_LANGUAGE_KEYS);
+const LOCALIZED_JSON_PLACEHOLDER = `{
+  "de": "",
+  "en": "",
+  "es": "",
+  "fr": "",
+  "it": "",
+  "pt": ""
+}`;
 
 const ROOT_EDITABLE_KEYS = new Set(["name", "description", "location", "sections"]);
 const LOCATION_EDITABLE_KEYS = new Set(["country_code", "region_code"]);
@@ -795,6 +803,18 @@ function isTopoPath(path: PathSegment[]): boolean {
     path[0] === "sections" &&
     typeof path[1] === "number" &&
     path[2] === "topo"
+  );
+}
+
+function TrashIcon({ className = "icon-trash" }: { className?: string }): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h16" />
+      <path d="M10 4h4a1 1 0 0 1 1 1v2H9V5a1 1 0 0 1 1-1Z" />
+      <path d="M7 7l1 12h8l1-12" />
+      <path d="M10 10v6" />
+      <path d="M14 10v6" />
+    </svg>
   );
 }
 
@@ -1700,8 +1720,9 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                         type="button"
                         className="json-danger-button"
                         onClick={() => onSpecialNoteRemoveUnknown(path, value, unknown.index)}
+                        aria-label="Delete unknown special note entry"
                       >
-                        Remove
+                        <TrashIcon />
                       </button>
                     <p className="json-special-note-resolved">
                       Unknown special note entry. Add it to `assets/special_notes_possibilities.json` or remove it.
@@ -1755,7 +1776,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                     aria-label={`Remove ${itemLabel.toLowerCase()} ${index + 1}`}
                     title="Remove"
                   >
-                    X
+                    <TrashIcon />
                   </button>
                 </div>
               ))}
@@ -1844,8 +1865,9 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                                 sectionLabel: sectionName.trim() || itemTitle,
                               })
                             }
+                            aria-label={`Delete ${itemTitle}`}
                           >
-                            Delete
+                            <TrashIcon />
                           </button>
                         </div>
                       </div>
@@ -1952,8 +1974,9 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                                 return next;
                               })
                             }
+                            aria-label={`Delete ${itemTitle}`}
                           >
-                            Delete
+                            <TrashIcon />
                           </button>
                         </div>
                       </div>
@@ -2515,6 +2538,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
             <textarea
               value={languagePasteDraft}
               rows={12}
+              placeholder={LOCALIZED_JSON_PLACEHOLDER}
               onChange={(event) => {
                 setLanguagePasteDraft(event.target.value);
                 if (languagePasteError) {
@@ -2602,7 +2626,8 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                 Keep
               </button>
               <button type="button" className="json-modal-delete" onClick={onConfirmSectionDelete}>
-                Delete
+                <TrashIcon />
+                <span className="sr-only">Delete section</span>
               </button>
             </div>
           </div>

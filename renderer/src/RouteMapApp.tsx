@@ -249,6 +249,14 @@ type RouteMapAppProps = {
 
 const STATIC_LANGUAGE_KEYS = ["de", "en", "es", "fr", "it", "pt"] as const;
 const STATIC_LANGUAGE_SET = new Set<string>(STATIC_LANGUAGE_KEYS);
+const LOCALIZED_JSON_PLACEHOLDER = `{
+  "de": "",
+  "en": "",
+  "es": "",
+  "fr": "",
+  "it": "",
+  "pt": ""
+}`;
 
 const TRACKS_SOURCE_ID = "tracks-source";
 const TRACKS_ACTIVE_LAYER_ID = "tracks-active-layer";
@@ -263,6 +271,18 @@ const MAP_STYLE_BY_MODE: Record<MapStyleMode, string> = {
 
 function getAccessTrackLineColor(mapStyleMode: MapStyleMode): string {
   return mapStyleMode === "satellite" ? "#FFFFFF" : "#000000";
+}
+
+function TrashIcon({ className = "icon-trash" }: { className?: string }): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h16" />
+      <path d="M10 4h4a1 1 0 0 1 1 1v2H9V5a1 1 0 0 1 1-1Z" />
+      <path d="M7 7l1 12h8l1-12" />
+      <path d="M10 10v6" />
+      <path d="M14 10v6" />
+    </svg>
+  );
 }
 
 const EMPTY_TRACKS_GEOJSON: FeatureCollection<LineString> = {
@@ -807,7 +827,7 @@ function RoutePointListItem({
         aria-label={`Delete point ${index + 1}`}
         onClick={() => onDelete(point.id)}
       >
-        X
+        <TrashIcon />
       </button>
     </li>
   );
@@ -2656,7 +2676,8 @@ export function RouteMapApp({
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "segment-mode-popup-remove";
-    removeButton.textContent = "Remove";
+    removeButton.textContent = "🗑";
+    removeButton.setAttribute("aria-label", "Delete point");
     container.append(removeButton);
 
     const popup = new mapboxgl.Popup({
@@ -3958,7 +3979,7 @@ export function RouteMapApp({
                       onClick={() => onDeleteAccessTrack(track.id)}
                       aria-label={`Delete access track ${track.displayName || track.id}`}
                     >
-                      X
+                      <TrashIcon />
                     </button>
                   </li>
                 ))}
@@ -4358,7 +4379,8 @@ export function RouteMapApp({
                   Cancel
                 </button>
                 <button type="button" className="json-modal-delete" onClick={onConfirmDeleteAccessTrack}>
-                  Delete
+                  <TrashIcon />
+                  <span className="sr-only">Delete access track</span>
                 </button>
               </div>
             </div>
@@ -4406,8 +4428,9 @@ export function RouteMapApp({
                   type="button"
                   className="poi-editor-remove"
                   onClick={() => onDeletePointOfInterest(poiEditor.index)}
+                  aria-label="Delete point of interest"
                 >
-                  Remove
+                  <TrashIcon />
                 </button>
                 <button
                   type="button"
@@ -4483,8 +4506,9 @@ export function RouteMapApp({
                   type="button"
                   className="poi-editor-remove"
                   onClick={() => onDeleteParkingLot(parkingEditor.index)}
+                  aria-label="Delete parking lot"
                 >
-                  Remove
+                  <TrashIcon />
                 </button>
                 <button
                   type="button"
@@ -4558,6 +4582,7 @@ export function RouteMapApp({
               <textarea
                 value={poiPasteModal.draft}
                 rows={12}
+                placeholder={LOCALIZED_JSON_PLACEHOLDER}
                 onChange={(event) =>
                   setPoiPasteModal((current) =>
                     current
@@ -4600,6 +4625,7 @@ export function RouteMapApp({
               <textarea
                 value={parkingPasteModal.draft}
                 rows={12}
+                placeholder={LOCALIZED_JSON_PLACEHOLDER}
                 onChange={(event) =>
                   setParkingPasteModal((current) =>
                     current

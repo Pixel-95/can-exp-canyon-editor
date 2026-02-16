@@ -18,8 +18,9 @@ It edits one canyon JSON payload plus linked track GeoJSON files.
    Main JSON form editor and save/load orchestration.
 2. `renderer/src/RouteMapApp.tsx`
    Map UI, track editing, POI/parking/overview editing.
-3. `renderer/src/styles.css`
-   UI and map overlay styling.
+3. `renderer/src/styles/*`
+   Token-based UI and map styling split into:
+   `tokens.css`, `base.css`, `layout.css`, `components.css`, `map.css`, `json-editor.css`.
 4. `renderer/src/shared/*`
    Shared pure helpers for geometry, errors, and track link normalization.
 5. `electron/main.ts`
@@ -44,6 +45,16 @@ It edits one canyon JSON payload plus linked track GeoJSON files.
 3. Renderer holds in-memory edit state and emits a track snapshot on changes.
 4. Save writes both:
    `data.json` + all referenced track GeoJSON files.
+
+## UI Styling Model
+
+1. Renderer uses a token-first CSS system.
+2. Global design tokens are defined in `renderer/src/styles/tokens.css`.
+3. Core reset/typography/focus behavior lives in `renderer/src/styles/base.css`.
+4. Structural layout (shell/map pane) lives in `renderer/src/styles/layout.css`.
+5. Shared control-panel components live in `renderer/src/styles/components.css`.
+6. Map overlays/context menus/marker UI live in `renderer/src/styles/map.css`.
+7. JSON editor visual system lives in `renderer/src/styles/json-editor.css`.
 
 ## Canyon Data Model (High-Level)
 

@@ -40,9 +40,13 @@ Use this file together with `PROJECT_CONTEXT.md`.
 
 1. Section tracks use red `#FF0000`.
 2. Access tracks use black `#000000`.
-3. Keep UI minimal and readable; avoid decorative visual noise.
-4. Preserve established interaction patterns unless explicitly changed.
-5. Floating map overlays should be lightweight and centered only when contextually needed.
+3. UI styling is token-based and centralized in `renderer/src/styles/tokens.css`.
+4. Keep UI minimal and readable; avoid decorative visual noise.
+5. Preserve established interaction patterns unless explicitly changed.
+6. Floating map overlays should be lightweight and centered only when contextually needed.
+7. Use one accent color for UI chrome/states (`#60A5FA`) and do not use it for route semantic colors.
+8. Keep control styles consistent across buttons/inputs/selects/modals/lists.
+9. Prefer whitespace and subtle separators over nested heavy boxes.
 
 ## Persistence Conventions
 
