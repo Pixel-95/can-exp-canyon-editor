@@ -85,8 +85,10 @@ When changing payloads or channels:
 Before finishing substantial changes:
 
 1. Run `npm run build`.
-2. If behavior changes are UI-heavy, also run `npm run dev` and do manual checks.
-3. Include validation outcome in handoff/summary.
+2. Run `npm run typecheck`.
+3. Run `npm run test:unit`.
+4. If behavior changes are UI-heavy, also run `npm run dev` and do manual checks.
+5. Include validation outcome in handoff/summary.
 
 ## Documentation Sync Guard
 

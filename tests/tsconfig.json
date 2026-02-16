@@ -1,0 +1,21 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "outDir": "../.tmp/unit-tests",
+    "rootDir": "..",
+    "declaration": false,
+    "sourceMap": false,
+    "skipLibCheck": true
+  },
+  "include": [
+    "../tests/**/*.ts",
+    "../renderer/src/shared/**/*.ts",
+    "../electron/ipcTypes.ts",
+    "../electron/mainUtils.ts"
+  ]
+}

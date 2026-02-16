@@ -4,180 +4,39 @@ import { Menu, app, BrowserWindow, dialog, ipcMain, screen } from "electron";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-
-type SaveGeoJSONResult = {
-  canceled: boolean;
-  filePath?: string;
-};
-
-type LoadJsonResult = {
-  canceled: boolean;
-  filePath?: string;
-  data?: unknown;
-  error?: string;
-};
-
-type SaveJsonRequest = {
-  currentFilePath?: string | null;
-  jsonString: string;
-  canyonName?: string;
-};
-
-type SaveJsonResult = {
-  canceled: boolean;
-  filePath?: string;
-  error?: string;
-};
-
-type RoutePointPayload = {
-  id: string;
-  type: "start" | "waypoint" | "end";
-  coordinates: [number, number];
-  segmentMode?: "route" | "straight";
-};
-
-type RouteSegmentSummaryPayload = {
-  index: number;
-  from: [number, number];
-  to: [number, number];
-  mode: "route" | "straight";
-  distance_m: number;
-  duration_s: number;
-  elevation_gain_m: number;
-  failed: boolean;
-  error?: string;
-};
-
-type RoutePropertiesPayload = {
-  distance_m: number;
-  duration_s: number;
-  profile: "walking";
-  start: [number, number];
-  end: [number, number];
-  waypoints: Array<[number, number]>;
-  segments: RouteSegmentSummaryPayload[];
-  elevation_gain_m?: number;
-  elevation_start_m?: number;
-  elevation_end_m?: number;
-  generated_at: string;
-};
-
-type RouteFeaturePayload = {
-  type: "Feature";
-  geometry: {
-    type: "LineString";
-    coordinates: number[][];
-  };
-  properties: RoutePropertiesPayload;
-};
-
-type MultiTrackItemPayload = {
-  id: string;
-  kind: "section" | "access";
-  sectionIndex?: number;
-  sectionId?: number;
-  displayName: string;
-  filePath: string;
-  color: "orange" | "black";
-  routePoints: RoutePointPayload[];
-  routeFeature: RouteFeaturePayload | null;
-  missingFile: boolean;
-  legacyFormat: boolean;
-  needsRebuild: boolean;
-  rawFeatureProperties?: Record<string, unknown>;
-};
-
-type TrackSnapshotPayload = {
-  tracks: MultiTrackItemPayload[];
-  activeTrackId: string | null;
-  warnings: string[];
-};
-
-type SaveCanyonWithTracksRequest = {
-  currentFilePath?: string | null;
-  canyonName?: string;
-  canyonData: unknown;
-  trackSnapshot?: TrackSnapshotPayload | null;
-};
-
-type SaveCanyonWithTracksResult = {
-  canceled: boolean;
-  filePath?: string;
-  error?: string;
-  warnings?: string[];
-  data?: unknown;
-};
-
-type LoadTrackFilesRequest = {
-  canyonFilePath?: string | null;
-  tracks: Array<{
-    id: string;
-    kind: "section" | "access";
-    filePath: string;
-  }>;
-};
-
-type LoadTrackFilesResult = {
-  entries: Array<{
-    id: string;
-    kind: "section" | "access";
-    filePath: string;
-    absolutePath?: string;
-    missing: boolean;
-    error?: string;
-    data?: unknown;
-  }>;
-};
-
-type PickFileFilter = {
-  name: string;
-  extensions: string[];
-};
-
-type PickFileRequest = {
-  baseDir?: string | null;
-  defaultPath?: string | null;
-  title?: string;
-  filters?: PickFileFilter[];
-};
-
-type PickFileResult = {
-  canceled: boolean;
-  absolutePath?: string;
-  relativePath?: string;
-};
-
-type CreateCanyonFolderResult = {
-  canceled: boolean;
-  folderPath?: string;
-  dataJsonPath?: string;
-  error?: string;
-};
-
-const WINDOWS_RESERVED_NAMES = new Set([
-  "CON",
-  "PRN",
-  "AUX",
-  "NUL",
-  "COM1",
-  "COM2",
-  "COM3",
-  "COM4",
-  "COM5",
-  "COM6",
-  "COM7",
-  "COM8",
-  "COM9",
-  "LPT1",
-  "LPT2",
-  "LPT3",
-  "LPT4",
-  "LPT5",
-  "LPT6",
-  "LPT7",
-  "LPT8",
-  "LPT9",
-]);
+import {
+  cloneValue,
+  isObjectRecord,
+  normalizeAbsolutePathForCompare,
+  normalizeRoutePoints,
+  normalizeTrackLink,
+  parseAccessTrackIndex,
+  resolveTrackAbsolutePath,
+  sanitizeFileName,
+  sanitizeFolderName,
+  sanitizeTrackBaseName,
+  toAbsolutePath,
+  toCoordinatePair,
+  toErrorMessage,
+  toRelativePath,
+  toTrackLink,
+} from "./mainUtils";
+import type {
+  CreateCanyonFolderResult,
+  LoadJsonResult,
+  LoadTrackFilesRequest,
+  LoadTrackFilesResult,
+  MultiTrackItemPayload,
+  PickFileRequest,
+  PickFileResult,
+  RoutePointPayload,
+  RouteSegmentSummaryPayload,
+  SaveCanyonWithTracksRequest,
+  SaveCanyonWithTracksResult,
+  SaveGeoJSONResult,
+  SaveJsonRequest,
+  SaveJsonResult,
+} from "./ipcTypes";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -244,174 +103,6 @@ function createWindow(): void {
     const indexPath = path.join(__dirname, "..", "renderer", "index.html");
     void mainWindow.loadFile(indexPath);
   }
-}
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "Unexpected error.";
-}
-
-function toAbsolutePath(requestedPath: string): string {
-  if (path.isAbsolute(requestedPath)) {
-    return path.normalize(requestedPath);
-  }
-
-  return path.resolve(process.cwd(), requestedPath);
-}
-
-function toRelativePath(baseDir: string, absolutePath: string): string {
-  const relativePath = path.relative(baseDir, absolutePath);
-  if (!relativePath) {
-    return `.${path.sep}${path.basename(absolutePath)}`.split(path.sep).join("/");
-  }
-
-  const prefixed = relativePath.startsWith(".") ? relativePath : `.${path.sep}${relativePath}`;
-  return prefixed.split(path.sep).join("/");
-}
-
-function sanitizeFileName(name: string): string {
-  const cleaned = name
-    .trim()
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, " ")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-
-  return cleaned || "canyon";
-}
-
-function sanitizeFolderName(name: string): string {
-  const cleaned = name
-    .trim()
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, " ")
-    .replace(/\s+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
-
-  return cleaned || "canyon";
-}
-
-function sanitizeTrackBaseName(name: string): string {
-  const normalized = name.normalize("NFC");
-  let cleaned = normalized
-    .trim()
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "_")
-    .replace(/\s+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .replace(/[. ]+$/g, "");
-
-  if (!cleaned) {
-    return "";
-  }
-
-  if (WINDOWS_RESERVED_NAMES.has(cleaned.toUpperCase())) {
-    cleaned = `${cleaned}_file`;
-  }
-
-  return cleaned;
-}
-
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function cloneValue<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function normalizeAbsolutePathForCompare(absolutePath: string): string {
-  const normalized = path.normalize(absolutePath);
-  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
-}
-
-function parseAccessTrackIndex(relativePath: string): number | null {
-  const normalized = relativePath.replace(/\\/g, "/");
-  const match = /^\.\/tracks\/access_(\d+)\.json$/i.exec(normalized);
-  if (!match) {
-    return null;
-  }
-
-  const parsed = Number.parseInt(match[1], 10);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function toTrackLink(fileName: string): string {
-  return `./tracks/${fileName}`;
-}
-
-function normalizeTrackLink(link: string): string {
-  const normalized = link.replace(/\\/g, "/").trim();
-  if (!normalized) {
-    return "";
-  }
-
-  if (path.isAbsolute(normalized)) {
-    return normalized;
-  }
-
-  if (normalized.startsWith("./")) {
-    return normalized;
-  }
-
-  if (normalized.startsWith("/")) {
-    return `.${normalized}`;
-  }
-
-  return `./${normalized}`;
-}
-
-function resolveTrackAbsolutePath(canyonJsonPath: string, trackLink: string): string {
-  if (path.isAbsolute(trackLink)) {
-    return path.normalize(trackLink);
-  }
-
-  return path.resolve(path.dirname(canyonJsonPath), trackLink);
-}
-
-function toCoordinatePair(value: unknown): [number, number] | null {
-  if (!Array.isArray(value) || value.length < 2) {
-    return null;
-  }
-
-  const lng = Number(value[0]);
-  const lat = Number(value[1]);
-  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
-    return null;
-  }
-
-  return [Number(lng), Number(lat)];
-}
-
-function normalizeRoutePoints(points: RoutePointPayload[]): RoutePointPayload[] {
-  if (points.length === 0) {
-    return [];
-  }
-
-  if (points.length === 1) {
-    const onlyPoint = points[0];
-    return [
-      {
-        id: onlyPoint.id,
-        type: onlyPoint.type === "end" ? "end" : "start",
-        coordinates: onlyPoint.coordinates,
-      },
-    ];
-  }
-
-  return points.map((point, index) => {
-    const type: RoutePointPayload["type"] =
-      index === 0 ? "start" : index === points.length - 1 ? "end" : "waypoint";
-    return {
-      id: point.id,
-      type,
-      coordinates: point.coordinates,
-      ...(index > 0 ? { segmentMode: point.segmentMode ?? "straight" } : {}),
-    };
-  });
 }
 
 function buildFallbackRoutePoints(track: MultiTrackItemPayload): RoutePointPayload[] {

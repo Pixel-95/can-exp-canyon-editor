@@ -28,6 +28,19 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import type { Feature, FeatureCollection, LineString } from "geojson";
 import appIcon from "../../build/icon.png";
+import {
+  appendCoordinate,
+  appendCoordinates,
+  calculateStraightSegmentDurationSeconds,
+  formatError,
+  haversineDistanceMeters,
+  isObjectRecord,
+  isSameCoordinate,
+  parseCoordinateInput,
+  toCoordinatePair,
+  toCoordinatesArray,
+} from "./shared/geo";
+import { getTrackDisplayNameFromFilePath, normalizeTrackLink } from "./shared/trackLinks";
 
 type Coordinate = [number, number];
 type RoutePointType = "start" | "waypoint" | "end";
@@ -172,6 +185,11 @@ type AccessDeleteModalState = {
   displayName: string;
 } | null;
 
+type ClearTrackModalState = {
+  trackId: string;
+  displayName: string;
+} | null;
+
 export type SectionTrackBinding = {
   sectionIndex: number;
   sectionId: number;
@@ -243,6 +261,10 @@ const MAP_STYLE_BY_MODE: Record<MapStyleMode, string> = {
   outdoors: "mapbox://styles/mapbox/outdoors-v12",
 };
 
+function getAccessTrackLineColor(mapStyleMode: MapStyleMode): string {
+  return mapStyleMode === "satellite" ? "#FFFFFF" : "#000000";
+}
+
 const EMPTY_TRACKS_GEOJSON: FeatureCollection<LineString> = {
   type: "FeatureCollection",
   features: [],
@@ -283,100 +305,6 @@ function decodeTerrainElevationMeters(
   const b = imageData.data[index + 2] ?? 0;
 
   return -10000 + (r * 256 * 256 + g * 256 + b) * 0.1;
-}
-
-function parseCoordinateInput(rawValue: string): { coordinate: Coordinate | null; error: string } {
-  const trimmed = rawValue.trim();
-  if (!trimmed) {
-    return {
-      coordinate: null,
-      error: "Coordinate is required.",
-    };
-  }
-
-  const parts = trimmed.split(",").map((part) => part.trim());
-  if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    return {
-      coordinate: null,
-      error: "Use format: 9.1951612, 48.2951951",
-    };
-  }
-
-  const lng = Number.parseFloat(parts[0]);
-  const lat = Number.parseFloat(parts[1]);
-  if (Number.isNaN(lng) || Number.isNaN(lat)) {
-    return {
-      coordinate: null,
-      error: "Longitude and latitude must be valid numbers.",
-    };
-  }
-
-  if (lng < -180 || lng > 180) {
-    return {
-      coordinate: null,
-      error: "Longitude must be between -180 and 180.",
-    };
-  }
-
-  if (lat < -90 || lat > 90) {
-    return {
-      coordinate: null,
-      error: "Latitude must be between -90 and 90.",
-    };
-  }
-
-  return {
-    coordinate: [Number(lng.toFixed(6)), Number(lat.toFixed(6))],
-    error: "",
-  };
-}
-
-function isSameCoordinate(a: Coordinate, b: Coordinate): boolean {
-  return a[0] === b[0] && a[1] === b[1];
-}
-
-function appendCoordinate(target: Coordinate[], candidate: Coordinate): void {
-  const last = target[target.length - 1];
-  if (!last || !isSameCoordinate(last, candidate)) {
-    target.push(candidate);
-  }
-}
-
-function appendCoordinates(target: Coordinate[], candidates: Coordinate[]): void {
-  for (const candidate of candidates) {
-    appendCoordinate(target, candidate);
-  }
-}
-
-function haversineDistanceMeters(a: Coordinate, b: Coordinate): number {
-  const toRadians = (value: number): number => (value * Math.PI) / 180;
-  const earthRadiusM = 6371000;
-  const lat1 = toRadians(a[1]);
-  const lat2 = toRadians(b[1]);
-  const dLat = lat2 - lat1;
-  const dLng = toRadians(b[0] - a[0]);
-
-  const sinLat = Math.sin(dLat / 2);
-  const sinLng = Math.sin(dLng / 2);
-  const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
-  const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-
-  return earthRadiusM * c;
-}
-
-function calculateStraightSegmentDurationSeconds(distanceM: number, deltaElevationM: number): number {
-  const distanceKm = distanceM / 1000;
-  const durationHours =
-    distanceKm / 5 + Math.max(deltaElevationM, 0) / 600 + Math.max(-deltaElevationM, 0) / 1000;
-  return Math.max(0, durationHours * 3600);
-}
-
-function formatError(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "Unexpected error.";
 }
 
 function createEmptyLocalizedText(): LocalizedText {
@@ -597,55 +525,6 @@ function getInsertedPointSegmentMode(points: RoutePoint[], insertionIndex: numbe
   return points[insertionIndex]?.segmentMode ?? "straight";
 }
 
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function toCoordinatePair(value: unknown): Coordinate | null {
-  if (!Array.isArray(value) || value.length < 2) {
-    return null;
-  }
-
-  const lng = Number(value[0]);
-  const lat = Number(value[1]);
-  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
-    return null;
-  }
-
-  return [Number(lng.toFixed(6)), Number(lat.toFixed(6))];
-}
-
-function toCoordinatesArray(value: unknown): Coordinate[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((entry) => toCoordinatePair(entry))
-    .filter((entry): entry is Coordinate => entry !== null);
-}
-
-function normalizeTrackLink(link: string): string {
-  const normalized = link.replace(/\\/g, "/").trim();
-  if (!normalized) {
-    return "";
-  }
-
-  if (/^[A-Za-z]:\//.test(normalized)) {
-    return normalized;
-  }
-
-  if (normalized.startsWith("./")) {
-    return normalized;
-  }
-
-  if (normalized.startsWith("/")) {
-    return `.${normalized}`;
-  }
-
-  return `./${normalized}`;
-}
-
 function expandBoundsByRatio(bounds: mapboxgl.LngLatBounds, ratio: number): mapboxgl.LngLatBounds {
   const west = bounds.getWest();
   const east = bounds.getEast();
@@ -679,23 +558,6 @@ function expandBoundsByRatio(bounds: mapboxgl.LngLatBounds, ratio: number): mapb
   const maxLat = Math.min(85, north + latPadding);
 
   return new mapboxgl.LngLatBounds([minLng, minLat], [maxLng, maxLat]);
-}
-
-function getTrackDisplayNameFromFilePath(filePath: string, fallback: string): string {
-  const normalized = normalizeTrackLink(filePath);
-  if (!normalized) {
-    return fallback;
-  }
-
-  const withoutQuery = normalized.split(/[?#]/)[0] ?? normalized;
-  const segments = withoutQuery.split("/");
-  const lastSegment = segments[segments.length - 1]?.trim() ?? "";
-  if (!lastSegment) {
-    return fallback;
-  }
-
-  const withoutExtension = lastSegment.replace(/\.json$/i, "").trim();
-  return withoutExtension || fallback;
 }
 
 function parseRouteSegmentsFromProperties(raw: unknown): RouteSegmentSummary[] {
@@ -867,7 +729,7 @@ function parseTrackPayload(payload: unknown, fallbackDisplayName: string): {
     };
   }
 
-  const fallbackPoints = coordinates.map((coordinate, index) => ({
+  const fallbackPoints: RoutePoint[] = coordinates.map((coordinate, index) => ({
     id: createRoutePointId(),
     type: index === 0 ? "start" : index === coordinates.length - 1 ? "end" : "waypoint",
     coordinates: coordinate,
@@ -1005,6 +867,7 @@ export function RouteMapApp({
   const [parkingEditor, setParkingEditor] = useState<ParkingEditorState | null>(null);
   const [parkingPasteModal, setParkingPasteModal] = useState<ParkingPasteModalState | null>(null);
   const [accessDeleteModal, setAccessDeleteModal] = useState<AccessDeleteModalState>(null);
+  const [clearTrackModal, setClearTrackModal] = useState<ClearTrackModalState>(null);
   const [coordinateInput, setCoordinateInput] = useState("");
   const [coordinateInputError, setCoordinateInputError] = useState("");
   const [manualCoordinateActionKey, setManualCoordinateActionKey] = useState("");
@@ -1559,6 +1422,7 @@ export function RouteMapApp({
 
   const drawTracks = useCallback((collection: FeatureCollection<LineString>): void => {
     const map = mapRef.current;
+    const accessTrackLineColor = getAccessTrackLineColor(mapStyleMode);
 
     if (!map) {
       return;
@@ -1589,8 +1453,8 @@ export function RouteMapApp({
             "section",
             "#FF0000",
             "access",
-            "#000000",
-            "#000000",
+            accessTrackLineColor,
+            accessTrackLineColor,
           ],
           "line-width": 4,
           "line-opacity": 1,
@@ -1603,8 +1467,8 @@ export function RouteMapApp({
       "section",
       "#FF0000",
       "access",
-      "#000000",
-      "#000000",
+      accessTrackLineColor,
+      accessTrackLineColor,
     ]);
     map.setPaintProperty(TRACKS_INACTIVE_LAYER_ID, "line-width", 4);
     map.setPaintProperty(TRACKS_INACTIVE_LAYER_ID, "line-opacity", 1);
@@ -1622,8 +1486,8 @@ export function RouteMapApp({
             "section",
             "#FF0000",
             "access",
-            "#000000",
-            "#000000",
+            accessTrackLineColor,
+            accessTrackLineColor,
           ],
           "line-width": 6,
           "line-opacity": 1,
@@ -1636,8 +1500,8 @@ export function RouteMapApp({
       "section",
       "#FF0000",
       "access",
-      "#000000",
-      "#000000",
+      accessTrackLineColor,
+      accessTrackLineColor,
     ]);
     map.setPaintProperty(TRACKS_ACTIVE_LAYER_ID, "line-width", 6);
     map.setPaintProperty(TRACKS_ACTIVE_LAYER_ID, "line-opacity", 1);
@@ -1648,7 +1512,7 @@ export function RouteMapApp({
     }
 
     source.setData(collection as GeoJSON.FeatureCollection);
-  }, []);
+  }, [mapStyleMode]);
 
   const onToggleMapStyle = useCallback((): void => {
     setMapStyleMode((current) => (current === "satellite" ? "outdoors" : "satellite"));
@@ -2174,7 +2038,7 @@ export function RouteMapApp({
 
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
-    const openMenuForEvent = (event: mapboxgl.MapMouseEvent & mapboxgl.EventData): void => {
+    const openMenuForEvent = (event: mapboxgl.MapMouseEvent): void => {
       if (viewModeRef.current !== "expanded") {
         return;
       }
@@ -2196,7 +2060,7 @@ export function RouteMapApp({
       });
     };
 
-    const onMapClick = (event: mapboxgl.MapMouseEvent & mapboxgl.EventData): void => {
+    const onMapClick = (event: mapboxgl.MapMouseEvent): void => {
       if (viewModeRef.current === "expanded") {
         const lineLayerIds = [TRACKS_ACTIVE_LAYER_ID, TRACKS_INACTIVE_LAYER_ID].filter((layerId) =>
           Boolean(map.getLayer(layerId)),
@@ -2220,12 +2084,12 @@ export function RouteMapApp({
       closeAllMenus();
     };
 
-    const onMapContextMenu = (event: mapboxgl.MapMouseEvent & mapboxgl.EventData): void => {
+    const onMapContextMenu = (event: mapboxgl.MapMouseEvent): void => {
       event.originalEvent.preventDefault();
       openMenuForEvent(event);
     };
 
-    const onMapMouseMove = (event: mapboxgl.MapMouseEvent & mapboxgl.EventData): void => {
+    const onMapMouseMove = (event: mapboxgl.MapMouseEvent): void => {
       mapPointerCoordinateRef.current = [
         Number(event.lngLat.lng.toFixed(6)),
         Number(event.lngLat.lat.toFixed(6)),
@@ -2685,7 +2549,7 @@ export function RouteMapApp({
       return;
     }
 
-    void generateRoute(activeTrackId, routePoints);
+    void generateRoute(selectedTrack.id, routePoints);
   }, [activeTrackId, generateRoute, routePoints, tracksById]);
 
   useEffect(() => {
@@ -3644,12 +3508,37 @@ export function RouteMapApp({
     );
   }, [applyRoutePointUpdate]);
 
-  const onClear = (): void => {
+  const onClear = useCallback((): void => {
     const selectedTrackId = activeTrackIdRef.current;
     if (!selectedTrackId) {
       setStatusText("Select a track first.");
       return;
     }
+
+    const track = tracksByIdRef.current[selectedTrackId];
+    if (!track) {
+      setStatusText("Track not found.");
+      return;
+    }
+
+    closeAllMenus();
+    setClearTrackModal({
+      trackId: selectedTrackId,
+      displayName: track.displayName || selectedTrackId,
+    });
+  }, [closeAllMenus, setStatusText]);
+
+  const onCancelClearTrack = useCallback((): void => {
+    setClearTrackModal(null);
+  }, []);
+
+  const onConfirmClearTrack = useCallback((): void => {
+    if (!clearTrackModal) {
+      return;
+    }
+
+    const selectedTrackId = clearTrackModal.trackId;
+    setClearTrackModal(null);
 
     routeAbortControllerRef.current?.abort();
     routeAbortControllerRef.current = null;
@@ -3681,7 +3570,7 @@ export function RouteMapApp({
     setCoordinateInputError("");
     setManualCoordinateActionKey("");
     setStatusText("Track cleared.");
-  };
+  }, [clearTrackModal, setStatusText]);
 
   const routeSummary = useMemo(() => {
     if (!routeFeature) {
@@ -4127,11 +4016,13 @@ export function RouteMapApp({
                     setIsManualCoordinateMenuOpen((current) => !current);
                   }}
                 >
-                  {selectedManualCoordinateOption ? (
-                    renderManualCoordinateAction(selectedManualCoordinateOption)
-                  ) : (
-                    <span className="coordinate-action-placeholder">-</span>
-                  )}
+                  <span className="coordinate-action-preview">
+                    {selectedManualCoordinateOption ? (
+                      renderManualCoordinateAction(selectedManualCoordinateOption)
+                    ) : (
+                      <span className="coordinate-action-placeholder">-</span>
+                    )}
+                  </span>
                   <span className="coordinate-action-trigger-caret" aria-hidden="true">
                     v
                   </span>
@@ -4157,7 +4048,7 @@ export function RouteMapApp({
                   </div>
                 ) : null}
               </div>
-              <button type="submit" disabled={!canInsertCoordinate}>
+              <button type="submit" className="coordinate-insert-submit" disabled={!canInsertCoordinate}>
                 {coordinateActionVerb}
               </button>
             </div>
@@ -4468,6 +4359,35 @@ export function RouteMapApp({
                 </button>
                 <button type="button" className="json-modal-delete" onClick={onConfirmDeleteAccessTrack}>
                   Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {clearTrackModal ? (
+          <div className="json-modal-backdrop" role="presentation">
+            <div className="json-modal json-modal-confirm" role="dialog" aria-modal="true" aria-label="Clear all points">
+              <div className="json-modal-header">
+                <h3>Clear all points?</h3>
+                <button
+                  type="button"
+                  className="json-modal-close"
+                  onClick={onCancelClearTrack}
+                  aria-label="Close clear dialog"
+                >
+                  X
+                </button>
+              </div>
+              <p className="json-modal-help">
+                This removes every point from <strong>{clearTrackModal.displayName}</strong>.
+              </p>
+              <div className="json-modal-actions">
+                <button type="button" className="json-modal-keep" onClick={onCancelClearTrack}>
+                  Cancel
+                </button>
+                <button type="button" className="json-modal-delete" onClick={onConfirmClearTrack}>
+                  Clear
                 </button>
               </div>
             </div>

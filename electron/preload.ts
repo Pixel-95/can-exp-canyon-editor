@@ -1,148 +1,17 @@
 import { contextBridge, ipcRenderer } from "electron";
-
-type SaveGeoJSONResult = {
-  canceled: boolean;
-  filePath?: string;
-};
-
-type LoadJsonResult = {
-  canceled: boolean;
-  filePath?: string;
-  data?: unknown;
-  error?: string;
-};
-
-type SaveJsonResult = {
-  canceled: boolean;
-  filePath?: string;
-  error?: string;
-};
-
-type SaveJsonRequest = {
-  currentFilePath?: string | null;
-  jsonString: string;
-  canyonName?: string;
-};
-
-type PickFileRequest = {
-  baseDir?: string | null;
-  defaultPath?: string | null;
-  title?: string;
-  filters?: Array<{ name: string; extensions: string[] }>;
-};
-
-type PickFileResult = {
-  canceled: boolean;
-  absolutePath?: string;
-  relativePath?: string;
-};
-
-type RoutePointPayload = {
-  id: string;
-  type: "start" | "waypoint" | "end";
-  coordinates: [number, number];
-  segmentMode?: "route" | "straight";
-};
-
-type RouteSegmentSummaryPayload = {
-  index: number;
-  from: [number, number];
-  to: [number, number];
-  mode: "route" | "straight";
-  distance_m: number;
-  duration_s: number;
-  elevation_gain_m: number;
-  failed: boolean;
-  error?: string;
-};
-
-type RoutePropertiesPayload = {
-  distance_m: number;
-  duration_s: number;
-  profile: "walking";
-  start: [number, number];
-  end: [number, number];
-  waypoints: Array<[number, number]>;
-  segments: RouteSegmentSummaryPayload[];
-  elevation_gain_m?: number;
-  elevation_start_m?: number;
-  elevation_end_m?: number;
-  generated_at: string;
-};
-
-type RouteFeaturePayload = {
-  type: "Feature";
-  geometry: {
-    type: "LineString";
-    coordinates: number[][];
-  };
-  properties: RoutePropertiesPayload;
-};
-
-type MultiTrackItemPayload = {
-  id: string;
-  kind: "section" | "access";
-  sectionIndex?: number;
-  sectionId?: number;
-  displayName: string;
-  filePath: string;
-  color: "orange" | "black";
-  routePoints: RoutePointPayload[];
-  routeFeature: RouteFeaturePayload | null;
-  missingFile: boolean;
-  legacyFormat: boolean;
-  needsRebuild: boolean;
-  rawFeatureProperties?: Record<string, unknown>;
-};
-
-type TrackSnapshotPayload = {
-  tracks: MultiTrackItemPayload[];
-  activeTrackId: string | null;
-  warnings: string[];
-};
-
-type LoadTrackFilesRequest = {
-  canyonFilePath?: string | null;
-  tracks: Array<{
-    id: string;
-    kind: "section" | "access";
-    filePath: string;
-  }>;
-};
-
-type LoadTrackFilesResult = {
-  entries: Array<{
-    id: string;
-    kind: "section" | "access";
-    filePath: string;
-    absolutePath?: string;
-    missing: boolean;
-    error?: string;
-    data?: unknown;
-  }>;
-};
-
-type SaveCanyonWithTracksRequest = {
-  currentFilePath?: string | null;
-  canyonName?: string;
-  canyonData: unknown;
-  trackSnapshot?: TrackSnapshotPayload | null;
-};
-
-type SaveCanyonWithTracksResult = {
-  canceled: boolean;
-  filePath?: string;
-  error?: string;
-  warnings?: string[];
-  data?: unknown;
-};
-
-type CreateCanyonFolderResult = {
-  canceled: boolean;
-  folderPath?: string;
-  dataJsonPath?: string;
-  error?: string;
-};
+import type {
+  CreateCanyonFolderResult,
+  LoadJsonResult,
+  LoadTrackFilesRequest,
+  LoadTrackFilesResult,
+  PickFileRequest,
+  PickFileResult,
+  SaveCanyonWithTracksRequest,
+  SaveCanyonWithTracksResult,
+  SaveGeoJSONResult,
+  SaveJsonRequest,
+  SaveJsonResult,
+} from "./ipcTypes";
 
 contextBridge.exposeInMainWorld("api", {
   getMapboxToken: (): Promise<string | null> =>

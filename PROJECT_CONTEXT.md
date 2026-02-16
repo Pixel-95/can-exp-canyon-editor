@@ -20,14 +20,22 @@ It edits one canyon JSON payload plus linked track GeoJSON files.
    Map UI, track editing, POI/parking/overview editing.
 3. `renderer/src/styles.css`
    UI and map overlay styling.
-4. `electron/main.ts`
+4. `renderer/src/shared/*`
+   Shared pure helpers for geometry, errors, and track link normalization.
+5. `electron/main.ts`
    File I/O, IPC handlers, path resolution, track persistence.
-5. `electron/preload.ts`
+6. `electron/preload.ts`
    Typed `window.api` bridge.
-6. `renderer/src/vite-env.d.ts`
+7. `electron/ipcTypes.ts`
+   Shared IPC contract types used by main and preload.
+8. `electron/mainUtils.ts`
+   Shared main-process pure/path helper functions.
+9. `renderer/src/vite-env.d.ts`
    Renderer-side IPC typings.
-7. `data/*`
+10. `data/*`
    Canyon data folders (`data.json`, `tracks/*.json`, `topos/*`).
+11. `tests/*`
+   Lightweight unit tests for extracted pure utility modules.
 
 ## Runtime Model
 
@@ -111,4 +119,6 @@ Save:
 
 1. Dev: `npm run dev`
 2. Build: `npm run build`
-3. Package: `npm run package`
+3. Typecheck: `npm run typecheck`
+4. Unit tests: `npm run test:unit`
+5. Package: `npm run package`
