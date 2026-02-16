@@ -43,6 +43,7 @@ type RouteSegmentSummaryPayload = {
   mode: "route" | "straight";
   distance_m: number;
   duration_s: number;
+  elevation_gain_m: number;
   failed: boolean;
   error?: string;
 };
@@ -55,6 +56,7 @@ type RoutePropertiesPayload = {
   end: [number, number];
   waypoints: Array<[number, number]>;
   segments: RouteSegmentSummaryPayload[];
+  elevation_gain_m?: number;
   elevation_start_m?: number;
   elevation_end_m?: number;
   generated_at: string;
@@ -484,6 +486,7 @@ function buildRouteFeatureCollection(
       mode: current.segmentMode ?? "straight",
       distance_m: 0,
       duration_s: 0,
+      elevation_gain_m: 0,
       failed: false,
     });
   }
@@ -526,6 +529,9 @@ function buildRouteFeatureCollection(
           mode,
           distance_m: Number.isFinite(Number(segment.distance_m)) ? Number(segment.distance_m) : 0,
           duration_s: Number.isFinite(Number(segment.duration_s)) ? Number(segment.duration_s) : 0,
+          elevation_gain_m: Number.isFinite(Number(segment.elevation_gain_m))
+            ? Number(segment.elevation_gain_m)
+            : 0,
           failed: Boolean(segment.failed),
           ...(typeof segment.error === "string" ? { error: segment.error } : {}),
         };
@@ -547,6 +553,12 @@ function buildRouteFeatureCollection(
     end,
     waypoints,
     segments,
+    elevation_gain_m: Number.isFinite(Number((candidateProperties as Record<string, unknown>).elevation_gain_m))
+      ? Number((candidateProperties as Record<string, unknown>).elevation_gain_m)
+      : segments.reduce((sum, segment) => {
+        const gain = Number(segment.elevation_gain_m);
+        return Number.isFinite(gain) && gain > 0 ? sum + gain : sum;
+      }, 0),
     generated_at:
       typeof (candidateProperties as Record<string, unknown>).generated_at === "string"
         ? String((candidateProperties as Record<string, unknown>).generated_at)

@@ -22,7 +22,7 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: 360px 1fr;
   width: 100%;
   height: 100%;
 }
@@ -274,19 +274,113 @@ button {
 }
 
 .coordinate-input-form input,
-.coordinate-input-form select,
 .coordinate-input-form button {
   font: inherit;
 }
 
-.coordinate-input-form input,
-.coordinate-input-form select {
+.coordinate-input-form input {
   width: 100%;
   border: 1px solid #94a3b8;
   border-radius: 8px;
   padding: 9px 10px;
   background: #ffffff;
   color: #0f172a;
+}
+
+.coordinate-input-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.coordinate-action-menu {
+  position: relative;
+  min-width: 0;
+}
+
+.coordinate-action-trigger {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.coordinate-action-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.coordinate-action-trigger-caret {
+  font-size: 0.75rem;
+  color: #475569;
+  flex: 0 0 auto;
+}
+
+.coordinate-action-placeholder {
+  color: #94a3b8;
+  font-size: 0.86rem;
+}
+
+.coordinate-action-icon-boundary,
+.coordinate-action-icon-insert {
+  display: inline-flex;
+  align-items: center;
+}
+
+.coordinate-action-icon-boundary .map-menu-icon.route {
+  min-width: 25px;
+  height: 23px;
+  padding: 0 7px;
+  font-size: 0.74rem;
+}
+
+.coordinate-action-dropdown {
+  position: absolute;
+  z-index: 35;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
+  padding: 4px;
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.coordinate-action-option {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 6px 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+}
+
+.coordinate-action-option:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.coordinate-action-option.active {
+  background: #eff6ff;
+  border-color: #93c5fd;
 }
 
 .coordinate-input-form button {
@@ -357,17 +451,26 @@ button {
   gap: 6px;
 }
 
+.route-points-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
 .route-points-invert {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 6px;
   border: 1px solid #94a3b8;
   border-radius: 8px;
   padding: 7px 10px;
   background: #f1f5f9;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
+  flex: 1 1 0;
 }
 
 .route-points-invert-icon {
@@ -382,6 +485,35 @@ button {
 .route-points-invert:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.route-points-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #fda4af;
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: #fff1f2;
+  color: #9f1239;
+  cursor: pointer;
+  flex: 1 1 0;
+  text-align: center;
+}
+
+.route-points-clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.route-points-clear-icon {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  flex: 0 0 auto;
 }
 
 .route-points-empty {
@@ -573,10 +705,10 @@ button {
   pointer-events: none;
 }
 
-.map-style-toggle {
+.map-style-toggle,
+.map-fit-toggle {
   position: absolute;
   top: 10px;
-  right: 56px;
   z-index: 15;
   width: 34px;
   height: 34px;
@@ -591,11 +723,21 @@ button {
   box-shadow: 0 3px 10px rgba(15, 23, 42, 0.2);
 }
 
-.map-style-toggle:hover {
+.map-style-toggle {
+  right: 56px;
+}
+
+.map-fit-toggle {
+  right: 98px;
+}
+
+.map-style-toggle:hover,
+.map-fit-toggle:hover {
   background: #f8fafc;
 }
 
-.map-style-toggle svg {
+.map-style-toggle svg,
+.map-fit-toggle svg {
   width: 18px;
   height: 18px;
   stroke: currentColor;

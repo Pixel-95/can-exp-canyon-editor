@@ -32,6 +32,9 @@ Use this file together with `PROJECT_CONTEXT.md`.
 7. Plain left-click on the map canvas should exit edit mode (view mode only).
 8. Toggling map size (maximize/minimize) should reset to view mode (no active edit track).
 9. In expanded mode, clicking a visible route line should set that route to edit mode.
+10. On app start and canyon load, no route should be preselected (all in view mode).
+11. On map expand/collapse, auto-fit viewport to all canyon elements (tracks, POIs, parking lots, overview) with padding.
+12. Keep a manual `Zoom to entire canyon` control using the same bounds-fit logic as auto-fit.
 
 ## Visual Conventions
 
@@ -59,6 +62,14 @@ Use this file together with `PROJECT_CONTEXT.md`.
    elevation of section route end.
 3. `horizontal_length`:
    section route distance in meters.
+
+## Route Metrics
+
+Route summary and persisted route properties should include:
+
+1. `distance_m`
+2. `duration_s`
+3. `elevation_gain_m` as summed positive ascent only (never subtract descents).
 
 ## IPC Contract Conventions
 

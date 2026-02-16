@@ -67,7 +67,7 @@ Section keys relevant to map/track flow:
    GeoJSON `FeatureCollection` with one `LineString` feature.
 4. Editor properties used for reconstruction:
    `start`, `end`, `waypoints`, `segments`, `distance_m`, `duration_s`,
-   `elevation_start_m`, `elevation_end_m`, `generated_at`.
+   `elevation_gain_m`, `elevation_start_m`, `elevation_end_m`, `generated_at`.
 
 ## Editing Behavior
 

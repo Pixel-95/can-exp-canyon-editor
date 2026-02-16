@@ -51,6 +51,7 @@ type RouteSegmentSummaryPayload = {
   mode: "route" | "straight";
   distance_m: number;
   duration_s: number;
+  elevation_gain_m: number;
   failed: boolean;
   error?: string;
 };
@@ -63,6 +64,7 @@ type RoutePropertiesPayload = {
   end: [number, number];
   waypoints: Array<[number, number]>;
   segments: RouteSegmentSummaryPayload[];
+  elevation_gain_m?: number;
   elevation_start_m?: number;
   elevation_end_m?: number;
   generated_at: string;

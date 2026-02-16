@@ -52,6 +52,7 @@ type CachedRouteSegment = {
   distance: number;
   duration: number;
   coordinates: Coordinate[];
+  elevationGainM: number;
 };
 
 type MapContextMenuState = {
@@ -67,6 +68,7 @@ type RouteSegmentSummary = {
   mode: SegmentMode;
   distance_m: number;
   duration_s: number;
+  elevation_gain_m: number;
   failed: boolean;
   error?: string;
 };
@@ -79,6 +81,7 @@ type RouteProperties = {
   end: Coordinate;
   waypoints: Coordinate[];
   segments: RouteSegmentSummary[];
+  elevation_gain_m?: number;
   elevation_start_m?: number;
   elevation_end_m?: number;
   generated_at: string;
@@ -123,12 +126,16 @@ type ManualCoordinateActionOption =
       label: string;
       mode: "boundary";
       target: "start" | "end";
+      leftNeighbor: null;
+      rightNeighbor: null;
     }
   | {
       key: string;
       label: string;
       mode: "insert";
       insertionIndex: number;
+      leftNeighbor: { type: RoutePointType; label: string } | null;
+      rightNeighbor: { type: RoutePointType; label: string } | null;
     };
 
 type LocalizedText = Record<string, string>;
@@ -291,7 +298,7 @@ function parseCoordinateInput(rawValue: string): { coordinate: Coordinate | null
   if (parts.length !== 2 || !parts[0] || !parts[1]) {
     return {
       coordinate: null,
-      error: "Use format: lng, lat (e.g. 9.1951612, 48.2951951).",
+      error: "Use format: 9.1951612, 48.2951951",
     };
   }
 
@@ -715,6 +722,9 @@ function parseRouteSegmentsFromProperties(raw: unknown): RouteSegmentSummary[] {
         mode: entry.mode === "route" ? "route" : "straight",
         distance_m: Number.isFinite(Number(entry.distance_m)) ? Number(entry.distance_m) : 0,
         duration_s: Number.isFinite(Number(entry.duration_s)) ? Number(entry.duration_s) : 0,
+        elevation_gain_m: Number.isFinite(Number(entry.elevation_gain_m))
+          ? Number(entry.elevation_gain_m)
+          : 0,
         failed: Boolean(entry.failed),
         ...(typeof entry.error === "string" ? { error: entry.error } : {}),
       };
@@ -734,6 +744,10 @@ function buildRouteFeatureFromRaw(
   const end = toCoordinatePair(rawProperties.end) ?? coordinates[coordinates.length - 1];
   const waypoints = toCoordinatesArray(rawProperties.waypoints);
   const segments = parseRouteSegmentsFromProperties(rawProperties.segments);
+  const elevationGainFromSegments = segments.reduce((sum, segment) => {
+    const gain = Number(segment.elevation_gain_m);
+    return Number.isFinite(gain) && gain > 0 ? sum + gain : sum;
+  }, 0);
 
   return {
     type: "Feature",
@@ -749,6 +763,9 @@ function buildRouteFeatureFromRaw(
       end,
       waypoints,
       segments,
+      ...(Number.isFinite(Number(rawProperties.elevation_gain_m))
+        ? { elevation_gain_m: Number(rawProperties.elevation_gain_m) }
+        : { elevation_gain_m: elevationGainFromSegments }),
       ...(Number.isFinite(Number(rawProperties.elevation_start_m))
         ? { elevation_start_m: Number(rawProperties.elevation_start_m) }
         : {}),
@@ -950,6 +967,7 @@ export function RouteMapApp({
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
+  const manualCoordinateMenuRef = useRef<HTMLDivElement | null>(null);
   const segmentModePopupRef = useRef<mapboxgl.Popup | null>(null);
   const overviewPointMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const poiMarkersRef = useRef<mapboxgl.Marker[]>([]);
@@ -990,6 +1008,7 @@ export function RouteMapApp({
   const [coordinateInput, setCoordinateInput] = useState("");
   const [coordinateInputError, setCoordinateInputError] = useState("");
   const [manualCoordinateActionKey, setManualCoordinateActionKey] = useState("");
+  const [isManualCoordinateMenuOpen, setIsManualCoordinateMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchErrorMessage, setSearchErrorMessage] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -1010,6 +1029,7 @@ export function RouteMapApp({
 
   const closeAllMenus = useCallback((): void => {
     setContextMenu(null);
+    setIsManualCoordinateMenuOpen(false);
     setActiveSubmenu(null);
     setPoiEditor(null);
     setPoiPasteModal(null);
@@ -1027,6 +1047,7 @@ export function RouteMapApp({
 
   useEffect(() => {
     viewModeRef.current = viewMode;
+    autoViewportAppliedForKeyRef.current = "";
     deactivateTrackEditing();
     closeAllMenus();
   }, [closeAllMenus, deactivateTrackEditing, viewMode]);
@@ -1263,18 +1284,7 @@ export function RouteMapApp({
 
       setTracksById(nextTracksById);
       setTrackOrder(nextTrackOrder);
-      setActiveTrackId((current) => {
-        if (current && nextTracksById[current]) {
-          return current;
-        }
-
-        const firstSectionTrackId = nextTrackOrder.find((id) => nextTracksById[id]?.kind === "section");
-        if (firstSectionTrackId) {
-          return firstSectionTrackId;
-        }
-
-        return nextTrackOrder[0] ?? null;
-      });
+      setActiveTrackId(null);
     }
 
     void loadTracksFromBindings().catch((error) => {
@@ -1451,6 +1461,102 @@ export function RouteMapApp({
     };
   }, []);
 
+  const collectViewportCoordinates = useCallback((): Coordinate[] => {
+    const coordinates: Coordinate[] = [];
+    if (overviewCoordinate) {
+      coordinates.push(overviewCoordinate);
+    }
+
+    pointsOfInterest.forEach((poi) => {
+      coordinates.push(poi.coordinates);
+    });
+
+    parkingLots.forEach((parkingLot) => {
+      coordinates.push(parkingLot.coordinates);
+    });
+
+    trackOrder.forEach((trackId) => {
+      const track = tracksById[trackId];
+      if (!track) {
+        return;
+      }
+
+      const activeFeature = trackId === activeTrackId ? routeFeature : null;
+      const trackFeature = activeFeature ?? track.routeFeature;
+      if (trackFeature?.geometry?.coordinates?.length) {
+        const featureCoordinates = trackFeature.geometry.coordinates
+          .map((coordinate) => toCoordinatePair(coordinate))
+          .filter((coordinate): coordinate is Coordinate => coordinate !== null);
+        coordinates.push(...featureCoordinates);
+      }
+
+      const editablePoints = trackId === activeTrackId ? routePoints : track.routePoints;
+      editablePoints.forEach((point) => {
+        coordinates.push(point.coordinates);
+      });
+    });
+
+    return coordinates;
+  }, [
+    activeTrackId,
+    overviewCoordinate,
+    parkingLots,
+    pointsOfInterest,
+    routeFeature,
+    routePoints,
+    trackOrder,
+    tracksById,
+  ]);
+
+  const zoomToCanyonBounds = useCallback(
+    (durationMs = 850): boolean => {
+      const map = mapRef.current;
+      if (!map) {
+        return false;
+      }
+
+      const coordinates = collectViewportCoordinates();
+      if (coordinates.length === 0) {
+        return false;
+      }
+
+      const applyViewport = (): void => {
+        map.resize();
+
+        if (coordinates.length === 1) {
+          map.easeTo({
+            center: coordinates[0],
+            zoom: Math.max(map.getZoom(), 14),
+            duration: durationMs,
+            essential: true,
+          });
+          return;
+        }
+
+        const bounds = new mapboxgl.LngLatBounds();
+        coordinates.forEach((coordinate) => {
+          bounds.extend(coordinate);
+        });
+        const expandedBounds = expandBoundsByRatio(bounds, 0.15);
+        map.fitBounds(expandedBounds, {
+          padding: 24,
+          maxZoom: 15,
+          duration: durationMs,
+          essential: true,
+        });
+      };
+
+      if (!map.isStyleLoaded()) {
+        map.once("idle", applyViewport);
+        return true;
+      }
+
+      applyViewport();
+      return true;
+    },
+    [collectViewportCoordinates],
+  );
+
   const drawTracks = useCallback((collection: FeatureCollection<LineString>): void => {
     const map = mapRef.current;
 
@@ -1547,6 +1653,10 @@ export function RouteMapApp({
   const onToggleMapStyle = useCallback((): void => {
     setMapStyleMode((current) => (current === "satellite" ? "outdoors" : "satellite"));
   }, []);
+
+  const onZoomToEntireCanyon = useCallback((): void => {
+    zoomToCanyonBounds();
+  }, [zoomToCanyonBounds]);
 
   const clearPendingSearch = useCallback((): void => {
     if (searchDebounceTimeoutRef.current !== null) {
@@ -1713,6 +1823,7 @@ export function RouteMapApp({
         const terrainElevationCache = new Map<string, Promise<number>>();
         let totalDistanceM = 0;
         let totalDurationS = 0;
+        let totalElevationGainM = 0;
 
         const loadTerrainTileImageData = async (tileX: number, tileY: number): Promise<ImageData> => {
           const key = `${TERRAIN_TILE_ZOOM}/${tileX}/${tileY}`;
@@ -1790,6 +1901,42 @@ export function RouteMapApp({
           }
         };
 
+        const getStraightSegmentElevationGainMeters = async (
+          from: Coordinate,
+          to: Coordinate,
+        ): Promise<number> => {
+          try {
+            const [fromElevationM, toElevationM] = await Promise.all([
+              getCoordinateElevationMeters(from),
+              getCoordinateElevationMeters(to),
+            ]);
+            return Math.max(0, toElevationM - fromElevationM);
+          } catch {
+            return 0;
+          }
+        };
+
+        const getPositiveElevationGainForCoordinatePath = async (
+          coordinates: Coordinate[],
+        ): Promise<number> => {
+          if (coordinates.length < 2) {
+            return 0;
+          }
+
+          try {
+            let gainM = 0;
+            let previousElevationM = await getCoordinateElevationMeters(coordinates[0]);
+            for (let coordinateIndex = 1; coordinateIndex < coordinates.length; coordinateIndex += 1) {
+              const currentElevationM = await getCoordinateElevationMeters(coordinates[coordinateIndex]);
+              gainM += Math.max(0, currentElevationM - previousElevationM);
+              previousElevationM = currentElevationM;
+            }
+            return gainM;
+          } catch {
+            return 0;
+          }
+        };
+
         appendCoordinate(fullCoordinates, points[0].coordinates);
 
         for (let index = 1; index < points.length; index += 1) {
@@ -1807,9 +1954,14 @@ export function RouteMapApp({
               currentPoint.coordinates,
               straightDistanceM,
             );
+            const straightElevationGainM = await getStraightSegmentElevationGainMeters(
+              previousPoint.coordinates,
+              currentPoint.coordinates,
+            );
             appendCoordinates(fullCoordinates, [previousPoint.coordinates, currentPoint.coordinates]);
             totalDistanceM += straightDistanceM;
             totalDurationS += straightDurationS;
+            totalElevationGainM += straightElevationGainM;
             segments.push({
               index,
               from: previousPoint.coordinates,
@@ -1817,6 +1969,7 @@ export function RouteMapApp({
               mode: "straight",
               distance_m: straightDistanceM,
               duration_s: straightDurationS,
+              elevation_gain_m: Math.round(straightElevationGainM),
               failed: false,
             });
             continue;
@@ -1833,9 +1986,13 @@ export function RouteMapApp({
             );
             const cachedSegment = routedSegmentCacheRef.current.get(cacheKey);
             if (cachedSegment) {
+              const cachedElevationGainM = Number.isFinite(cachedSegment.elevationGainM)
+                ? cachedSegment.elevationGainM
+                : await getPositiveElevationGainForCoordinatePath(cachedSegment.coordinates);
               appendCoordinates(fullCoordinates, cachedSegment.coordinates);
               totalDistanceM += cachedSegment.distance;
               totalDurationS += cachedSegment.duration;
+              totalElevationGainM += cachedElevationGainM;
               segments.push({
                 index,
                 from: previousPoint.coordinates,
@@ -1843,6 +2000,7 @@ export function RouteMapApp({
                 mode: "route",
                 distance_m: cachedSegment.distance,
                 duration_s: cachedSegment.duration,
+                elevation_gain_m: Math.round(cachedElevationGainM),
                 failed: false,
               });
               continue;
@@ -1865,6 +2023,7 @@ export function RouteMapApp({
             const segmentCoordinates = route.geometry.coordinates.map(
               (coordinate) => [coordinate[0], coordinate[1]] as Coordinate,
             );
+            const routeElevationGainM = await getPositiveElevationGainForCoordinatePath(segmentCoordinates);
             if (routedSegmentCacheRef.current.size >= MAX_ROUTED_SEGMENT_CACHE_ENTRIES) {
               routedSegmentCacheRef.current.clear();
             }
@@ -1872,11 +2031,13 @@ export function RouteMapApp({
               distance: route.distance,
               duration: route.duration,
               coordinates: segmentCoordinates,
+              elevationGainM: routeElevationGainM,
             });
             appendCoordinates(fullCoordinates, segmentCoordinates);
 
             totalDistanceM += route.distance;
             totalDurationS += route.duration;
+            totalElevationGainM += routeElevationGainM;
             segments.push({
               index,
               from: previousPoint.coordinates,
@@ -1884,6 +2045,7 @@ export function RouteMapApp({
               mode: "route",
               distance_m: route.distance,
               duration_s: route.duration,
+              elevation_gain_m: Math.round(routeElevationGainM),
               failed: false,
             });
           } catch (segmentError) {
@@ -1900,9 +2062,14 @@ export function RouteMapApp({
               currentPoint.coordinates,
               fallbackDistanceM,
             );
+            const fallbackElevationGainM = await getStraightSegmentElevationGainMeters(
+              previousPoint.coordinates,
+              currentPoint.coordinates,
+            );
             appendCoordinates(fullCoordinates, [previousPoint.coordinates, currentPoint.coordinates]);
             totalDistanceM += fallbackDistanceM;
             totalDurationS += fallbackDurationS;
+            totalElevationGainM += fallbackElevationGainM;
             segments.push({
               index,
               from: previousPoint.coordinates,
@@ -1910,6 +2077,7 @@ export function RouteMapApp({
               mode: "route",
               distance_m: fallbackDistanceM,
               duration_s: fallbackDurationS,
+              elevation_gain_m: Math.round(fallbackElevationGainM),
               failed: true,
               error: formatError(segmentError),
             });
@@ -1957,6 +2125,7 @@ export function RouteMapApp({
             end,
             waypoints,
             segments,
+            elevation_gain_m: Math.round(totalElevationGainM),
             ...(typeof elevationStartM === "number" ? { elevation_start_m: elevationStartM } : {}),
             ...(typeof elevationEndM === "number" ? { elevation_end_m: elevationEndM } : {}),
             generated_at: new Date().toISOString(),
@@ -2396,90 +2565,27 @@ export function RouteMapApp({
       return;
     }
 
-    const coordinates: Coordinate[] = [];
-    if (overviewCoordinate) {
-      coordinates.push(overviewCoordinate);
-    }
-
-    pointsOfInterest.forEach((poi) => {
-      coordinates.push(poi.coordinates);
-    });
-    parkingLots.forEach((parkingLot) => {
-      coordinates.push(parkingLot.coordinates);
-    });
-    trackOrder.forEach((trackId) => {
-      const track = tracksById[trackId];
-      if (!track) {
-        return;
-      }
-
-      const activeFeature = trackId === activeTrackId ? routeFeature : null;
-      const trackFeature = activeFeature ?? track.routeFeature;
-      if (trackFeature?.geometry?.coordinates?.length) {
-        const featureCoordinates = trackFeature.geometry.coordinates
-          .map((coordinate) => toCoordinatePair(coordinate))
-          .filter((coordinate): coordinate is Coordinate => coordinate !== null);
-        coordinates.push(...featureCoordinates);
-      }
-
-      const editablePoints = trackId === activeTrackId ? routePoints : track.routePoints;
-      editablePoints.forEach((point) => {
-        coordinates.push(point.coordinates);
-      });
-    });
-
-    if (coordinates.length === 0) {
-      return;
-    }
-
-    const applyInitialView = (): void => {
+    const frameId = window.requestAnimationFrame(() => {
       if (autoViewportAppliedForKeyRef.current === viewportKey) {
         return;
       }
 
-      if (coordinates.length === 1) {
-        map.jumpTo({
-          center: coordinates[0],
-          zoom: Math.max(map.getZoom(), 14),
-        });
-      } else {
-        const bounds = new mapboxgl.LngLatBounds();
-        coordinates.forEach((coordinate) => {
-          bounds.extend(coordinate);
-        });
-        const expandedBounds = expandBoundsByRatio(bounds, 0.15);
-        map.fitBounds(expandedBounds, {
-          padding: 24,
-          maxZoom: 15,
-          duration: 0,
-        });
+      if (zoomToCanyonBounds()) {
+        autoViewportAppliedForKeyRef.current = viewportKey;
       }
+    });
 
-      autoViewportAppliedForKeyRef.current = viewportKey;
+    return () => {
+      window.cancelAnimationFrame(frameId);
     };
-
-    if (!map.isStyleLoaded()) {
-      map.once("idle", applyInitialView);
-      return () => {
-        map.off("idle", applyInitialView);
-      };
-    }
-
-    applyInitialView();
   }, [
-    activeTrackId,
     mapReadyVersion,
-    overviewCoordinate,
-    parkingLots,
-    pointsOfInterest,
-    routeFeature,
-    routePoints,
     trackBindings?.access.length,
     trackBindings?.canyonFilePath,
     trackBindings?.sections.length,
     trackOrder,
-    tracksById,
     viewMode,
+    zoomToCanyonBounds,
   ]);
 
   useEffect(() => {
@@ -2540,6 +2646,27 @@ export function RouteMapApp({
       window.removeEventListener("pointerdown", onWindowPointerDown);
     };
   }, [contextMenu]);
+
+  useEffect(() => {
+    if (!isManualCoordinateMenuOpen) {
+      return;
+    }
+
+    const onWindowPointerDown = (event: PointerEvent): void => {
+      const target = event.target as Node | null;
+      if (target && manualCoordinateMenuRef.current?.contains(target)) {
+        return;
+      }
+
+      setIsManualCoordinateMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", onWindowPointerDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", onWindowPointerDown);
+    };
+  }, [isManualCoordinateMenuOpen]);
 
   useEffect(() => {
     drawTracks(buildTracksFeatureCollectionSnapshot());
@@ -3561,8 +3688,22 @@ export function RouteMapApp({
       return null;
     }
 
+    const elevationGainFromProperties = Number(routeFeature.properties.elevation_gain_m);
+    const elevationGainM = Number.isFinite(elevationGainFromProperties)
+      ? Math.max(0, Math.round(elevationGainFromProperties))
+      : Math.max(
+        0,
+        Math.round(
+          routeFeature.properties.segments.reduce((sum, segment) => {
+            const segmentGain = Number(segment.elevation_gain_m);
+            return Number.isFinite(segmentGain) && segmentGain > 0 ? sum + segmentGain : sum;
+          }, 0),
+        ),
+      );
+
     return {
       distanceKm: (routeFeature.properties.distance_m / 1000).toFixed(2),
+      elevationGainM,
       durationMin: Math.round(routeFeature.properties.duration_s / 60),
     };
   }, [routeFeature]);
@@ -3622,12 +3763,16 @@ export function RouteMapApp({
           label: "Set as Start",
           mode: "boundary",
           target: "start",
+          leftNeighbor: null,
+          rightNeighbor: null,
         },
         {
           key: "manual-set-end",
           label: "Set as End",
           mode: "boundary",
           target: "end",
+          leftNeighbor: null,
+          rightNeighbor: null,
         },
       ];
     }
@@ -3637,12 +3782,15 @@ export function RouteMapApp({
       label: option.label,
       mode: "insert" as const,
       insertionIndex: option.insertionIndex,
+      leftNeighbor: option.leftNeighbor,
+      rightNeighbor: option.rightNeighbor,
     }));
   }, [activeTrackId, hasStartAndEnd, insertMenuOptions]);
 
   useEffect(() => {
     if (manualCoordinateOptions.length === 0) {
       setManualCoordinateActionKey("");
+      setIsManualCoordinateMenuOpen(false);
       return;
     }
 
@@ -3652,6 +3800,15 @@ export function RouteMapApp({
 
     setManualCoordinateActionKey(manualCoordinateOptions[0].key);
   }, [manualCoordinateActionKey, manualCoordinateOptions]);
+
+  const selectedManualCoordinateOption = useMemo(
+    () =>
+      manualCoordinateOptions.find((option) => option.key === manualCoordinateActionKey) ??
+      manualCoordinateOptions[0] ??
+      null,
+    [manualCoordinateActionKey, manualCoordinateOptions],
+  );
+  const coordinateActionVerb = hasStartAndEnd ? "Insert" : "Set";
 
   const onInsertCoordinateFromInput = useCallback((): void => {
     if (!mapRef.current) {
@@ -3680,6 +3837,7 @@ export function RouteMapApp({
     }
 
     setCoordinateInputError("");
+    setIsManualCoordinateMenuOpen(false);
 
     if (selectedAction.mode === "boundary") {
       setBoundaryPointAtCoordinate(selectedAction.target, parsed.coordinate);
@@ -3805,6 +3963,48 @@ export function RouteMapApp({
 
     return { left, top };
   }, [activeParkingLot, parkingEditor]);
+  const renderManualCoordinateAction = (option: ManualCoordinateActionOption): JSX.Element => {
+    if (option.mode === "boundary") {
+      const targetType = option.target === "start" ? "start" : "end";
+      return (
+        <span className="coordinate-action-icon-boundary" aria-hidden="true">
+          <span className={`map-menu-icon route ${targetType}`}>{option.target === "start" ? "S" : "E"}</span>
+        </span>
+      );
+    }
+
+    return (
+      <span className="coordinate-action-icon-insert" aria-hidden="true">
+        <span className="map-context-icon-sequence">
+          {option.leftNeighbor ? (
+            <span className={`map-menu-icon route map-menu-icon-muted ${option.leftNeighbor.type}`}>
+              {option.leftNeighbor.label}
+            </span>
+          ) : (
+            <span className="map-menu-icon route map-menu-icon-placeholder" />
+          )}
+          <span
+            className={`map-context-icon-separator${
+              option.leftNeighbor ? "" : " map-context-icon-separator-placeholder"
+            }`}
+          />
+          <span className="map-menu-icon route waypoint">+</span>
+          <span
+            className={`map-context-icon-separator${
+              option.rightNeighbor ? "" : " map-context-icon-separator-placeholder"
+            }`}
+          />
+          {option.rightNeighbor ? (
+            <span className={`map-menu-icon route map-menu-icon-muted ${option.rightNeighbor.type}`}>
+              {option.rightNeighbor.label}
+            </span>
+          ) : (
+            <span className="map-menu-icon route map-menu-icon-placeholder" />
+          )}
+        </span>
+      </span>
+    );
+  };
 
   return (
     <div className="app-shell">
@@ -3878,29 +4078,22 @@ export function RouteMapApp({
           </div>
         </section>
 
-        <div className="button-grid">
-          <button type="button" onClick={onClear}>
-            Clear
-          </button>
-        </div>
-
         <section className="route-summary">
-          {routeSummary ? (
-            <>
-              <p>
-                <strong>Distance:</strong> {routeSummary.distanceKm} km
-              </p>
-              <p>
-                <strong>Walk Time:</strong> {routeSummary.durationMin} min
-              </p>
-            </>
-          ) : (
-            <p className="route-summary-empty">{activeTrack ? "No route yet." : "No active track selected."}</p>
-          )}
+          <p>
+            <strong>Distance:</strong>
+            {routeSummary ? ` ${routeSummary.distanceKm} km` : ""}
+          </p>
+          <p>
+            <strong>Elevation gain:</strong>
+            {routeSummary ? ` ${routeSummary.elevationGainM} m` : ""}
+          </p>
+          <p>
+            <strong>Time:</strong>
+            {routeSummary ? ` ${routeSummary.durationMin} min` : ""}
+          </p>
         </section>
 
         <section className="coordinate-input-panel">
-          <h2>Insert Coordinate</h2>
           <form
             className="coordinate-input-form"
             onSubmit={(event) => {
@@ -3917,44 +4110,92 @@ export function RouteMapApp({
                   setCoordinateInputError("");
                 }
               }}
-              placeholder="lng, lat (e.g. 9.1951612, 48.2951951)"
+              placeholder="9.1951612, 48.2951951"
               aria-label="Coordinate input"
             />
-            <select
-              value={manualCoordinateActionKey}
-              onChange={(event) => setManualCoordinateActionKey(event.target.value)}
-              aria-label="Coordinate insertion position"
-            >
-              {manualCoordinateOptions.map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <button type="submit" disabled={!canInsertCoordinate}>
-              Insert Coordinate
-            </button>
+            <div className="coordinate-input-actions">
+              <div className="coordinate-action-menu" ref={manualCoordinateMenuRef}>
+                <button
+                  type="button"
+                  className="coordinate-action-trigger"
+                  disabled={manualCoordinateOptions.length === 0}
+                  aria-label={`${coordinateActionVerb} position`}
+                  onClick={() => {
+                    if (manualCoordinateOptions.length === 0) {
+                      return;
+                    }
+                    setIsManualCoordinateMenuOpen((current) => !current);
+                  }}
+                >
+                  {selectedManualCoordinateOption ? (
+                    renderManualCoordinateAction(selectedManualCoordinateOption)
+                  ) : (
+                    <span className="coordinate-action-placeholder">-</span>
+                  )}
+                  <span className="coordinate-action-trigger-caret" aria-hidden="true">
+                    v
+                  </span>
+                </button>
+                {isManualCoordinateMenuOpen ? (
+                  <div className="coordinate-action-dropdown" role="listbox" aria-label={`${coordinateActionVerb} point`}>
+                    {manualCoordinateOptions.map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        className={`coordinate-action-option${
+                          selectedManualCoordinateOption?.key === option.key ? " active" : ""
+                        }`}
+                        aria-label={option.label}
+                        onClick={() => {
+                          setManualCoordinateActionKey(option.key);
+                          setIsManualCoordinateMenuOpen(false);
+                        }}
+                      >
+                        {renderManualCoordinateAction(option)}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <button type="submit" disabled={!canInsertCoordinate}>
+                {coordinateActionVerb}
+              </button>
+            </div>
           </form>
           {coordinateInputError ? <p className="coordinate-input-error">{coordinateInputError}</p> : null}
         </section>
 
         <section className="route-points-panel">
           <div className="route-points-header">
-            <h2>{activeTrack ? `Route Points (${activeTrack.displayName})` : "Route Points"}</h2>
-            <button
-              type="button"
-              className="route-points-invert"
-              onClick={onInvertRouteDirection}
-              disabled={routePoints.length < 2}
-            >
-              <svg className="route-points-invert-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 7h11" />
-                <path d="m13 4 4 3-4 3" />
-                <path d="M18 17H7" />
-                <path d="m11 14-4 3 4 3" />
-              </svg>
-              <span>Invert direction</span>
-            </button>
+            <div className="route-points-header-actions">
+              <button
+                type="button"
+                className="route-points-invert"
+                onClick={onInvertRouteDirection}
+                disabled={routePoints.length < 2}
+              >
+                <svg className="route-points-invert-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 7h11" />
+                  <path d="m13 4 4 3-4 3" />
+                  <path d="M18 17H7" />
+                  <path d="m11 14-4 3 4 3" />
+                </svg>
+                <span>Invert direction</span>
+              </button>
+              <button
+                type="button"
+                className="route-points-clear"
+                onClick={onClear}
+                disabled={!activeTrack || routePoints.length === 0}
+              >
+                <svg className="route-points-clear-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 7h14" />
+                  <path d="M10 7V5h4v2" />
+                  <path d="M8 7l1 12h6l1-12" />
+                </svg>
+                Clear all points
+              </button>
+            </div>
           </div>
           {!activeTrack ? (
             <p className="route-points-empty">Select a track to edit.</p>
@@ -4006,7 +4247,7 @@ export function RouteMapApp({
                   setSearchErrorMessage("");
                 }
               }}
-              placeholder="Search location (e.g., Lodrino)"
+              placeholder="Search location ..."
               aria-label="Search location"
             />
             <button
@@ -4041,6 +4282,20 @@ export function RouteMapApp({
             <path d="M12 3 3 7.5 12 12l9-4.5L12 3Z" />
             <path d="M3 11.5 12 16l9-4.5" />
             <path d="M3 15.5 12 20l9-4.5" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="map-fit-toggle"
+          onClick={onZoomToEntireCanyon}
+          aria-label="Zoom to entire canyon"
+          title="Zoom to entire canyon"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 9V4h5" />
+            <path d="M15 4h5v5" />
+            <path d="M20 15v5h-5" />
+            <path d="M9 20H4v-5" />
           </svg>
         </button>
 

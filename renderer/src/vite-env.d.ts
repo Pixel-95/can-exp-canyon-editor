@@ -75,9 +75,11 @@ declare global {
                   mode: "route" | "straight";
                   distance_m: number;
                   duration_s: number;
+                  elevation_gain_m: number;
                   failed: boolean;
                   error?: string;
                 }>;
+                elevation_gain_m?: number;
                 elevation_start_m?: number;
                 elevation_end_m?: number;
                 generated_at: string;
