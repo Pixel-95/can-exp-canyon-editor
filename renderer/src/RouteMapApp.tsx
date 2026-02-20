@@ -905,6 +905,7 @@ export function RouteMapApp({
     : "en";
 
   const activeTrack = activeTrackId ? tracksById[activeTrackId] ?? null : null;
+  const showSecondaryPanels = viewMode !== "expanded" || Boolean(activeTrack);
 
   routePointsRef.current = routePoints;
   routeFeatureRef.current = routeFeature;
@@ -4051,150 +4052,154 @@ export function RouteMapApp({
           </div>
         </section>
 
-        <section className="route-summary">
-          <p>
-            <strong>Distance:</strong>
-            {routeSummary ? ` ${routeSummary.distanceKm} km` : ""}
-          </p>
-          <p>
-            <strong>Elevation gain:</strong>
-            {routeSummary ? ` ${routeSummary.elevationGainM} m` : ""}
-          </p>
-          <p>
-            <strong>Time:</strong>
-            {routeSummary ? ` ${routeSummary.durationMin} min` : ""}
-          </p>
-        </section>
+        {showSecondaryPanels ? (
+          <>
+            <section className="route-summary">
+              <p>
+                <strong>Distance:</strong>
+                {routeSummary ? ` ${routeSummary.distanceKm} km` : ""}
+              </p>
+              <p>
+                <strong>Elevation gain:</strong>
+                {routeSummary ? ` ${routeSummary.elevationGainM} m` : ""}
+              </p>
+              <p>
+                <strong>Time:</strong>
+                {routeSummary ? ` ${routeSummary.durationMin} min` : ""}
+              </p>
+            </section>
 
-        <section className="coordinate-input-panel">
-          <form
-            className="coordinate-input-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onInsertCoordinateFromInput();
-            }}
-          >
-            <input
-              type="text"
-              value={coordinateInput}
-              onChange={(event) => {
-                setCoordinateInput(event.target.value);
-                if (coordinateInputError) {
-                  setCoordinateInputError("");
-                }
-              }}
-              placeholder="9.1951612, 48.2951951"
-              aria-label="Coordinate input"
-            />
-            <div className="coordinate-input-actions">
-              <div className="coordinate-action-menu" ref={manualCoordinateMenuRef}>
-                <button
-                  type="button"
-                  className="coordinate-action-trigger"
-                  disabled={manualCoordinateOptions.length === 0}
-                  aria-label={`${coordinateActionVerb} position`}
-                  onClick={() => {
-                    if (manualCoordinateOptions.length === 0) {
-                      return;
+            <section className="coordinate-input-panel">
+              <form
+                className="coordinate-input-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  onInsertCoordinateFromInput();
+                }}
+              >
+                <input
+                  type="text"
+                  value={coordinateInput}
+                  onChange={(event) => {
+                    setCoordinateInput(event.target.value);
+                    if (coordinateInputError) {
+                      setCoordinateInputError("");
                     }
-                    setIsManualCoordinateMenuOpen((current) => !current);
                   }}
-                >
-                  <span className="coordinate-action-preview">
-                    {selectedManualCoordinateOption ? (
-                      renderManualCoordinateAction(selectedManualCoordinateOption)
-                    ) : (
-                      <span className="coordinate-action-placeholder">-</span>
-                    )}
-                  </span>
-                  <span className="coordinate-action-trigger-caret" aria-hidden="true">
-                    v
-                  </span>
-                </button>
-                {isManualCoordinateMenuOpen ? (
-                  <div className="coordinate-action-dropdown" role="listbox" aria-label={`${coordinateActionVerb} point`}>
-                    {manualCoordinateOptions.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        className={`coordinate-action-option${
-                          selectedManualCoordinateOption?.key === option.key ? " active" : ""
-                        }`}
-                        aria-label={option.label}
-                        onClick={() => {
-                          setManualCoordinateActionKey(option.key);
-                          setIsManualCoordinateMenuOpen(false);
-                        }}
-                      >
-                        {renderManualCoordinateAction(option)}
-                      </button>
-                    ))}
+                  placeholder="9.1951612, 48.2951951"
+                  aria-label="Coordinate input"
+                />
+                <div className="coordinate-input-actions">
+                  <div className="coordinate-action-menu" ref={manualCoordinateMenuRef}>
+                    <button
+                      type="button"
+                      className="coordinate-action-trigger"
+                      disabled={manualCoordinateOptions.length === 0}
+                      aria-label={`${coordinateActionVerb} position`}
+                      onClick={() => {
+                        if (manualCoordinateOptions.length === 0) {
+                          return;
+                        }
+                        setIsManualCoordinateMenuOpen((current) => !current);
+                      }}
+                    >
+                      <span className="coordinate-action-preview">
+                        {selectedManualCoordinateOption ? (
+                          renderManualCoordinateAction(selectedManualCoordinateOption)
+                        ) : (
+                          <span className="coordinate-action-placeholder">-</span>
+                        )}
+                      </span>
+                      <span className="coordinate-action-trigger-caret" aria-hidden="true">
+                        {"\u25BC"}
+                      </span>
+                    </button>
+                    {isManualCoordinateMenuOpen ? (
+                      <div className="coordinate-action-dropdown" role="listbox" aria-label={`${coordinateActionVerb} point`}>
+                        {manualCoordinateOptions.map((option) => (
+                          <button
+                            key={option.key}
+                            type="button"
+                            className={`coordinate-action-option${
+                              selectedManualCoordinateOption?.key === option.key ? " active" : ""
+                            }`}
+                            aria-label={option.label}
+                            onClick={() => {
+                              setManualCoordinateActionKey(option.key);
+                              setIsManualCoordinateMenuOpen(false);
+                            }}
+                          >
+                            {renderManualCoordinateAction(option)}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-              <button type="submit" className="coordinate-insert-submit" disabled={!canInsertCoordinate}>
-                {coordinateActionVerb}
-              </button>
-            </div>
-          </form>
-          {coordinateInputError ? <p className="coordinate-input-error">{coordinateInputError}</p> : null}
-        </section>
+                  <button type="submit" className="coordinate-insert-submit" disabled={!canInsertCoordinate}>
+                    {coordinateActionVerb}
+                  </button>
+                </div>
+              </form>
+              {coordinateInputError ? <p className="coordinate-input-error">{coordinateInputError}</p> : null}
+            </section>
 
-        <section className="route-points-panel">
-          <div className="route-points-header">
-            <div className="route-points-header-actions">
-              <button
-                type="button"
-                className="route-points-invert"
-                onClick={onInvertRouteDirection}
-                disabled={routePoints.length < 2}
-              >
-                <svg className="route-points-invert-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M6 7h11" />
-                  <path d="m13 4 4 3-4 3" />
-                  <path d="M18 17H7" />
-                  <path d="m11 14-4 3 4 3" />
-                </svg>
-                <span>Invert direction</span>
-              </button>
-              <button
-                type="button"
-                className="route-points-clear"
-                onClick={onClear}
-                disabled={!activeTrack || routePoints.length === 0}
-              >
-                <svg className="route-points-clear-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 7h14" />
-                  <path d="M10 7V5h4v2" />
-                  <path d="M8 7l1 12h6l1-12" />
-                </svg>
-                Clear all points
-              </button>
-            </div>
-          </div>
-          {!activeTrack ? (
-            <p className="route-points-empty">Select a track to edit.</p>
-          ) : routePoints.length === 0 ? (
-            <p className="route-points-empty">No points yet.</p>
-          ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-              <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-                <ul className="route-point-list">
-                  {routePoints.map((point, index) => (
-                    <RoutePointListItem
-                      key={point.id}
-                      point={point}
-                      index={index}
-                      label={getRoutePointLabel(routePoints, index)}
-                      onDelete={onDeletePoint}
-                      onSegmentModeChange={onSegmentModeChange}
-                    />
-                  ))}
-                </ul>
-              </SortableContext>
-            </DndContext>
-          )}
-        </section>
+            <section className="route-points-panel">
+              <div className="route-points-header">
+                <div className="route-points-header-actions">
+                  <button
+                    type="button"
+                    className="route-points-invert"
+                    onClick={onInvertRouteDirection}
+                    disabled={routePoints.length < 2}
+                  >
+                    <svg className="route-points-invert-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 7h11" />
+                      <path d="m13 4 4 3-4 3" />
+                      <path d="M18 17H7" />
+                      <path d="m11 14-4 3 4 3" />
+                    </svg>
+                    <span>Invert direction</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="route-points-clear"
+                    onClick={onClear}
+                    disabled={!activeTrack || routePoints.length === 0}
+                  >
+                    <svg className="route-points-clear-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M5 7h14" />
+                      <path d="M10 7V5h4v2" />
+                      <path d="M8 7l1 12h6l1-12" />
+                    </svg>
+                    Clear all points
+                  </button>
+                </div>
+              </div>
+              {!activeTrack ? (
+                <p className="route-points-empty">Select a track to edit.</p>
+              ) : routePoints.length === 0 ? (
+                <p className="route-points-empty">No points yet.</p>
+              ) : (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+                  <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                    <ul className="route-point-list">
+                      {routePoints.map((point, index) => (
+                        <RoutePointListItem
+                          key={point.id}
+                          point={point}
+                          index={index}
+                          label={getRoutePointLabel(routePoints, index)}
+                          onDelete={onDeletePoint}
+                          onSegmentModeChange={onSegmentModeChange}
+                        />
+                      ))}
+                    </ul>
+                  </SortableContext>
+                </DndContext>
+              )}
+            </section>
+          </>
+        ) : null}
       </aside>
 
       <main className={`map-area ${viewMode}`} onContextMenu={(event) => event.preventDefault()}>

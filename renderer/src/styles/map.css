@@ -86,7 +86,7 @@
 
 .map-search-submit:not(:disabled):hover,
 .map-search-clear:not(:disabled):hover {
-  background: var(--color-bg-canvas);
+  background: var(--bg-hover);
 }
 
 .map-search-feedback {
@@ -132,7 +132,7 @@
 
 .map-style-toggle:hover,
 .map-fit-toggle:hover {
-  background: var(--color-bg-canvas);
+  background: var(--bg-hover);
 }
 
 .map-style-toggle svg,
@@ -220,7 +220,7 @@
   width: 10px;
   height: 8px;
   flex: 0 0 10px;
-  opacity: 0.7;
+  opacity: 1;
 }
 
 .map-context-icon-separator::before {
@@ -229,7 +229,7 @@
   left: 0;
   top: 50%;
   width: 7px;
-  border-top: 1.4px solid var(--color-text-muted);
+  border-top: 1.4px solid var(--color-text-primary);
   transform: translateY(-50%);
 }
 
@@ -240,8 +240,8 @@
   top: 50%;
   width: 4px;
   height: 4px;
-  border-top: 1.4px solid var(--color-text-muted);
-  border-right: 1.4px solid var(--color-text-muted);
+  border-top: 1.4px solid var(--color-text-primary);
+  border-right: 1.4px solid var(--color-text-primary);
   transform: translateY(-50%) rotate(45deg);
 }
 
@@ -250,7 +250,7 @@
 }
 
 .map-context-menu button:hover {
-  background: var(--color-accent-soft);
+  background: var(--bg-hover);
   border-color: #bfdbfe;
 }
 
@@ -266,7 +266,7 @@
 
 .map-context-submenu-trigger::after {
   content: ">";
-  color: var(--color-text-muted);
+  color: var(--color-text-primary);
 }
 
 .map-context-submenu {
@@ -553,7 +553,7 @@
 }
 
 .parking-name-preset-button:hover {
-  background: var(--color-accent-soft);
+  background: var(--bg-hover);
   border-color: var(--color-accent);
 }
 
@@ -695,6 +695,7 @@
 
 .map-context-menu button:hover,
 .map-context-submenu button:hover {
+  background: var(--bg-hover);
   border-color: color-mix(in srgb, var(--color-border) 55%, var(--color-accent) 45%);
 }
 

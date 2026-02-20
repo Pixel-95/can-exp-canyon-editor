@@ -1,6 +1,0 @@
-interface:
-  display_name: "Planner"
-  short_description: "Break requests into actionable implementation plans"
-  default_prompt: "Use $planner to produce a concrete implementation plan before coding."
-policy:
-  allow_implicit_invocation: true

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Responsive Layout Specialist"
-  short_description: "Tune breakpoints and readable widths safely"
-  default_prompt: "Use $responsive-layout-specialist to refine breakpoints, overflow, and max-widths while keeping behavior unchanged."
-policy:
-  allow_implicit_invocation: true

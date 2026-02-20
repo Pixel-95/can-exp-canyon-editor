@@ -51,7 +51,7 @@
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--color-text-primary);
+  color: var(--color-text-muted);
 }
 
 .track-add-access {
@@ -67,7 +67,7 @@
 
 .track-add-access:hover {
   border-color: color-mix(in srgb, var(--color-border) 65%, var(--color-accent) 35%);
-  background: var(--color-bg-canvas);
+  background: var(--bg-hover);
 }
 
 .track-list-empty {
@@ -118,7 +118,7 @@
 
 .track-list-main:hover {
   border-color: color-mix(in srgb, var(--color-border) 65%, var(--color-accent) 35%);
-  background: var(--color-bg-canvas);
+  background: var(--bg-hover);
 }
 
 .track-list-item.active .track-list-main {
@@ -220,7 +220,7 @@
 
 .track-list-delete:hover {
   border-color: #fda4af;
-  background: #ffe4e8;
+  background: var(--bg-hover);
 }
 
 .track-list-delete-inline {
@@ -239,11 +239,11 @@
   margin: 0;
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
 }
 
 .route-summary strong {
-  color: var(--color-text-primary);
+  color: var(--color-text-muted);
   font-weight: var(--font-weight-medium);
 }
 
@@ -313,8 +313,9 @@
 }
 
 .coordinate-action-trigger-caret {
-  font-size: 0.72rem;
-  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  color: var(--color-text-primary);
+  line-height: 1;
   flex: 0 0 auto;
 }
 
@@ -379,7 +380,7 @@
 }
 
 .coordinate-action-option:hover {
-  background: var(--color-accent-soft);
+  background: var(--bg-hover);
   border-color: color-mix(in srgb, var(--color-border) 55%, var(--color-accent) 45%);
 }
 
@@ -404,7 +405,7 @@
 
 .coordinate-input-form button:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--color-border) 65%, var(--color-accent) 35%);
-  background: var(--color-bg-canvas);
+  background: var(--bg-hover);
 }
 
 .coordinate-insert-submit {
@@ -418,7 +419,7 @@
 .coordinate-input-error {
   margin: 0;
   font-size: var(--font-size-sm);
-  color: #9f1239;
+  color: #fca5a5;
 }
 
 .route-points-header {
@@ -463,12 +464,12 @@
 
 .route-points-invert:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--color-border) 65%, var(--color-accent) 35%);
-  background: var(--color-bg-canvas);
+  background: var(--bg-hover);
 }
 
 .route-points-clear:hover:not(:disabled) {
   border-color: #fda4af;
-  background: #ffe4e8;
+  background: var(--bg-hover);
 }
 
 .route-points-invert:disabled,
@@ -498,7 +499,7 @@
 
 .route-point-list {
   margin: 0;
-  padding: 0;
+  padding: 0 var(--space-1) 0 0;
   list-style: none;
   display: flex;
   flex-direction: column;
@@ -507,6 +508,28 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-bg-canvas) 38%, var(--color-bg-surface) 62%) transparent;
+}
+
+.route-point-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.route-point-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.route-point-list::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  background-color: color-mix(in srgb, var(--color-bg-canvas) 38%, var(--color-bg-surface) 62%);
+}
+
+.route-point-list::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--color-bg-canvas) 30%, var(--color-bg-surface) 70%);
 }
 
 .route-point-item {
@@ -584,7 +607,7 @@
 
 .route-point-delete:hover {
   border-color: #fda4af;
-  background: #ffe4e8;
+  background: var(--bg-hover);
 }
 
 @media (max-width: 900px) {

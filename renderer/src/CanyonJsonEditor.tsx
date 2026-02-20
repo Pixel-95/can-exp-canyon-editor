@@ -1648,7 +1648,6 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
           return (
             <div className="json-input-field json-special-notes-field">
               <div className="json-special-notes-header">
-                <label>{titleCase(label)}</label>
                 <button
                   type="button"
                   className="json-special-notes-toggle"
@@ -1663,6 +1662,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                 >
                   {specialNotesCollapsed ? "\u25BC" : "\u25B2"}
                 </button>
+                <label>{titleCase(label)}</label>
               </div>
 
               {!specialNotesCollapsed ? (
@@ -2038,6 +2038,22 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
             ["sections"],
             "sections",
           );
+          const mapTools = (
+            <RouteMapApp
+              viewMode={mapViewMode}
+              onRequestExpandMap={onToggleMapView}
+              defaultLanguage={defaultLanguage}
+              overviewCoordinate={overviewCoordinate}
+              onSetOverviewCoordinate={onOverviewCoordinateSet}
+              pointsOfInterest={pointsOfInterest}
+              onPointsOfInterestChange={onPointsOfInterestChange}
+              parkingLots={parkingLots}
+              onParkingLotsChange={onParkingLotsChange}
+              parkingLotSuggestions={parkingLotSuggestions}
+              trackBindings={trackBindings}
+              onTrackSnapshotChange={onTrackSnapshotChange}
+            />
+          );
 
           return (
             <div className="json-root-layout">
@@ -2064,22 +2080,17 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                   />
                 ) : null}
                 <aside id="json-map-tools" className={`json-overview-map-pane ${mapViewMode}`}>
-                  <div className="json-overview-map-inner">
-                    <RouteMapApp
-                      viewMode={mapViewMode}
-                      onRequestExpandMap={onToggleMapView}
-                      defaultLanguage={defaultLanguage}
-                      overviewCoordinate={overviewCoordinate}
-                      onSetOverviewCoordinate={onOverviewCoordinateSet}
-                      pointsOfInterest={pointsOfInterest}
-                      onPointsOfInterestChange={onPointsOfInterestChange}
-                      parkingLots={parkingLots}
-                      onParkingLotsChange={onParkingLotsChange}
-                      parkingLotSuggestions={parkingLotSuggestions}
-                      trackBindings={trackBindings}
-                      onTrackSnapshotChange={onTrackSnapshotChange}
-                    />
-                  </div>
+                  {mapViewMode === "compact" ? (
+                    <div className="json-overview-side-panel">
+                      <div className="json-overview-map-inner">{mapTools}</div>
+                      <section className="json-required-data-panel" aria-label="Required Data">
+                        <h3>Required Data</h3>
+                        <div className="json-required-data-scroll" />
+                      </section>
+                    </div>
+                  ) : (
+                    <div className="json-overview-map-inner">{mapTools}</div>
+                  )}
                 </aside>
               </div>
             </div>

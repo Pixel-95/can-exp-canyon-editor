@@ -1,6 +1,0 @@
-interface:
-  display_name: "Designer"
-  short_description: "Define a minimal, modern UI visual system for implementation"
-  default_prompt: "Use $designer to define the visual system and interaction rules before UI implementation."
-policy:
-  allow_implicit_invocation: true

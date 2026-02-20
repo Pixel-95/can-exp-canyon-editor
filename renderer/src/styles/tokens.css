@@ -29,17 +29,18 @@
   --color-accent-strong: #2563EB;
   --color-accent-soft: #EFF6FF;
 
-  --color-bg-canvas: #D2D8E0;
+  --color-bg-canvas: #111111;
   --color-bg-surface: #FFFFFF;
-  --color-bg-elevated: #D8DFE7;
-  --color-bg-frame: #7C8087;
+  --color-bg-elevated: #111111;
+  --color-bg-frame: #666666;
+  --bg-hover: #CCDDFF;
 
-  --color-border-subtle: #AEBAC9;
-  --color-border: #9FAEC0;
+  --color-border-subtle: #111111;
+  --color-border: #111111;
 
-  --color-text-primary: #111827;
-  --color-text-secondary: #334155;
-  --color-text-muted: #475569;
+  --color-text-primary: #000000;
+  --color-text-secondary: #000000;
+  --color-text-muted: #FFFFFF;
 
   --color-focus: #60A5FA;
 

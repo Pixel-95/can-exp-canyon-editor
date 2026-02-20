@@ -1,6 +1,0 @@
-interface:
-  display_name: "IA/UX Architect"
-  short_description: "Define scan-first IA and layout structure"
-  default_prompt: "Use $ia-ux-architect to define grouping, navigation, and layout for one-glance clarity before visual styling."
-policy:
-  allow_implicit_invocation: true

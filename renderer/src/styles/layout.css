@@ -42,7 +42,7 @@
 }
 
 .button-grid button:hover:not(:disabled) {
-  background: var(--color-bg-canvas);
+  background: var(--bg-hover);
 }
 
 .button-grid button:disabled {
@@ -103,6 +103,36 @@
   padding-right: var(--space-1);
 }
 
+/* Keep main vertical scrollbars dark and understated. */
+.control-panel,
+.json-content-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-bg-canvas) 74%, var(--color-bg-surface) 26%) transparent;
+}
+
+.control-panel::-webkit-scrollbar,
+.json-content-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.control-panel::-webkit-scrollbar-track,
+.json-content-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.control-panel::-webkit-scrollbar-thumb,
+.json-content-scroll::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  background-color: color-mix(in srgb, var(--color-bg-canvas) 74%, var(--color-bg-surface) 26%);
+}
+
+.control-panel::-webkit-scrollbar-thumb:hover,
+.json-content-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--color-bg-canvas) 66%, var(--color-bg-surface) 34%);
+}
+
 .json-content-column {
   display: grid;
   gap: var(--space-4);
@@ -127,6 +157,14 @@
   min-height: 0;
   height: 100%;
   align-self: stretch;
+}
+
+.json-overview-side-panel {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  min-height: 0;
+  height: 100%;
 }
 
 .json-overview-map-pane.expanded {
@@ -156,8 +194,8 @@
   inset: 0;
   z-index: 60;
   border: 0;
-  background: rgba(17, 24, 39, 0.28);
-  backdrop-filter: blur(1px);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(2px);
   padding: 0;
   margin: 0;
   cursor: default;
@@ -176,6 +214,35 @@
   overflow: hidden;
 }
 
+.json-required-data-panel {
+  border: 1px solid var(--color-bg-surface);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-canvas);
+  color: var(--color-text-muted);
+  box-shadow: var(--shadow-md);
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.json-required-data-panel h3 {
+  margin: 0;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-bg-surface);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.json-required-data-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-3);
+}
+
 .json-overview-map-pane.expanded .json-overview-map-inner {
   border-left: 1px solid var(--color-border-subtle);
   box-shadow: -14px 0 24px rgba(17, 24, 39, 0.12);
@@ -191,6 +258,15 @@
 
 .json-overview-map-pane.expanded .control-panel {
   display: flex;
+}
+
+.json-overview-map-pane.expanded :where(
+  .track-list-panel,
+  .route-summary,
+  .coordinate-input-panel,
+  .route-points-panel
+) {
+  background: var(--color-bg-frame);
 }
 
 .json-overview-map-toggle {
@@ -229,7 +305,7 @@
 }
 
 .json-overview-map-toggle:hover {
-  background: var(--color-bg-canvas);
+  background: var(--bg-hover);
   border-color: color-mix(in srgb, var(--color-border) 65%, var(--color-accent) 35%);
 }
 

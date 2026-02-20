@@ -1,6 +1,0 @@
-interface:
-  display_name: "Implementer"
-  short_description: "Implement approved plans with scoped, validated code"
-  default_prompt: "Use $implementer to apply the approved plan and validate the changes."
-policy:
-  allow_implicit_invocation: true

@@ -1,6 +1,0 @@
-interface:
-  display_name: "Map Editor Behavior"
-  short_description: "Change map editing behavior while preserving route UX invariants"
-  default_prompt: "Use $map-editor-behavior to safely modify RouteMapApp interaction behavior."
-policy:
-  allow_implicit_invocation: true

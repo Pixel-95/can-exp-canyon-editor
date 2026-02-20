@@ -1,6 +1,0 @@
-interface:
-  display_name: "Canyon Data Schema"
-  short_description: "Protect canyon JSON and track GeoJSON structure integrity"
-  default_prompt: "Use $canyon-data-schema to validate and update canyon data/track schema safely."
-policy:
-  allow_implicit_invocation: true
