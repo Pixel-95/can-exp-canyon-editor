@@ -28,19 +28,14 @@ Create routes with start, waypoint, and end points on the map, then export the c
 - Clean export format for integration into existing workflows
 - Desktop app workflow for Windows and macOS
 
-## Live Demo
-Currently available as a desktop application (no browser demo).
-
 ## Commands
-
-Install dependencies
-`npm install`
-
 Run in development
 `npm run dev`
 
-Build production files
-`npm run build`
+Build Windows portable executable
+`npm run package:win`
+`npm run package:dist`
 
-Create installers
-`npm run package`
+Build macOS app directory artifact
+`npm run package:mac`
+`npm run package:dist`

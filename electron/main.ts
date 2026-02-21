@@ -1,11 +1,12 @@
-import "dotenv/config";
-
 import { Menu, app, BrowserWindow, dialog, ipcMain, screen } from "electron";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   cloneValue,
+  getCanyonDataDirectory,
+  getCanyonFolderPath,
+  getRuntimeRootDir,
   isObjectRecord,
   normalizeAbsolutePathForCompare,
   normalizeRoutePoints,
@@ -38,6 +39,16 @@ import type {
 
 let mainWindow: BrowserWindow | null = null;
 const CANYON_JSON_FILENAME = "data.json";
+
+function getAppRuntimeRootDir(): string {
+  return getRuntimeRootDir({
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    cwd: process.cwd(),
+    execPath: app.getPath("exe"),
+    portableExecutableDir: process.env.PORTABLE_EXECUTABLE_DIR,
+  });
+}
 
 function resolveWindowIconPath(): string | undefined {
   const candidates = [
@@ -298,7 +309,7 @@ async function resolveJsonTargetPath(
   let targetPath = currentFilePath?.trim() ? normalizeToDataJsonPath(currentFilePath.trim()) : "";
 
   if (!targetPath) {
-    const fallbackDir = currentFilePath ? path.dirname(currentFilePath) : process.cwd();
+    const fallbackDir = currentFilePath ? path.dirname(currentFilePath) : getAppRuntimeRootDir();
     const saveResult = await dialog.showSaveDialog(mainWindow, {
       title: "Save Canyon JSON",
       defaultPath: path.join(fallbackDir, CANYON_JSON_FILENAME),
@@ -446,6 +457,66 @@ function createNewJsonTemplate(canyonName: string): Record<string, unknown> {
   };
 }
 
+function parseMapboxTokenFromDotEnv(dotEnvContents: string): string | null {
+  const lines = dotEnvContents.split(/\r?\n/g);
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine || trimmedLine.startsWith("#")) {
+      continue;
+    }
+
+    const equalsIndex = trimmedLine.indexOf("=");
+    if (equalsIndex <= 0) {
+      continue;
+    }
+
+    const rawKey = trimmedLine.slice(0, equalsIndex).trim();
+    if (rawKey !== "MAPBOX_TOKEN") {
+      continue;
+    }
+
+    let rawValue = trimmedLine.slice(equalsIndex + 1).trim();
+    if (
+      rawValue.length >= 2 &&
+      ((rawValue.startsWith("\"") && rawValue.endsWith("\"")) ||
+        (rawValue.startsWith("'") && rawValue.endsWith("'")))
+    ) {
+      rawValue = rawValue.slice(1, -1);
+    }
+
+    return rawValue.trim() || null;
+  }
+
+  return null;
+}
+
+async function resolveMapboxToken(runtimeRootDir: string): Promise<string | null> {
+  const dotEnvCandidatePaths = [
+    path.join(runtimeRootDir, "assets", ".env"),
+    path.join(runtimeRootDir, ".env"),
+  ];
+
+  for (const dotEnvPath of dotEnvCandidatePaths) {
+    try {
+      const dotEnvContents = await readFile(dotEnvPath, "utf8");
+      const token = parseMapboxTokenFromDotEnv(dotEnvContents);
+      if (token) {
+        return token;
+      }
+    } catch (error) {
+      const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+      if (code === "ENOENT") {
+        continue;
+      }
+
+      console.error(`Failed to read .env at ${dotEnvPath}:`, toErrorMessage(error));
+      return null;
+    }
+  }
+
+  return null;
+}
+
 async function loadJsonFromFile(filePath: string): Promise<LoadJsonResult> {
   try {
     const jsonString = await readFile(filePath, "utf8");
@@ -468,8 +539,8 @@ process.on("unhandledRejection", (reason) => {
   console.error("Unhandled rejection in main process:", reason);
 });
 
-ipcMain.handle("config:get-mapbox-token", () => {
-  return process.env.MAPBOX_TOKEN ?? null;
+ipcMain.handle("config:get-mapbox-token", async () => {
+  return resolveMapboxToken(getAppRuntimeRootDir());
 });
 
 ipcMain.handle(
@@ -515,8 +586,9 @@ ipcMain.handle("json:load-dialog", async (): Promise<LoadJsonResult> => {
     throw new Error("Application window is not ready.");
   }
 
-  const defaultDataDirectory = path.join(process.cwd(), "data");
-  const defaultOpenDirectory = existsSync(defaultDataDirectory) ? defaultDataDirectory : process.cwd();
+  const runtimeRootDir = getAppRuntimeRootDir();
+  const defaultDataDirectory = getCanyonDataDirectory(runtimeRootDir);
+  const defaultOpenDirectory = existsSync(defaultDataDirectory) ? defaultDataDirectory : runtimeRootDir;
   const openResult = await dialog.showOpenDialog(mainWindow, {
     title: "Load Canyon JSON",
     defaultPath: defaultOpenDirectory,
@@ -547,7 +619,7 @@ ipcMain.handle("json:load-path", async (_event, requestedPath: string): Promise<
     };
   }
 
-  const absolutePath = toAbsolutePath(requestedPath.trim());
+  const absolutePath = toAbsolutePath(requestedPath.trim(), getAppRuntimeRootDir());
   return loadJsonFromFile(absolutePath);
 });
 
@@ -566,8 +638,7 @@ ipcMain.handle(
       };
     }
 
-    const folderName = sanitizeFolderName(rawName);
-    const folderPath = path.join(process.cwd(), "data", folderName);
+    const folderPath = getCanyonFolderPath(getAppRuntimeRootDir(), rawName);
     if (existsSync(folderPath)) {
       return {
         canceled: false,
@@ -926,7 +997,7 @@ ipcMain.handle("json:pick-file", async (_event, request: PickFileRequest): Promi
     title: request?.title ?? "Select file",
     defaultPath:
       request?.defaultPath && request.defaultPath.trim()
-        ? toAbsolutePath(request.defaultPath.trim())
+        ? toAbsolutePath(request.defaultPath.trim(), getAppRuntimeRootDir())
         : undefined,
     properties: ["openFile"],
     filters: request?.filters?.length
@@ -940,8 +1011,8 @@ ipcMain.handle("json:pick-file", async (_event, request: PickFileRequest): Promi
 
   const absolutePath = openResult.filePaths[0];
   const baseDir = request?.baseDir && request.baseDir.trim()
-    ? toAbsolutePath(request.baseDir)
-    : process.cwd();
+    ? toAbsolutePath(request.baseDir, getAppRuntimeRootDir())
+    : getAppRuntimeRootDir();
   const relativePath = toRelativePath(baseDir, absolutePath);
 
   return {

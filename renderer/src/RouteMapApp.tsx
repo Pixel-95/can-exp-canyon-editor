@@ -1005,16 +1005,14 @@ export function RouteMapApp({
     let cancelled = false;
 
     async function resolveToken(): Promise<void> {
-      const viteToken = import.meta.env.VITE_MAPBOX_TOKEN?.trim();
-      const envToken = (await window.api.getMapboxToken())?.trim();
-      const token = viteToken || envToken || "";
+      const token = (await window.api.getMapboxToken())?.trim() ?? "";
 
       if (cancelled) {
         return;
       }
 
       if (!token) {
-        setStatusText("Missing Mapbox token. Set VITE_MAPBOX_TOKEN or MAPBOX_TOKEN.");
+        setStatusText("Missing Mapbox token. Set MAPBOX_TOKEN in assets/.env.");
         return;
       }
 

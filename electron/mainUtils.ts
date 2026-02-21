@@ -34,12 +34,50 @@ export function toErrorMessage(error: unknown): string {
   return "Unexpected error.";
 }
 
-export function toAbsolutePath(requestedPath: string): string {
+type RuntimeRootOptions = {
+  isPackaged: boolean;
+  platform: NodeJS.Platform;
+  cwd: string;
+  execPath: string;
+  portableExecutableDir?: string | null;
+};
+
+export function getRuntimeRootDir(options: RuntimeRootOptions): string {
+  const { isPackaged, platform, cwd, execPath, portableExecutableDir } = options;
+  if (!isPackaged) {
+    return path.normalize(cwd);
+  }
+
+  if (portableExecutableDir && portableExecutableDir.trim()) {
+    return path.normalize(portableExecutableDir.trim());
+  }
+
+  if (platform === "darwin") {
+    const executableDir = path.dirname(execPath);
+    const contentsDir = path.dirname(executableDir);
+    const appBundleDir = path.dirname(contentsDir);
+    if (path.basename(appBundleDir).toLowerCase().endsWith(".app")) {
+      return path.dirname(appBundleDir);
+    }
+  }
+
+  return path.dirname(execPath);
+}
+
+export function getCanyonDataDirectory(runtimeRootDir: string): string {
+  return path.join(runtimeRootDir, "data");
+}
+
+export function getCanyonFolderPath(runtimeRootDir: string, canyonName: string): string {
+  return path.join(getCanyonDataDirectory(runtimeRootDir), sanitizeFolderName(canyonName));
+}
+
+export function toAbsolutePath(requestedPath: string, baseDir = process.cwd()): string {
   if (path.isAbsolute(requestedPath)) {
     return path.normalize(requestedPath);
   }
 
-  return path.resolve(process.cwd(), requestedPath);
+  return path.resolve(baseDir, requestedPath);
 }
 
 export function toRelativePath(baseDir: string, absolutePath: string): string {

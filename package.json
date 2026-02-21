@@ -18,7 +18,11 @@
     "build": "npm run build:renderer && npm run build:electron",
     "build:renderer": "vite build --config renderer/vite.config.ts",
     "build:electron": "tsc -p electron/tsconfig.json",
-    "package": "npm run build && electron-builder"
+    "package": "npm run build && electron-builder",
+    "package:win": "npm run build && electron-builder --win portable",
+    "package:mac": "npm run build && electron-builder --mac dir",
+    "package:mac:zip": "npm run build && electron-builder --mac dir zip",
+    "package:dist": "node scripts/assemble-distributions.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.1.1",
@@ -51,6 +55,7 @@
     "files": [
       "dist/electron/**/*",
       "dist/renderer/**/*",
+      "build/icon.png",
       "package.json"
     ],
     "directories": {
@@ -60,7 +65,7 @@
     "mac": {
       "icon": "build/icon.png",
       "target": [
-        "dmg"
+        "dir"
       ],
       "category": "public.app-category.utilities"
     },
@@ -68,12 +73,8 @@
       "signAndEditExecutable": false,
       "icon": "build/icon.png",
       "target": [
-        "nsis"
+        "portable"
       ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false
     }
   }
 }

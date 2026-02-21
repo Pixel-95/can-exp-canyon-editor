@@ -56,7 +56,6 @@ type SaveFeedbackPopup = {
   hiddenCount: number;
 };
 
-const DEFAULT_JSON_PATH = "data/Kobelache/data.json";
 const COUNTRY_ASSET_PATH = "assets/countries_and_regions.json";
 const SPECIAL_NOTES_ASSET_PATH = "assets/special_notes_possibilities.json";
 const PARKING_LOT_SUGGESTIONS_ASSET_PATH = "assets/parking_lot_suggestions.json";
@@ -843,7 +842,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   const [trackSnapshot, setTrackSnapshot] = useState<TrackSnapshot | null>(null);
   const [mapSessionKey, setMapSessionKey] = useState(0);
   const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState("Loading data/Kobelache/data.json...");
+  const [statusMessage, setStatusMessage] = useState("");
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [specialNoteDefinitions, setSpecialNoteDefinitions] = useState<SpecialNoteDefinition[]>([]);
   const [parkingLotSuggestions, setParkingLotSuggestions] = useState<LocalizedText[]>([]);
@@ -1108,48 +1107,6 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
     window.localStorage.setItem(DEFAULT_LANGUAGE_STORAGE_KEY, defaultLanguage);
   }, [defaultLanguage]);
-
-  useEffect(() => {
-    let canceled = false;
-
-    async function loadInitialJson(): Promise<void> {
-      const result = await window.api.loadJsonFromPath(DEFAULT_JSON_PATH);
-      if (canceled) {
-        return;
-      }
-
-      if (!result.canceled && result.data && isJsonObject(result.data)) {
-        setCanyonData(normalizeCanyonForEditor(cloneJsonValue(result.data)));
-        trackSnapshotRef.current = null;
-        setTrackSnapshot(null);
-        setCurrentFilePath(result.filePath ?? null);
-        setStatusMessage(result.filePath ?? DEFAULT_JSON_PATH);
-        return;
-      }
-
-      const template = await window.api.createNewJsonTemplate("New Canyon");
-      if (canceled) {
-        return;
-      }
-
-      setCanyonData(isJsonObject(template) ? normalizeCanyonForEditor(cloneJsonValue(template)) : null);
-      trackSnapshotRef.current = null;
-      setTrackSnapshot(null);
-      setCurrentFilePath(null);
-      setStatusMessage(
-        result.error ? `Could not load default JSON: ${result.error}` : "Started with a new JSON template.",
-      );
-    }
-
-    void loadInitialJson().catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : "Unexpected initialization error.";
-      setStatusMessage(message);
-    });
-
-    return () => {
-      canceled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let canceled = false;
@@ -2971,37 +2928,31 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
           <button type="button" disabled={!canyonData || isSaving} onClick={() => void onSaveJson()}>
             {isSaving ? "Saving..." : "Save canyon"}
           </button>
-          <label className="json-default-language-selector">
-            <span>Default language</span>
-            <select
-              value={defaultLanguage}
-              onChange={(event) => {
-                const nextValue = event.target.value;
-                if (STATIC_LANGUAGE_SET.has(nextValue)) {
-                  setDefaultLanguage(nextValue as (typeof STATIC_LANGUAGE_KEYS)[number]);
-                }
-              }}
-            >
-              {STATIC_LANGUAGE_KEYS.map((language) => (
-                <option key={language} value={language}>
-                  {language.toUpperCase()}
-                </option>
-              ))}
-            </select>
-          </label>
+          {canyonData ? (
+            <label className="json-default-language-selector">
+              <span>Default language</span>
+              <select
+                value={defaultLanguage}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  if (STATIC_LANGUAGE_SET.has(nextValue)) {
+                    setDefaultLanguage(nextValue as (typeof STATIC_LANGUAGE_KEYS)[number]);
+                  }
+                }}
+              >
+                {STATIC_LANGUAGE_KEYS.map((language) => (
+                  <option key={language} value={language}>
+                    {language.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
-        <p className="json-status">{statusMessage}</p>
+        {canyonData && statusMessage ? <p className="json-status">{statusMessage}</p> : null}
       </header>
 
-      <section className="json-editor-body">
-        {canyonData ? (
-          <>
-            {renderNode(canyonData, [], "Canyon")}
-          </>
-        ) : (
-          <div className="json-empty-text">No JSON loaded.</div>
-        )}
-      </section>
+      {canyonData ? <section className="json-editor-body">{renderNode(canyonData, [], "Canyon")}</section> : null}
 
       {saveFeedbackPopup ? (
         <div className="json-modal-backdrop" role="presentation">
