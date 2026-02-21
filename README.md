@@ -39,3 +39,25 @@ Build Windows portable executable
 Build macOS app directory artifact
 `npm run package:mac`
 `npm run package:dist`
+
+## Build macOS on GitHub Actions (from Windows)
+GitHub workflow file:
+`.github/workflows/build-macos.yml`
+
+1. Commit and push your changes (including the workflow file) to GitHub.
+2. In GitHub, open `Actions` -> `Build macOS Distribution`.
+3. Click `Run workflow` and select your branch.
+4. Wait until the run is green.
+5. Download artifact `canyon-editor-macos`.
+
+Artifact content:
+- `Canyon Editor.app`
+- `assets/`
+- `data/` (empty)
+
+Note:
+- The artifact does not include your local `.env`.
+- After downloading, create `assets/.env` and add:
+```env
+MAPBOX_TOKEN=your_mapbox_token_here
+```

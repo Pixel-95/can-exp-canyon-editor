@@ -1,0 +1,40 @@
+name: Build macOS Distribution
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build macOS app
+        run: npm run package:mac
+
+      - name: Assemble distributable folder
+        run: npm run package:dist
+
+      - name: Verify output
+        run: ls -la release/distributions/macos
+
+      - name: Upload macOS distribution artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: canyon-editor-macos
+          path: release/distributions/macos/**
+          if-no-files-found: error
