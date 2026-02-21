@@ -41,6 +41,12 @@ import {
   toCoordinatesArray,
 } from "./shared/geo";
 import { getTrackDisplayNameFromFilePath, normalizeTrackLink } from "./shared/trackLinks";
+import {
+  getNextNewAccessTrackId,
+  hydrateTrackStateFromSnapshot,
+  isUnsavedNewAccessTrack,
+  shouldReuseHydratedTrackForBinding,
+} from "./shared/trackSnapshotState";
 
 type Coordinate = [number, number];
 type RoutePointType = "start" | "waypoint" | "end";
@@ -245,6 +251,7 @@ type RouteMapAppProps = {
   onParkingLotsChange?: (parkingLots: ParkingLot[]) => void;
   parkingLotSuggestions?: LocalizedText[];
   trackBindings?: TrackBindings | null;
+  trackSnapshot?: TrackSnapshot | null;
   onTrackSnapshotChange?: (snapshot: TrackSnapshot) => void;
 };
 
@@ -853,8 +860,13 @@ export function RouteMapApp({
   onParkingLotsChange,
   parkingLotSuggestions = [],
   trackBindings = null,
+  trackSnapshot = null,
   onTrackSnapshotChange,
 }: RouteMapAppProps): JSX.Element {
+  const initialTrackState = hydrateTrackStateFromSnapshot(trackSnapshot);
+  const initialActiveTrack =
+    initialTrackState.activeTrackId ? initialTrackState.tracksById[initialTrackState.activeTrackId] ?? null : null;
+
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
@@ -873,11 +885,11 @@ export function RouteMapApp({
   const viewModeRef = useRef<RouteMapAppProps["viewMode"]>(viewMode);
   const activeTrackIdRef = useRef<string | null>(null);
   const hoveredTrackIdRef = useRef<string | null>(null);
-  const tracksByIdRef = useRef<Record<string, MultiTrackItem>>({});
-  const trackOrderRef = useRef<string[]>([]);
+  const tracksByIdRef = useRef<Record<string, MultiTrackItem>>(initialTrackState.tracksById);
+  const trackOrderRef = useRef<string[]>(initialTrackState.trackOrder);
   const syncRouteStateFromTrackRef = useRef(false);
   const lastLoadedTrackBindingKeyRef = useRef<string>("");
-  const newAccessTrackCounterRef = useRef(0);
+  const newAccessTrackCounterRef = useRef(initialTrackState.newAccessTrackCounter);
   const autoViewportAppliedForKeyRef = useRef<string>("");
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const searchDebounceTimeoutRef = useRef<number | null>(null);
@@ -885,11 +897,15 @@ export function RouteMapApp({
   const [mapboxToken, setMapboxToken] = useState<string>("");
   const [mapReadyVersion, setMapReadyVersion] = useState(0);
   const [mapStyleMode, setMapStyleMode] = useState<MapStyleMode>("outdoors");
-  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
-  const [routeFeature, setRouteFeature] = useState<RouteFeature | null>(null);
-  const [tracksById, setTracksById] = useState<Record<string, MultiTrackItem>>({});
-  const [trackOrder, setTrackOrder] = useState<string[]>([]);
-  const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
+  const [routePoints, setRoutePoints] = useState<RoutePoint[]>(() => initialActiveTrack?.routePoints ?? []);
+  const [routeFeature, setRouteFeature] = useState<RouteFeature | null>(
+    () => initialActiveTrack?.routeFeature ?? null,
+  );
+  const [tracksById, setTracksById] = useState<Record<string, MultiTrackItem>>(
+    () => initialTrackState.tracksById,
+  );
+  const [trackOrder, setTrackOrder] = useState<string[]>(() => initialTrackState.trackOrder);
+  const [activeTrackId, setActiveTrackId] = useState<string | null>(() => initialTrackState.activeTrackId);
   const [contextMenu, setContextMenu] = useState<MapContextMenuState>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<ContextMenuSubmenu | null>(null);
   const [poiEditor, setPoiEditor] = useState<PoiEditorState | null>(null);
@@ -1028,7 +1044,7 @@ export function RouteMapApp({
         const trackId = `section:${sectionBinding.sectionIndex}`;
         const normalizedPath = normalizeTrackLink(sectionBinding.filePath ?? "");
         const existing = existingTracksById[trackId];
-        if (existing && existing.filePath === normalizedPath) {
+        if (shouldReuseHydratedTrackForBinding(existing, normalizedPath)) {
           nextTracksById[trackId] = {
             ...existing,
             kind: "section",
@@ -1069,7 +1085,7 @@ export function RouteMapApp({
         const trackId = `access:${accessBinding.accessIndex}`;
         const normalizedPath = normalizeTrackLink(accessBinding.filePath);
         const existing = existingTracksById[trackId];
-        if (existing && existing.filePath === normalizedPath) {
+        if (shouldReuseHydratedTrackForBinding(existing, normalizedPath)) {
           nextTracksById[trackId] = {
             ...existing,
             kind: "access",
@@ -1113,7 +1129,7 @@ export function RouteMapApp({
           continue;
         }
 
-        if (existing.filePath || !existingTrackId.startsWith("access:new:")) {
+        if (!isUnsavedNewAccessTrack(existingTrackId, existing.kind, existing.filePath)) {
           continue;
         }
 
@@ -1178,7 +1194,7 @@ export function RouteMapApp({
 
       setTracksById(nextTracksById);
       setTrackOrder(nextTrackOrder);
-      setActiveTrackId(null);
+      setActiveTrackId((current) => (current && nextTracksById[current] ? current : null));
     }
 
     void loadTracksFromBindings().catch((error) => {
@@ -3554,7 +3570,8 @@ export function RouteMapApp({
   }, [closeAllMenus]);
 
   const onCreateAccessTrack = useCallback((): void => {
-    const nextCounter = newAccessTrackCounterRef.current + 1;
+    const nextAccessTrack = getNextNewAccessTrackId(Object.keys(tracksByIdRef.current));
+    const nextCounter = Math.max(newAccessTrackCounterRef.current + 1, nextAccessTrack.counter);
     newAccessTrackCounterRef.current = nextCounter;
     const trackId = `access:new:${nextCounter}`;
     const accessCount = Object.values(tracksByIdRef.current).filter((track) => track.kind === "access").length;

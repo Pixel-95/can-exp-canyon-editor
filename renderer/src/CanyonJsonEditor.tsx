@@ -839,6 +839,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   const previousRequiredChecklistStatusByIdRef = useRef<Record<string, ChecklistStatus>>({});
   const [canyonData, setCanyonData] = useState<JsonObject | null>(null);
   const [trackSnapshot, setTrackSnapshot] = useState<TrackSnapshot | null>(null);
+  const [mapSessionKey, setMapSessionKey] = useState(0);
   const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("Loading data/Kobelache/data.json...");
   const [countries, setCountries] = useState<CountryOption[]>([]);
@@ -1326,6 +1327,10 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       if (result.data && isJsonObject(result.data)) {
         setCanyonData(withGeneratedSectionIds(cloneJsonValue(result.data)));
       }
+
+      trackSnapshotRef.current = null;
+      setTrackSnapshot(null);
+      setMapSessionKey((current) => current + 1);
 
       if (Array.isArray(result.warnings) && result.warnings.length > 0) {
         setStatusMessage(`Saved with warnings: ${result.warnings.join(" | ")}`);
@@ -2241,6 +2246,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
           );
           const mapTools = (
             <RouteMapApp
+              key={mapSessionKey}
               viewMode={mapViewMode}
               onRequestExpandMap={onToggleMapView}
               defaultLanguage={defaultLanguage}
@@ -2252,6 +2258,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               onParkingLotsChange={onParkingLotsChange}
               parkingLotSuggestions={parkingLotSuggestions}
               trackBindings={trackBindings}
+              trackSnapshot={trackSnapshot}
               onTrackSnapshotChange={onTrackSnapshotChange}
             />
           );
@@ -2779,7 +2786,9 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       specialNoteIdByIcon,
       validationErrors,
       inputDrafts,
+      mapSessionKey,
       mapViewMode,
+      trackSnapshot,
     ],
   );
 
