@@ -105,8 +105,6 @@ const SECTION_DURATION_KEYS = [
 ] as const;
 const DEFAULT_RECOMMENDED_ROPES = "2x 0m";
 const SAVE_FEEDBACK_MAX_ITEMS = 12;
-const SAVE_FEEDBACK_SUCCESS_DURATION_MS = 3200;
-const SAVE_FEEDBACK_WARNING_DURATION_MS = 6400;
 const COMMITMENT_ROMAN_BY_VALUE = ["0", "I", "II", "III", "IV", "V", "VI"] as const;
 const COMMITMENT_VALUE_BY_ROMAN: Record<string, number> = {
   0: 0,
@@ -577,12 +575,22 @@ function parseParkingLotSuggestionsFromAsset(payload: unknown): LocalizedText[] 
   return suggestions;
 }
 
+function createEditorSection(index: number, name = ""): JsonObject {
+  return {
+    ...createDefaultSection(index),
+    name,
+    authors: [""],
+  };
+}
+
 function createEmptyNewCanyonData(template: JsonObject, canyonName: string): JsonObject {
+  const initialSection = createEditorSection(0, "Part1");
+
   return normalizeCanyonForEditor({
     ...template,
     name: canyonName,
     coordinates: null,
-    sections: [createDefaultSection(0)],
+    sections: [initialSection],
   });
 }
 
@@ -735,7 +743,7 @@ function defaultFromSample(sample: JsonValue): JsonValue {
 
 function newArrayItem(path: PathSegment[], arrayValue: JsonValue[]): JsonValue {
   if (path.length === 1 && path[0] === "sections") {
-    return createDefaultSection(arrayValue.length);
+    return createEditorSection(arrayValue.length);
   }
 
   if (arrayValue.length > 0) {
@@ -831,7 +839,6 @@ function TrashIcon({ className = "icon-trash" }: { className?: string }): JSX.El
 export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEditorProps): JSX.Element {
   const trackSnapshotRef = useRef<TrackSnapshot | null>(null);
   const previousRequiredChecklistStatusByIdRef = useRef<Record<string, ChecklistStatus>>({});
-  const saveFeedbackTimeoutRef = useRef<number | null>(null);
   const [canyonData, setCanyonData] = useState<JsonObject | null>(null);
   const [trackSnapshot, setTrackSnapshot] = useState<TrackSnapshot | null>(null);
   const [mapSessionKey, setMapSessionKey] = useState(0);
@@ -986,26 +993,17 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       });
     });
   }, []);
-  const clearSaveFeedbackPopupTimer = useCallback((): void => {
-    if (saveFeedbackTimeoutRef.current !== null) {
-      window.clearTimeout(saveFeedbackTimeoutRef.current);
-      saveFeedbackTimeoutRef.current = null;
-    }
-  }, []);
   const dismissSaveFeedbackPopup = useCallback((): void => {
-    clearSaveFeedbackPopupTimer();
     setSaveFeedbackPopup(null);
-  }, [clearSaveFeedbackPopupTimer]);
+  }, []);
   const showSaveFeedbackPopup = useCallback(
     (missingItems: string[]): void => {
-      clearSaveFeedbackPopupTimer();
-
       const hiddenCount = Math.max(0, missingItems.length - SAVE_FEEDBACK_MAX_ITEMS);
       const visibleMissingItems = missingItems.slice(0, SAVE_FEEDBACK_MAX_ITEMS);
       const tone = visibleMissingItems.length === 0 ? "success" : "warning";
       const message =
         tone === "success"
-          ? "Canyon saved successfully."
+          ? "All fields were set correctly"
           : "Canyon saved, but the following fields are missing:";
       setSaveFeedbackPopup({
         tone,
@@ -1013,22 +1011,9 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
         missingItems: visibleMissingItems,
         hiddenCount,
       });
-
-      const timeoutMs =
-        tone === "success" ? SAVE_FEEDBACK_SUCCESS_DURATION_MS : SAVE_FEEDBACK_WARNING_DURATION_MS;
-      saveFeedbackTimeoutRef.current = window.setTimeout(() => {
-        setSaveFeedbackPopup(null);
-        saveFeedbackTimeoutRef.current = null;
-      }, timeoutMs);
     },
-    [clearSaveFeedbackPopupTimer],
+    [],
   );
-
-  useEffect(() => {
-    return () => {
-      clearSaveFeedbackPopupTimer();
-    };
-  }, [clearSaveFeedbackPopupTimer]);
 
   useEffect(() => {
     const previousStatusById = previousRequiredChecklistStatusByIdRef.current;
@@ -1472,6 +1457,10 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
         setValidationError(key, "Must be a valid number.");
         return;
       }
+      if (parsed < 0) {
+        setValidationError(key, "Must be 0 or greater.");
+        return;
+      }
 
       setPathValue(path, parsed);
       clearValidationError(key);
@@ -1495,6 +1484,10 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       const parsed = Number(nextText);
       if (!Number.isFinite(parsed)) {
         setValidationError(key, "Must be a valid number.");
+        return;
+      }
+      if (parsed < 0) {
+        setValidationError(key, "Must be 0 or greater.");
         return;
       }
 
@@ -2599,6 +2592,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                       <span>{titleCase(fieldKey)}</span>
                       <input
                         type="number"
+                        min={0}
                         value={displayValue}
                         onChange={(event) => onNumberDraftChange(fieldPath, event.target.value)}
                         onBlur={() => clearDraft(fieldPathKey)}
@@ -2709,6 +2703,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                       <span className="json-max-rope-group-label">{titleCase("max_rappel_in_meter")}</span>
                       <input
                         type="number"
+                        min={0}
                         value={maxRappelDisplay}
                         onChange={(event) => onNumberDraftChange(maxRappelPath, event.target.value)}
                         onBlur={() => clearDraft(maxRappelPathKey)}
@@ -2734,6 +2729,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                       <span className="json-max-rope-group-label">Catchment Area (km{"\u00B2"})</span>
                       <input
                         type="number"
+                        min={0}
                         value={catchmentAreaDisplay}
                         placeholder={`0km${"\u00B2"}`}
                         onChange={(event) => onNullableNumberDraftChange(catchmentAreaPath, event.target.value)}
@@ -2791,6 +2787,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
             <input
               id={`field-${pathKey}`}
               type="number"
+              min={0}
               value={draftValue}
               onChange={(event) => onNumberDraftChange(path, event.target.value)}
               onBlur={() => clearDraft(pathKey)}
@@ -3007,28 +3004,33 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       </section>
 
       {saveFeedbackPopup ? (
-        <div
-          className={`json-save-feedback-toast ${saveFeedbackPopup.tone}`}
-          role="status"
-          aria-live="polite"
-          aria-label="Save feedback"
-        >
-          <div className="json-save-feedback-header">
-            <p>{saveFeedbackPopup.message}</p>
-            <button type="button" onClick={dismissSaveFeedbackPopup} aria-label="Close save feedback">
-              X
-            </button>
+        <div className="json-modal-backdrop" role="presentation">
+          <div
+            className={`json-modal json-save-feedback-modal ${saveFeedbackPopup.tone}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Save feedback"
+          >
+            <div className="json-modal-header">
+              <h3>Canyon saved</h3>
+            </div>
+            <p className="json-save-feedback-message">{saveFeedbackPopup.message}</p>
+            {saveFeedbackPopup.missingItems.length > 0 ? (
+              <ul className="json-save-feedback-list">
+                {saveFeedbackPopup.missingItems.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+                {saveFeedbackPopup.hiddenCount > 0 ? (
+                  <li className="json-save-feedback-more">+{saveFeedbackPopup.hiddenCount} more</li>
+                ) : null}
+              </ul>
+            ) : null}
+            <div className="json-modal-actions">
+              <button type="button" className="json-modal-keep" onClick={dismissSaveFeedbackPopup}>
+                OK
+              </button>
+            </div>
           </div>
-          {saveFeedbackPopup.missingItems.length > 0 ? (
-            <ul className="json-save-feedback-list">
-              {saveFeedbackPopup.missingItems.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-              {saveFeedbackPopup.hiddenCount > 0 ? (
-                <li className="json-save-feedback-more">+{saveFeedbackPopup.hiddenCount} more</li>
-              ) : null}
-            </ul>
-          ) : null}
         </div>
       ) : null}
 

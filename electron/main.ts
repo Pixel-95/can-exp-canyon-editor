@@ -297,26 +297,6 @@ async function resolveJsonTargetPath(
 
   let targetPath = currentFilePath?.trim() ? normalizeToDataJsonPath(currentFilePath.trim()) : "";
 
-  if (targetPath && existsSync(targetPath)) {
-    const decision = await dialog.showMessageBox(mainWindow, {
-      type: "question",
-      buttons: ["Overwrite", "Save As...", "Cancel"],
-      defaultId: 0,
-      cancelId: 2,
-      title: "Save Canyon JSON",
-      message: `Save changes to ${path.basename(targetPath)}?`,
-      detail: "Choose Overwrite to keep the same file path, or Save As to choose a new path.",
-    });
-
-    if (decision.response === 2) {
-      return { canceled: true };
-    }
-
-    if (decision.response === 1) {
-      targetPath = "";
-    }
-  }
-
   if (!targetPath) {
     const fallbackDir = currentFilePath ? path.dirname(currentFilePath) : process.cwd();
     const saveResult = await dialog.showSaveDialog(mainWindow, {
@@ -535,8 +515,11 @@ ipcMain.handle("json:load-dialog", async (): Promise<LoadJsonResult> => {
     throw new Error("Application window is not ready.");
   }
 
+  const defaultDataDirectory = path.join(process.cwd(), "data");
+  const defaultOpenDirectory = existsSync(defaultDataDirectory) ? defaultDataDirectory : process.cwd();
   const openResult = await dialog.showOpenDialog(mainWindow, {
     title: "Load Canyon JSON",
+    defaultPath: defaultOpenDirectory,
     properties: ["openFile"],
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
@@ -594,6 +577,10 @@ ipcMain.handle(
 
     try {
       await mkdir(folderPath, { recursive: true });
+      await Promise.all([
+        mkdir(path.join(folderPath, "topos"), { recursive: true }),
+        mkdir(path.join(folderPath, "tracks"), { recursive: true }),
+      ]);
       return {
         canceled: false,
         folderPath,

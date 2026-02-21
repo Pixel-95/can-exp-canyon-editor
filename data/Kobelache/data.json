@@ -116,9 +116,9 @@
     }
   ],
   "tracks_access": [
-    "./tracks/Kangaroo Jump - Ausstieg.json",
-    "./tracks/Kangaroo Jump - Zustieg.json",
-    "./tracks/Merlins World - Zustieg.json",
+    "./tracks/Kangaroo_Jump_-_Ausstieg.json",
+    "./tracks/Kangaroo_Jump_-_Zustieg.json",
+    "./tracks/Merlins_World_-_Zustieg.json",
     "./tracks/Kobelache_ZustiegMueselbach.json"
   ],
   "cover_image": null,
@@ -163,7 +163,7 @@
       },
       "durations_in_minutes": {
         "approach_no_shuttle": 90,
-        "approach_with_shuttle": 0,
+        "approach_with_shuttle": 3,
         "canyon": 150,
         "exit_no_shuttle": 15,
         "exit_with_shuttle": 15
@@ -171,7 +171,7 @@
       "tour_dimensions_in_meter": {
         "elevation_start": 800,
         "elevation_exit": 670,
-        "horizontal_length": 1500
+        "horizontal_length": 0
       },
       "max_rappel_in_meter": 12,
       "recommended_ropes": "1x 30m",
@@ -180,7 +180,7 @@
       "quality_anchoring": 0,
       "subjective_rating_count": 0,
       "quality_anchoring_count": 0,
-      "track_canyon": "./tracks/Merlins World.json",
+      "track_canyon": "./tracks/Merlin's_World.json",
       "topo": "./topos/MerlinsWorld.webp",
       "official_partner": null,
       "images": {
@@ -243,7 +243,7 @@
       "tour_dimensions_in_meter": {
         "elevation_start": 670,
         "elevation_exit": 580,
-        "horizontal_length": 500
+        "horizontal_length": 0
       },
       "max_rappel_in_meter": 18,
       "recommended_ropes": "1x 40m",
@@ -252,12 +252,13 @@
       "subjective_rating_count": 0,
       "quality_anchoring_count": 0,
       "official_partner": null,
-      "track_canyon": "./tracks/Kangaroo Jump.json",
+      "track_canyon": "./tracks/Kangaroo_Jump.json",
       "topo": "./topos/KangarooJump.webp",
       "images": {
         "cover": null,
         "additional": []
-      }
+      },
+      "catchment_area_in_km2": 1
     }
   ]
 }

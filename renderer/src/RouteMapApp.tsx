@@ -5011,20 +5011,13 @@ export function RouteMapApp({
               ))}
             </div>
             <div className="poi-editor-placement">
-              <button
-                type="button"
-                className={`poi-editor-set-location${isPoiPlacementPending ? " active" : ""}`}
-                onClick={() => onStartPoiPlacement(poiEditor.index)}
-              >
-                Set location on map
-              </button>
-              <p className="poi-editor-placement-hint">
-                {isPoiPlacementPending
-                  ? "Click anywhere on the map to place this point."
-                  : activePoi.coordinates
-                    ? "Location is set."
+              {isPoiPlacementPending || !activePoi.coordinates ? (
+                <p className="poi-editor-placement-hint">
+                  {isPoiPlacementPending
+                    ? "Click anywhere on the map to place this point."
                     : "Location not set yet."}
-              </p>
+                </p>
+              ) : null}
             </div>
 
             <div className="poi-editor-field">
@@ -5110,20 +5103,13 @@ export function RouteMapApp({
               ))}
             </div>
             <div className="poi-editor-placement">
-              <button
-                type="button"
-                className={`poi-editor-set-location${isParkingPlacementPending ? " active" : ""}`}
-                onClick={() => onStartParkingPlacement(parkingEditor.index)}
-              >
-                Set location on map
-              </button>
-              <p className="poi-editor-placement-hint">
-                {isParkingPlacementPending
-                  ? "Click anywhere on the map to place this parking lot."
-                  : activeParkingLot.coordinates
-                    ? "Location is set."
+              {isParkingPlacementPending || !activeParkingLot.coordinates ? (
+                <p className="poi-editor-placement-hint">
+                  {isParkingPlacementPending
+                    ? "Click anywhere on the map to place this parking lot."
                     : "Location not set yet."}
-              </p>
+                </p>
+              ) : null}
             </div>
 
             <div className="poi-editor-field">
