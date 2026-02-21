@@ -1068,6 +1068,7 @@ export function RouteMapApp({
       const nextTracksById: Record<string, MultiTrackItem> = {};
       const nextTrackOrder: string[] = [];
       const toLoad: Array<{ id: string; kind: TrackKind; filePath: string }> = [];
+      const consumedExistingAccessTrackIds = new Set<string>();
 
       const sectionBindings = trackBindings?.sections ?? [];
       for (const sectionBinding of sectionBindings) {
@@ -1128,27 +1129,36 @@ export function RouteMapApp({
       for (const accessBinding of accessBindings) {
         const trackId = `access:${accessBinding.accessIndex}`;
         const normalizedPath = normalizeTrackLink(accessBinding.filePath);
-        const existing = existingTracksById[trackId];
-        if (snapshotProvided) {
-          if (existing && existing.kind === "access") {
-            nextTracksById[trackId] = {
-              ...existing,
-              kind: "access",
-              color: "black",
-              displayName: existing.displayName || getTrackDisplayNameFromFilePath(
-                normalizedPath,
-                `Access ${accessBinding.accessIndex + 1}`,
-              ),
-              filePath: normalizeTrackLink(existing.filePath) || normalizedPath,
-            };
-            nextTrackOrder.push(trackId);
-          }
-          continue;
+        let existing: MultiTrackItem | null = null;
+
+        const existingById = existingTracksById[trackId];
+        if (existingById && existingById.kind === "access" && !consumedExistingAccessTrackIds.has(trackId)) {
+          existing = existingById;
+          consumedExistingAccessTrackIds.add(trackId);
         }
 
-        if (shouldReuseHydratedTrackForBinding(existing, normalizedPath)) {
+        if (!existing && snapshotProvided && normalizedPath) {
+          for (const [existingTrackId, candidate] of Object.entries(existingTracksById)) {
+            if (!candidate || candidate.kind !== "access") {
+              continue;
+            }
+            if (consumedExistingAccessTrackIds.has(existingTrackId)) {
+              continue;
+            }
+            if (normalizeTrackLink(candidate.filePath) !== normalizedPath) {
+              continue;
+            }
+
+            existing = candidate;
+            consumedExistingAccessTrackIds.add(existingTrackId);
+            break;
+          }
+        }
+
+        if (existing && shouldReuseHydratedTrackForBinding(existing, normalizedPath)) {
           nextTracksById[trackId] = {
             ...existing,
+            id: trackId,
             kind: "access",
             color: "black",
             displayName: getTrackDisplayNameFromFilePath(
