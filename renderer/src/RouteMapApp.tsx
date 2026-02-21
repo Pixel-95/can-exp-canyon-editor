@@ -262,6 +262,9 @@ const LOCALIZED_JSON_PLACEHOLDER = `{
 const TRACKS_SOURCE_ID = "tracks-source";
 const TRACKS_ACTIVE_LAYER_ID = "tracks-active-layer";
 const TRACKS_INACTIVE_LAYER_ID = "tracks-inactive-layer";
+const TRACKS_HOVER_LAYER_ID = "tracks-hover-layer";
+const NO_HOVER_TRACK_ID = "__none__";
+const TRACK_HOVER_COLOR = "#CCDDFF";
 const TERRAIN_TILE_ZOOM = 14;
 const TERRAIN_TILE_SIZE = 512;
 const MAX_ROUTED_SEGMENT_CACHE_ENTRIES = 400;
@@ -426,6 +429,10 @@ function normalizeRoutePoints(points: RoutePoint[]): RoutePoint[] {
     basePoint.segmentMode = point.segmentMode ?? "straight";
     return basePoint;
   });
+}
+
+function hasTrackBoundaryPoints(points: RoutePoint[]): boolean {
+  return points.some((point) => point.type === "start") && points.some((point) => point.type === "end");
 }
 
 function getRoutePointLabel(points: RoutePoint[], index: number): string {
@@ -865,6 +872,7 @@ export function RouteMapApp({
   const suppressMapMenuUntilRef = useRef(0);
   const viewModeRef = useRef<RouteMapAppProps["viewMode"]>(viewMode);
   const activeTrackIdRef = useRef<string | null>(null);
+  const hoveredTrackIdRef = useRef<string | null>(null);
   const tracksByIdRef = useRef<Record<string, MultiTrackItem>>({});
   const trackOrderRef = useRef<string[]>([]);
   const syncRouteStateFromTrackRef = useRef(false);
@@ -1529,6 +1537,44 @@ export function RouteMapApp({
     map.setPaintProperty(TRACKS_ACTIVE_LAYER_ID, "line-width", 6);
     map.setPaintProperty(TRACKS_ACTIVE_LAYER_ID, "line-opacity", 1);
 
+    if (!map.getLayer(TRACKS_HOVER_LAYER_ID)) {
+      map.addLayer({
+        id: TRACKS_HOVER_LAYER_ID,
+        type: "line",
+        source: TRACKS_SOURCE_ID,
+        filter: ["==", ["get", "trackId"], NO_HOVER_TRACK_ID],
+        layout: {
+          "line-cap": "round",
+          "line-join": "round",
+        },
+        paint: {
+          "line-color": TRACK_HOVER_COLOR,
+          "line-width": [
+            "case",
+            ["==", ["get", "active"], true],
+            11,
+            9,
+          ],
+          "line-opacity": 0.65,
+          "line-blur": 1.35,
+        },
+      });
+    }
+    map.setPaintProperty(TRACKS_HOVER_LAYER_ID, "line-color", TRACK_HOVER_COLOR);
+    map.setPaintProperty(TRACKS_HOVER_LAYER_ID, "line-width", [
+      "case",
+      ["==", ["get", "active"], true],
+      11,
+      9,
+    ]);
+    map.setPaintProperty(TRACKS_HOVER_LAYER_ID, "line-opacity", 0.65);
+    map.setPaintProperty(TRACKS_HOVER_LAYER_ID, "line-blur", 1.35);
+    map.setFilter(TRACKS_HOVER_LAYER_ID, [
+      "==",
+      ["get", "trackId"],
+      hoveredTrackIdRef.current ?? NO_HOVER_TRACK_ID,
+    ]);
+
     const source = map.getSource(TRACKS_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
     if (!source) {
       return;
@@ -2122,6 +2168,35 @@ export function RouteMapApp({
         Number(event.lngLat.lng.toFixed(6)),
         Number(event.lngLat.lat.toFixed(6)),
       ];
+
+      const lineLayerIds = [TRACKS_ACTIVE_LAYER_ID, TRACKS_INACTIVE_LAYER_ID].filter((layerId) =>
+        Boolean(map.getLayer(layerId)),
+      );
+      if (lineLayerIds.length === 0) {
+        hoveredTrackIdRef.current = null;
+        if (map.getLayer(TRACKS_HOVER_LAYER_ID)) {
+          map.setFilter(TRACKS_HOVER_LAYER_ID, ["==", ["get", "trackId"], NO_HOVER_TRACK_ID]);
+        }
+        map.getCanvas().style.cursor = "";
+        return;
+      }
+
+      const hoveredFeatures = map.queryRenderedFeatures(event.point, {
+        layers: lineLayerIds,
+      });
+      const hoveredId = hoveredFeatures
+        .map((feature) => (isObjectRecord(feature.properties) ? feature.properties.trackId : null))
+        .find((trackId): trackId is string => typeof trackId === "string") ?? null;
+
+      hoveredTrackIdRef.current = hoveredId;
+      if (map.getLayer(TRACKS_HOVER_LAYER_ID)) {
+        map.setFilter(TRACKS_HOVER_LAYER_ID, [
+          "==",
+          ["get", "trackId"],
+          hoveredId ?? NO_HOVER_TRACK_ID,
+        ]);
+      }
+      map.getCanvas().style.cursor = hoveredId ? "pointer" : "";
     };
 
     const onCanvasContextMenu = (event: MouseEvent): void => {
@@ -2130,6 +2205,11 @@ export function RouteMapApp({
 
     const onCanvasMouseLeave = (): void => {
       mapPointerCoordinateRef.current = null;
+      hoveredTrackIdRef.current = null;
+      if (map.getLayer(TRACKS_HOVER_LAYER_ID)) {
+        map.setFilter(TRACKS_HOVER_LAYER_ID, ["==", ["get", "trackId"], NO_HOVER_TRACK_ID]);
+      }
+      map.getCanvas().style.cursor = "";
     };
 
     const onMapMoveStart = (): void => {
@@ -2153,6 +2233,8 @@ export function RouteMapApp({
       map.off("movestart", onMapMoveStart);
       map.getCanvasContainer().removeEventListener("contextmenu", onCanvasContextMenu);
       map.getCanvasContainer().removeEventListener("mouseleave", onCanvasMouseLeave);
+      map.getCanvas().style.cursor = "";
+      hoveredTrackIdRef.current = null;
 
       segmentModePopupRef.current?.remove();
       segmentModePopupRef.current = null;
@@ -2650,14 +2732,34 @@ export function RouteMapApp({
 
   const applyRoutePointUpdate = useCallback(
     (updater: (current: RoutePoint[]) => RoutePoint[], nextStatusText: string): void => {
-      if (!activeTrackIdRef.current) {
+      const selectedTrackId = activeTrackIdRef.current;
+      if (!selectedTrackId) {
         setStatusText("Select a track first.");
         return;
       }
 
-      setRoutePoints((current) => {
-        const next = normalizeRoutePoints(updater(current));
-        return areRoutePointsEqual(current, next) ? current : next;
+      const currentPoints = routePointsRef.current;
+      const nextPoints = normalizeRoutePoints(updater(currentPoints));
+      if (areRoutePointsEqual(currentPoints, nextPoints)) {
+        return;
+      }
+
+      setRoutePoints(nextPoints);
+      setTracksById((current) => {
+        const track = current[selectedTrackId];
+        if (!track) {
+          return current;
+        }
+
+        return {
+          ...current,
+          [selectedTrackId]: {
+            ...track,
+            routePoints: nextPoints,
+            needsRebuild: true,
+            missingFile: false,
+          },
+        };
       });
       setStatusText(nextStatusText);
     },
@@ -2667,7 +2769,8 @@ export function RouteMapApp({
   const onDeletePoint = useCallback(
     (id: string): void => {
       const points = routePointsRef.current;
-      if (!points.some((point) => point.id === id)) {
+      const pointToDelete = points.find((point) => point.id === id);
+      if (!pointToDelete) {
         setStatusText("Point no longer exists.");
         return;
       }
@@ -2740,8 +2843,8 @@ export function RouteMapApp({
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "segment-mode-popup-remove";
-    removeButton.textContent = "🗑";
-    removeButton.setAttribute("aria-label", "Delete point");
+    removeButton.textContent = "Remove";
+    removeButton.setAttribute("aria-label", "Remove point");
     container.append(removeButton);
 
     const popup = new mapboxgl.Popup({
@@ -2842,65 +2945,60 @@ export function RouteMapApp({
   }, [applyRoutePointUpdate, closeAllMenus, openSegmentModePopup, routePoints]);
 
   const setBoundaryPointAtCoordinate = useCallback((target: "start" | "end", coordinate: Coordinate): void => {
+    const current = routePointsRef.current;
+    let next: RoutePoint[];
+
+    if (target === "start") {
+      if (current.length === 0) {
+        next = [
+          {
+            id: createRoutePointId(),
+            type: "start",
+            coordinates: coordinate,
+          },
+        ];
+      } else if (current.length === 1 && current[0].type === "end") {
+        next = [
+          {
+            id: createRoutePointId(),
+            type: "start",
+            coordinates: coordinate,
+          },
+          current[0],
+        ];
+      } else {
+        next = [...current];
+        next[0] = { ...next[0], coordinates: coordinate };
+      }
+    } else if (current.length === 0) {
+      next = [
+        {
+          id: createRoutePointId(),
+          type: "end",
+          coordinates: coordinate,
+        },
+      ];
+    } else if (current.length === 1 && current[0].type === "start") {
+      next = [
+        ...current,
+        {
+          id: createRoutePointId(),
+          type: "end",
+          coordinates: coordinate,
+        },
+      ];
+    } else if (current.length === 1 && current[0].type === "end") {
+      next = [{ ...current[0], coordinates: coordinate }];
+    } else {
+      next = [...current];
+      const lastIndex = next.length - 1;
+      next[lastIndex] = { ...next[lastIndex], coordinates: coordinate };
+    }
+
+    const normalizedNext = normalizeRoutePoints(next);
+
     applyRoutePointUpdate(
-      (current) => {
-        if (target === "start") {
-          if (current.length === 0) {
-            return [
-              {
-                id: createRoutePointId(),
-                type: "start",
-                coordinates: coordinate,
-              },
-            ];
-          }
-
-          if (current.length === 1 && current[0].type === "end") {
-            return [
-              {
-                id: createRoutePointId(),
-                type: "start",
-                coordinates: coordinate,
-              },
-              current[0],
-            ];
-          }
-
-          const next = [...current];
-          next[0] = { ...next[0], coordinates: coordinate };
-          return next;
-        }
-
-        if (current.length === 0) {
-          return [
-            {
-              id: createRoutePointId(),
-              type: "end",
-              coordinates: coordinate,
-            },
-          ];
-        }
-
-        if (current.length === 1 && current[0].type === "start") {
-          return [
-            ...current,
-            {
-              id: createRoutePointId(),
-              type: "end",
-              coordinates: coordinate,
-            },
-          ];
-        }
-
-        if (current.length === 1 && current[0].type === "end") {
-          return [{ ...current[0], coordinates: coordinate }];
-        }
-
-        const next = [...current];
-        const lastIndex = next.length - 1;
-        next[lastIndex] = { ...next[lastIndex], coordinates: coordinate };
-        return next;
-      },
+      () => normalizedNext,
       target === "start" ? "Start point set." : "End point set.",
     );
   }, [applyRoutePointUpdate]);
@@ -3684,9 +3782,7 @@ export function RouteMapApp({
 
   const sortableIds = useMemo(() => routePoints.map((point) => point.id), [routePoints]);
   const hasStartAndEnd = useMemo(
-    () =>
-      routePoints.some((point) => point.type === "start") &&
-      routePoints.some((point) => point.type === "end"),
+    () => hasTrackBoundaryPoints(routePoints),
     [routePoints],
   );
   const setMenuOptions = useMemo<
@@ -3990,19 +4086,24 @@ export function RouteMapApp({
               <p className="track-list-empty">No section tracks.</p>
             ) : (
               <ul className="track-list">
-                {sectionTracks.map((track) => (
-                  <li key={track.id} className={`track-list-item${activeTrackId === track.id ? " active" : ""}`}>
-                    <button type="button" className="track-list-main" onClick={() => onSelectTrack(track.id)}>
-                      <span className="track-list-name-wrap">
-                        <span className={`track-kind-dot ${track.kind}`} aria-hidden="true" />
-                        <span className="track-list-name">{track.displayName}</span>
-                      </span>
-                      <span className="track-list-flags">
-                        {track.missingFile ? <span className="track-flag warning">!</span> : null}
-                      </span>
-                    </button>
-                  </li>
-                ))}
+                {sectionTracks.map((track) => {
+                  const pointsForWarnings = activeTrackId === track.id ? routePoints : track.routePoints;
+                  const showWarning = track.missingFile || !hasTrackBoundaryPoints(pointsForWarnings);
+
+                  return (
+                    <li key={track.id} className={`track-list-item${activeTrackId === track.id ? " active" : ""}`}>
+                      <button type="button" className="track-list-main" onClick={() => onSelectTrack(track.id)}>
+                        <span className="track-list-name-wrap">
+                          <span className={`track-kind-dot ${track.kind}`} aria-hidden="true" />
+                          <span className="track-list-name">{track.displayName}</span>
+                        </span>
+                        <span className="track-list-flags">
+                          {showWarning ? <span className="track-flag warning">!</span> : null}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -4018,35 +4119,40 @@ export function RouteMapApp({
               <p className="track-list-empty">No access tracks.</p>
             ) : (
               <ul className="track-list track-list-access">
-                {accessTracks.map((track) => (
-                  <li key={track.id} className={`track-list-item${activeTrackId === track.id ? " active" : ""}`}>
-                    <div className="track-list-main track-list-main-access" onClick={() => onSelectTrack(track.id)}>
-                      <span className="track-list-name-wrap">
-                        <span className={`track-kind-dot ${track.kind}`} aria-hidden="true" />
-                        <input
-                          type="text"
-                          className="track-list-access-input"
-                          value={track.displayName}
-                          onFocus={() => onSelectTrack(track.id)}
-                          onClick={() => onSelectTrack(track.id)}
-                          onChange={(event) => onAccessTrackNameChange(track.id, event.target.value)}
-                          aria-label={`Access track ${track.id} name`}
-                        />
-                      </span>
-                      <span className="track-list-flags">
-                        {track.missingFile ? <span className="track-flag warning">!</span> : null}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className="track-list-delete track-list-delete-inline"
-                      onClick={() => onDeleteAccessTrack(track.id)}
-                      aria-label={`Delete access track ${track.displayName || track.id}`}
-                    >
-                      <TrashIcon />
-                    </button>
-                  </li>
-                ))}
+                {accessTracks.map((track) => {
+                  const pointsForWarnings = activeTrackId === track.id ? routePoints : track.routePoints;
+                  const showWarning = track.missingFile || !hasTrackBoundaryPoints(pointsForWarnings);
+
+                  return (
+                    <li key={track.id} className={`track-list-item${activeTrackId === track.id ? " active" : ""}`}>
+                      <div className="track-list-main track-list-main-access" onClick={() => onSelectTrack(track.id)}>
+                        <span className="track-list-name-wrap">
+                          <span className={`track-kind-dot ${track.kind}`} aria-hidden="true" />
+                          <input
+                            type="text"
+                            className="track-list-access-input"
+                            value={track.displayName}
+                            onFocus={() => onSelectTrack(track.id)}
+                            onClick={() => onSelectTrack(track.id)}
+                            onChange={(event) => onAccessTrackNameChange(track.id, event.target.value)}
+                            aria-label={`Access track ${track.id} name`}
+                          />
+                        </span>
+                        <span className="track-list-flags">
+                          {showWarning ? <span className="track-flag warning">!</span> : null}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="track-list-delete track-list-delete-inline"
+                        onClick={() => onDeleteAccessTrack(track.id)}
+                        aria-label={`Delete access track ${track.displayName || track.id}`}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -4723,3 +4829,4 @@ export function RouteMapApp({
     </div>
   );
 }
+

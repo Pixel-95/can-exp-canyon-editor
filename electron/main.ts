@@ -428,7 +428,7 @@ function createNewJsonTemplate(canyonName: string): Record<string, unknown> {
 
   return {
     id: null,
-    coordinates: [0, 0],
+    coordinates: null,
     name,
     description: {
       en: "",

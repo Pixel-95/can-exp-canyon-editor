@@ -552,6 +552,10 @@
   gap: 7px;
 }
 
+.json-special-notes-field.is-collapsed {
+  cursor: pointer;
+}
+
 .json-special-notes-header {
   display: flex;
   align-items: center;

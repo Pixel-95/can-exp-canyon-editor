@@ -604,6 +604,19 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition:
+    transform var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard),
+    box-shadow var(--duration-fast) var(--easing-standard);
+}
+
+.overview-point-marker:hover {
+  transform: scale(1.14);
+  border-color: #dbeafe;
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--color-focus) 45%, transparent),
+    0 0 22px color-mix(in srgb, var(--color-focus) 55%, transparent),
+    0 6px 14px rgba(15, 23, 42, 0.45);
 }
 
 .overview-point-marker:active {
@@ -640,6 +653,7 @@
   padding: 6px 8px;
   background: #fff1f2;
   color: #9f1239;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   text-align: center;
 }

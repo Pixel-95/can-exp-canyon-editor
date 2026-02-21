@@ -203,8 +203,13 @@
 }
 
 .track-flag.warning {
-  background: #fef3c7;
-  color: #92400e;
+  min-width: 22px;
+  height: 22px;
+  border: 1px solid #ef4444;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .track-list-delete {

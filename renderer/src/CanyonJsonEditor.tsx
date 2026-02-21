@@ -577,6 +577,7 @@ function createEmptyNewCanyonData(template: JsonObject, canyonName: string): Jso
   return {
     ...template,
     name: canyonName,
+    coordinates: null,
     description,
     location,
     sections: [],
@@ -775,7 +776,7 @@ function createDefaultSection(existingSections: JsonValue[]): JsonObject {
       horizontal_length: 0,
     },
     max_rappel_in_meter: 0,
-    recommended_ropes: "",
+    recommended_ropes: "2x 0m",
     topo: "",
   };
 }
@@ -1644,21 +1645,32 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
           const selectedNoteIds = new Set(selectedByNoteId.keys());
           const specialNotesCollapsed = collapsedGroups[pathKey] ?? true;
+          const toggleSpecialNotesCollapsed = (): void => {
+            setCollapsedGroups((current) => ({
+              ...current,
+              [pathKey]: !specialNotesCollapsed,
+            }));
+          };
 
           return (
-            <div className="json-input-field json-special-notes-field">
+            <div
+              className={`json-input-field json-special-notes-field${specialNotesCollapsed ? " is-collapsed" : ""}`}
+              onClick={() => {
+                if (specialNotesCollapsed) {
+                  toggleSpecialNotesCollapsed();
+                }
+              }}
+            >
               <div className="json-special-notes-header">
                 <button
                   type="button"
                   className="json-special-notes-toggle"
                   aria-expanded={!specialNotesCollapsed}
                   aria-label={specialNotesCollapsed ? "Expand special notes" : "Collapse special notes"}
-                  onClick={() =>
-                    setCollapsedGroups((current) => ({
-                      ...current,
-                      [pathKey]: !specialNotesCollapsed,
-                    }))
-                  }
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleSpecialNotesCollapsed();
+                  }}
                 >
                   {specialNotesCollapsed ? "\u25BC" : "\u25B2"}
                 </button>
@@ -2360,6 +2372,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                       <input
                         type="text"
                         value={recommendedRopesDisplay}
+                        placeholder="2x 0m"
                         onChange={(event) => setPathValue(recommendedRopesPath, event.target.value)}
                       />
                     </label>
