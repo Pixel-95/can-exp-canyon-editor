@@ -1916,6 +1916,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                                           disabled={!selected}
                                           tabIndex={selected ? 0 : -1}
                                           value={currentParams[placeholder] ?? ""}
+                                          placeholder={placeholder}
                                           onChange={(event) =>
                                             onSpecialNoteParamChange(
                                               path,
@@ -2000,6 +2001,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                   <input
                     type="text"
                     value={entry}
+                    placeholder={`Enter ${itemLabel.toLowerCase()} ${index + 1}`}
                     onChange={(event) => {
                       const next = value.slice();
                       next[index] = event.target.value;
@@ -2351,6 +2353,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                     pattern="[0-7]"
                     maxLength={1}
                     value={verticalDisplay}
+                    placeholder="0"
                     onChange={(event) => onDifficultyArabicDraftChange(verticalPath, event.target.value)}
                     onBlur={() => clearDraft(verticalKey)}
                     aria-label="Vertical difficulty"
@@ -2382,6 +2385,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                     pattern="[0-7]"
                     maxLength={1}
                     value={aquaticDisplay}
+                    placeholder="0"
                     onChange={(event) => onDifficultyArabicDraftChange(aquaticPath, event.target.value)}
                     onBlur={() => clearDraft(aquaticKey)}
                     aria-label="Aquatic difficulty"
@@ -2411,6 +2415,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                     inputMode="text"
                     maxLength={3}
                     value={commitmentDisplay}
+                    placeholder="I"
                     onChange={(event) => onDifficultyRomanDraftChange(commitmentPath, event.target.value)}
                     onBlur={() => clearDraft(commitmentKey)}
                     aria-label="Commitment difficulty"
@@ -2738,6 +2743,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               id={`field-${pathKey}`}
               rows={4}
               value={value}
+              placeholder={`Enter ${titleCase(label).replace(/_/g, " ").toLowerCase()}`}
               onChange={(event) => setPathValue(path, event.target.value)}
             />
           ) : (
@@ -2745,6 +2751,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               id={`field-${pathKey}`}
               type="text"
               value={value}
+              placeholder={`Enter ${titleCase(label).replace(/_/g, " ").toLowerCase()}`}
               onChange={(event) => setPathValue(path, event.target.value)}
             />
           )}
@@ -2894,6 +2901,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                 type="text"
                 autoFocus
                 value={newCanyonNameDraft}
+                placeholder="Canyon name"
                 onChange={(event) => {
                   setNewCanyonNameDraft(event.target.value);
                   if (newCanyonNameError) {

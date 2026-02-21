@@ -4154,6 +4154,7 @@ export function RouteMapApp({
                             type="text"
                             className="track-list-access-input"
                             value={track.displayName}
+                            placeholder="Access track name"
                             onFocus={() => onSelectTrack(track.id)}
                             onClick={() => onSelectTrack(track.id)}
                             onChange={(event) => onAccessTrackNameChange(track.id, event.target.value)}
@@ -4669,6 +4670,7 @@ export function RouteMapApp({
               <input
                 type="text"
                 value={normalizeLocalizedText(activePoi.name)[activePoiLanguage] ?? ""}
+                placeholder={`Enter POI name (${activePoiLanguage.toUpperCase()})`}
                 onChange={(event) =>
                   onPoiTextChange(poiEditor.index, "name", activePoiLanguage, event.target.value)
                 }
@@ -4686,6 +4688,7 @@ export function RouteMapApp({
                 className="poi-editor-description"
                 rows={3}
                 value={normalizeLocalizedText(activePoi.description)[activePoiLanguage] ?? ""}
+                placeholder={`Enter POI description (${activePoiLanguage.toUpperCase()})`}
                 onChange={(event) =>
                   onPoiTextChange(poiEditor.index, "description", activePoiLanguage, event.target.value)
                 }
@@ -4747,6 +4750,7 @@ export function RouteMapApp({
               <input
                 type="text"
                 value={normalizeLocalizedText(activeParkingLot.name)[activeParkingLanguage] ?? ""}
+                placeholder={`Enter parking lot name (${activeParkingLanguage.toUpperCase()})`}
                 onChange={(event) =>
                   onParkingNameChange(parkingEditor.index, activeParkingLanguage, event.target.value)
                 }
