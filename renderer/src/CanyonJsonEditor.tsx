@@ -1651,8 +1651,9 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   }, []);
 
   const renderRequiredChecklistNode = useCallback(
-    (node: ChecklistNode): JSX.Element => {
+    (node: ChecklistNode, depth = 0): JSX.Element => {
       const hasChildren = node.children.length > 0;
+      const visualDepth = Math.min(depth, 4);
       const autoCollapsed = hasChildren && node.status === "present";
       const manualState = requiredChecklistExpansion[node.id];
       const isExpanded = hasChildren
@@ -1665,9 +1666,10 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       };
 
       return (
-        <li key={node.id} className="json-required-tree-item">
+        <li key={node.id} className="json-required-tree-item" data-depth={visualDepth}>
           <div
             className={`json-required-node-row ${node.status}${hasChildren ? " has-children" : ""}`}
+            data-depth={visualDepth}
             role={hasChildren ? "button" : undefined}
             tabIndex={hasChildren ? 0 : undefined}
             aria-expanded={hasChildren ? isExpanded : undefined}
@@ -1694,8 +1696,8 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
             <span className="json-required-node-label">{node.label}</span>
           </div>
           {hasChildren && isExpanded ? (
-            <ul className="json-required-node-children">
-              {node.children.map((child) => renderRequiredChecklistNode(child))}
+            <ul className="json-required-node-children" data-depth={Math.min(depth + 1, 4)}>
+              {node.children.map((child) => renderRequiredChecklistNode(child, depth + 1))}
             </ul>
           ) : null}
         </li>
@@ -1711,8 +1713,8 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
     return (
       <div className="json-required-data-content">
-        <ul className="json-required-tree">
-          {requiredChecklistTree.map((node) => renderRequiredChecklistNode(node))}
+        <ul className="json-required-tree" data-depth={0}>
+          {requiredChecklistTree.map((node) => renderRequiredChecklistNode(node, 0))}
         </ul>
       </div>
     );
