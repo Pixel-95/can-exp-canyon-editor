@@ -1431,15 +1431,17 @@
   --required-label-letter-spacing: 0;
   --required-marker-leaf-size: 6px;
   --required-marker-branch-size: 1.52rem;
+  --required-status-size: 14px;
+  --required-status-font-size: 0.64rem;
   display: grid;
-  grid-template-columns: 18px 1fr;
+  grid-template-columns: 18px minmax(0, 1fr) var(--required-status-size);
   gap: var(--space-2);
   align-items: center;
   min-height: var(--required-row-min-height);
-  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 30%, transparent);
+  border: 1px solid color-mix(in srgb, #4b5563 72%, var(--color-border-subtle) 28%);
   border-radius: var(--required-row-radius);
   padding: var(--required-row-padding-y) var(--required-row-padding-x);
-  background: color-mix(in srgb, var(--color-bg-surface) 88%, #f7f9ff 12%);
+  background: var(--color-bg-surface);
   box-shadow: inset 3px 0 0 var(--required-accent);
   transition:
     background-color var(--duration-fast) var(--easing-standard),
@@ -1459,6 +1461,8 @@
   --required-label-letter-spacing: 0.005em;
   --required-marker-leaf-size: 7px;
   --required-marker-branch-size: 1.7rem;
+  --required-status-size: 15px;
+  --required-status-font-size: 0.68rem;
 }
 
 .json-required-node-row[data-depth="1"] {
@@ -1470,6 +1474,8 @@
   --required-label-weight: 600;
   --required-marker-leaf-size: 6px;
   --required-marker-branch-size: 1.57rem;
+  --required-status-size: 14px;
+  --required-status-font-size: 0.66rem;
 }
 
 .json-required-node-row[data-depth="2"] {
@@ -1480,6 +1486,8 @@
   --required-label-size: 0.9rem;
   --required-label-weight: 550;
   --required-marker-branch-size: 1.44rem;
+  --required-status-size: 13px;
+  --required-status-font-size: 0.62rem;
 }
 
 .json-required-node-row[data-depth="3"] {
@@ -1491,6 +1499,8 @@
   --required-label-weight: 500;
   --required-marker-leaf-size: 5px;
   --required-marker-branch-size: 1.34rem;
+  --required-status-size: 12px;
+  --required-status-font-size: 0.58rem;
 }
 
 .json-required-node-row[data-depth="4"] {
@@ -1502,6 +1512,8 @@
   --required-label-weight: 500;
   --required-marker-leaf-size: 5px;
   --required-marker-branch-size: 1.25rem;
+  --required-status-size: 11px;
+  --required-status-font-size: 0.54rem;
 }
 
 .json-required-node-row.has-children {
@@ -1541,19 +1553,17 @@
 
 .json-required-node-row:hover {
   background: var(--color-check-row-hover);
-  border-color: color-mix(in srgb, var(--color-border-subtle) 45%, transparent);
+  border-color: color-mix(in srgb, #374151 78%, var(--color-border-subtle) 22%);
 }
 
 .json-required-node-row.missing {
   --required-accent: color-mix(in srgb, var(--color-check-missing-text) 75%, transparent);
-  background: color-mix(in srgb, var(--color-check-missing-bg) 30%, var(--color-bg-surface) 70%);
-  border-color: color-mix(in srgb, var(--color-check-missing-border) 55%, var(--color-border-subtle) 45%);
+  background: color-mix(in srgb, var(--color-check-missing-bg) 15%, var(--color-bg-surface) 85%);
 }
 
 .json-required-node-row.present {
   --required-accent: color-mix(in srgb, var(--color-check-present-text) 75%, transparent);
-  background: color-mix(in srgb, var(--color-check-present-bg) 28%, var(--color-bg-surface) 72%);
-  border-color: color-mix(in srgb, var(--color-check-present-border) 52%, var(--color-border-subtle) 48%);
+  background: color-mix(in srgb, var(--color-check-present-bg) 14%, var(--color-bg-surface) 86%);
 }
 
 .json-required-node-row.present:hover {
@@ -1561,7 +1571,7 @@
 }
 
 .json-required-node-row.missing:hover {
-  background: color-mix(in srgb, var(--color-check-missing-bg) 40%, var(--color-bg-surface) 60%);
+  background: color-mix(in srgb, var(--color-check-missing-bg) 42%, var(--color-bg-surface) 58%);
 }
 
 .json-required-node-label {
@@ -1571,6 +1581,46 @@
   letter-spacing: var(--required-label-letter-spacing);
   color: var(--color-text-primary);
   line-height: 1.2;
+}
+
+.json-required-node-status {
+  width: var(--required-status-size);
+  height: var(--required-status-size);
+  border-radius: var(--radius-pill);
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--required-status-font-size);
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+  border: 1px solid transparent;
+  transition:
+    background-color var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard),
+    color var(--duration-fast) var(--easing-standard);
+}
+
+.json-required-node-status.present {
+  color: #fff;
+  border-color: #15803d;
+  background: #22c55e;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #16a34a 50%, transparent);
+}
+
+.json-required-node-status.missing {
+  color: #fff;
+  border-color: #b91c1c;
+  background: #ef4444;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #dc2626 48%, transparent);
+}
+
+.json-required-node-status.error {
+  color: #fff;
+  border-color: #991b1b;
+  background: #dc2626;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #b91c1c 48%, transparent);
 }
 
 .json-required-node-children {

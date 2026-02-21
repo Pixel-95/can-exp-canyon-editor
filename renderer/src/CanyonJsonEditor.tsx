@@ -51,6 +51,14 @@ const DEFAULT_LANGUAGE_STORAGE_KEY = "canyon-editor.default-language";
 const LANGUAGE_KEY_PATTERN = /^[a-z]{2}(?:-[A-Za-z]{2})?$/i;
 const STATIC_LANGUAGE_KEYS = ["de", "en", "es", "fr", "it", "pt"] as const;
 const STATIC_LANGUAGE_SET = new Set<string>(STATIC_LANGUAGE_KEYS);
+const LANGUAGE_TEXTAREA_PLACEHOLDER: Record<(typeof STATIC_LANGUAGE_KEYS)[number], string> = {
+  de: "Hier deutschen Text einfügen",
+  en: "Put in some English text here",
+  es: "Pon aquí texto en español",
+  fr: "Mettez ici du texte français",
+  it: "Inserisci qui del testo italiano",
+  pt: "Coloque aqui texto em português",
+};
 const LOCALIZED_JSON_PLACEHOLDER = `{
   "de": "",
   "en": "",
@@ -81,6 +89,7 @@ const SECTION_DURATION_KEYS = [
   "exit_no_shuttle",
   "exit_with_shuttle",
 ] as const;
+const DEFAULT_RECOMMENDED_ROPES = "2x 0m";
 const COMMITMENT_ROMAN_BY_VALUE = ["0", "I", "II", "III", "IV", "V", "VI"] as const;
 const COMMITMENT_VALUE_BY_ROMAN: Record<string, number> = {
   0: 0,
@@ -586,7 +595,7 @@ function createEmptyNewCanyonData(template: JsonObject, canyonName: string): Jso
     coordinates: null,
     description,
     location,
-    sections: [],
+    sections: [createDefaultSection([])],
   };
 }
 
@@ -782,7 +791,7 @@ function createDefaultSection(existingSections: JsonValue[]): JsonObject {
       horizontal_length: 0,
     },
     max_rappel_in_meter: 0,
-    recommended_ropes: "2x 0m",
+    recommended_ropes: DEFAULT_RECOMMENDED_ROPES,
     topo: "",
   };
 }
@@ -1071,7 +1080,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
         return;
       }
 
-      setCanyonData(isJsonObject(template) ? cloneJsonValue(template) : null);
+      setCanyonData(isJsonObject(template) ? withGeneratedSectionIds(cloneJsonValue(template)) : null);
       trackSnapshotRef.current = null;
       setTrackSnapshot(null);
       setCurrentFilePath(null);
@@ -1694,6 +1703,14 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               {hasChildren ? (isExpanded ? "\u25BE" : "\u25B8") : null}
             </span>
             <span className="json-required-node-label">{node.label}</span>
+            <span
+              className={`json-required-node-status ${
+                node.status === "present" ? "present" : node.status === "missing" ? "missing" : "error"
+              }`}
+              aria-hidden="true"
+            >
+              {node.status === "present" ? "\u2713" : node.status === "missing" ? "!" : "\u00D7"}
+            </span>
           </div>
           {hasChildren && isExpanded ? (
             <ul className="json-required-node-children" data-depth={Math.min(depth + 1, 4)}>
@@ -1734,9 +1751,10 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       const validationError = validationErrors[pathKey];
 
       if (isLanguageObject(value)) {
+        const activeLanguageCandidate = languageTabs[pathKey];
         const activeLanguage =
-          languageTabs[pathKey] && STATIC_LANGUAGE_SET.has(languageTabs[pathKey])
-            ? languageTabs[pathKey]
+          activeLanguageCandidate && STATIC_LANGUAGE_SET.has(activeLanguageCandidate)
+            ? (activeLanguageCandidate as (typeof STATIC_LANGUAGE_KEYS)[number])
             : defaultLanguage;
         const cardTitle =
           path.length === 1 && path[0] === "description" ? "Short Characteristic" : titleCase(label);
@@ -1783,6 +1801,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               >
                 <textarea
                   value={typeof value[activeLanguage] === "string" ? value[activeLanguage] : ""}
+                  placeholder={LANGUAGE_TEXTAREA_PLACEHOLDER[activeLanguage]}
                   rows={4}
                   onChange={(event) => setPathValue([...path, activeLanguage], event.target.value)}
                 />
@@ -2547,7 +2566,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                       <input
                         type="text"
                         value={recommendedRopesDisplay}
-                        placeholder="2x 0m"
+                        placeholder={DEFAULT_RECOMMENDED_ROPES}
                         onChange={(event) => setPathValue(recommendedRopesPath, event.target.value)}
                       />
                     </label>

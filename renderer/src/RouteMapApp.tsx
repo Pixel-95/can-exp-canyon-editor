@@ -1569,11 +1569,11 @@ export function RouteMapApp({
     ]);
     map.setPaintProperty(TRACKS_HOVER_LAYER_ID, "line-opacity", 0.65);
     map.setPaintProperty(TRACKS_HOVER_LAYER_ID, "line-blur", 1.35);
-    map.setFilter(TRACKS_HOVER_LAYER_ID, [
-      "==",
-      ["get", "trackId"],
-      hoveredTrackIdRef.current ?? NO_HOVER_TRACK_ID,
-    ]);
+    const selectedTrackId = activeTrackIdRef.current;
+    const hoveredTrackId = hoveredTrackIdRef.current;
+    const hoverLayerTrackId =
+      selectedTrackId && hoveredTrackId === selectedTrackId ? NO_HOVER_TRACK_ID : hoveredTrackId ?? NO_HOVER_TRACK_ID;
+    map.setFilter(TRACKS_HOVER_LAYER_ID, ["==", ["get", "trackId"], hoverLayerTrackId]);
 
     const source = map.getSource(TRACKS_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
     if (!source) {
@@ -2184,9 +2184,14 @@ export function RouteMapApp({
       const hoveredFeatures = map.queryRenderedFeatures(event.point, {
         layers: lineLayerIds,
       });
-      const hoveredId = hoveredFeatures
-        .map((feature) => (isObjectRecord(feature.properties) ? feature.properties.trackId : null))
-        .find((trackId): trackId is string => typeof trackId === "string") ?? null;
+      const selectedTrackId = activeTrackIdRef.current;
+      const hoveredId =
+        hoveredFeatures
+          .map((feature) => (isObjectRecord(feature.properties) ? feature.properties.trackId : null))
+          .find(
+            (trackId): trackId is string =>
+              typeof trackId === "string" && (!selectedTrackId || trackId !== selectedTrackId),
+          ) ?? null;
 
       hoveredTrackIdRef.current = hoveredId;
       if (map.getLayer(TRACKS_HOVER_LAYER_ID)) {
