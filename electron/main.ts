@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { Menu, app, BrowserWindow, dialog, ipcMain, screen } from "electron";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   cloneValue,
@@ -10,9 +10,7 @@ import {
   normalizeAbsolutePathForCompare,
   normalizeRoutePoints,
   normalizeTrackLink,
-  parseAccessTrackIndex,
   resolveTrackAbsolutePath,
-  sanitizeFileName,
   sanitizeFolderName,
   sanitizeTrackBaseName,
   toAbsolutePath,
@@ -39,6 +37,7 @@ import type {
 } from "./ipcTypes";
 
 let mainWindow: BrowserWindow | null = null;
+const CANYON_JSON_FILENAME = "data.json";
 
 function resolveWindowIconPath(): string | undefined {
   const candidates = [
@@ -281,13 +280,22 @@ function buildRouteFeatureCollection(
 
 async function resolveJsonTargetPath(
   currentFilePath: string | null | undefined,
-  canyonName: string | undefined,
+  _canyonName: string | undefined,
 ): Promise<{ canceled: boolean; filePath?: string }> {
   if (!mainWindow) {
     throw new Error("Application window is not ready.");
   }
 
-  let targetPath = currentFilePath?.trim() || "";
+  const normalizeToDataJsonPath = (candidatePath: string): string => {
+    const normalized = path.normalize(candidatePath);
+    if (path.basename(normalized).toLowerCase() === CANYON_JSON_FILENAME) {
+      return normalized;
+    }
+
+    return path.join(path.dirname(normalized), CANYON_JSON_FILENAME);
+  };
+
+  let targetPath = currentFilePath?.trim() ? normalizeToDataJsonPath(currentFilePath.trim()) : "";
 
   if (targetPath && existsSync(targetPath)) {
     const decision = await dialog.showMessageBox(mainWindow, {
@@ -311,10 +319,9 @@ async function resolveJsonTargetPath(
 
   if (!targetPath) {
     const fallbackDir = currentFilePath ? path.dirname(currentFilePath) : process.cwd();
-    const filename = `${sanitizeFileName(canyonName ?? "canyon")}.json`;
     const saveResult = await dialog.showSaveDialog(mainWindow, {
       title: "Save Canyon JSON",
-      defaultPath: path.join(fallbackDir, filename),
+      defaultPath: path.join(fallbackDir, CANYON_JSON_FILENAME),
       filters: [{ name: "JSON", extensions: ["json"] }],
     });
 
@@ -322,7 +329,7 @@ async function resolveJsonTargetPath(
       return { canceled: true };
     }
 
-    targetPath = saveResult.filePath;
+    targetPath = normalizeToDataJsonPath(saveResult.filePath);
   }
 
   return {
@@ -369,58 +376,72 @@ function resolveUniqueSectionFileName(options: {
   }
 }
 
-function resolveAccessFileName(options: {
-  tracksDir: string;
-  preferredIndex: number | null;
-  nextIndexRef: { value: number };
-  previousAbsolutePath: string | null;
-  usedAbsolutePaths: Set<string>;
-  knownOwnedAbsolutePaths: Set<string>;
-}): { fileName: string; absolutePath: string } {
-  const {
-    tracksDir,
-    preferredIndex,
-    nextIndexRef,
-    previousAbsolutePath,
-    usedAbsolutePaths,
-    knownOwnedAbsolutePaths,
-  } = options;
-  const normalizedPrevious = previousAbsolutePath
-    ? normalizeAbsolutePathForCompare(previousAbsolutePath)
-    : null;
-
-  const tryIndices: number[] = [];
-  if (preferredIndex !== null && preferredIndex > 0) {
-    tryIndices.push(preferredIndex);
-  }
-  let runningIndex = Math.max(nextIndexRef.value, 1);
-  while (tryIndices.length < 500) {
-    tryIndices.push(runningIndex);
-    runningIndex += 1;
+function resolveSaveCanyonName(
+  canyonData: Record<string, unknown>,
+  fallbackName: string | undefined,
+): string {
+  if (typeof canyonData.name === "string" && canyonData.name.trim()) {
+    return canyonData.name.trim();
   }
 
-  for (const candidateIndex of tryIndices) {
-    const fileName = `access_${String(candidateIndex).padStart(2, "0")}.json`;
-    const absolutePath = path.join(tracksDir, fileName);
-    const comparable = normalizeAbsolutePathForCompare(absolutePath);
-
-    if (usedAbsolutePaths.has(comparable)) {
-      continue;
-    }
-
-    const existsOnDisk = existsSync(absolutePath);
-    const sameAsPrevious = normalizedPrevious !== null && normalizedPrevious === comparable;
-    const belongsToKnownTrack = knownOwnedAbsolutePaths.has(comparable);
-    if (existsOnDisk && !sameAsPrevious && !belongsToKnownTrack) {
-      continue;
-    }
-
-    usedAbsolutePaths.add(comparable);
-    nextIndexRef.value = Math.max(nextIndexRef.value, candidateIndex + 1);
-    return { fileName, absolutePath };
+  if (typeof fallbackName === "string" && fallbackName.trim()) {
+    return fallbackName.trim();
   }
 
-  throw new Error("Could not allocate a unique access track filename.");
+  return "";
+}
+
+async function maybeRenameCanyonFolderOnSave(options: {
+  currentFilePath: string | null | undefined;
+  targetJsonPath: string;
+  canyonName: string;
+}): Promise<string> {
+  const { currentFilePath, targetJsonPath, canyonName } = options;
+  const normalizedCurrent = currentFilePath?.trim() ? path.normalize(currentFilePath.trim()) : "";
+  const normalizedTarget = path.normalize(targetJsonPath);
+
+  if (!normalizedCurrent) {
+    return normalizedTarget;
+  }
+
+  if (path.basename(normalizedCurrent).toLowerCase() !== CANYON_JSON_FILENAME) {
+    return normalizedTarget;
+  }
+
+  if (path.basename(normalizedTarget).toLowerCase() !== CANYON_JSON_FILENAME) {
+    return normalizedTarget;
+  }
+
+  const currentDirectory = path.dirname(normalizedCurrent);
+  const targetDirectory = path.dirname(normalizedTarget);
+  if (normalizeAbsolutePathForCompare(currentDirectory) !== normalizeAbsolutePathForCompare(targetDirectory)) {
+    return normalizedTarget;
+  }
+
+  const rawName = canyonName.trim();
+  if (!rawName) {
+    return normalizedTarget;
+  }
+
+  const desiredFolderName = sanitizeFolderName(rawName);
+  const currentFolderPath = targetDirectory;
+  const currentFolderName = path.basename(currentFolderPath);
+  if (desiredFolderName === currentFolderName) {
+    return normalizedTarget;
+  }
+
+  const parentDirectory = path.dirname(currentFolderPath);
+  const nextFolderPath = path.join(parentDirectory, desiredFolderName);
+  if (normalizeAbsolutePathForCompare(nextFolderPath) === normalizeAbsolutePathForCompare(currentFolderPath)) {
+    return normalizedTarget;
+  }
+
+  if (existsSync(nextFolderPath)) {
+    throw new Error(`Target folder already exists and cannot be used: ${nextFolderPath}`);
+  }
+
+  await rename(currentFolderPath, nextFolderPath);
+  return path.join(nextFolderPath, CANYON_JSON_FILENAME);
 }
 
 function createNewJsonTemplate(canyonName: string): Record<string, unknown> {
@@ -524,7 +545,15 @@ ipcMain.handle("json:load-dialog", async (): Promise<LoadJsonResult> => {
     return { canceled: true };
   }
 
-  return loadJsonFromFile(openResult.filePaths[0]);
+  const selectedPath = openResult.filePaths[0];
+  if (path.basename(selectedPath).toLowerCase() !== CANYON_JSON_FILENAME) {
+    return {
+      canceled: false,
+      error: `Please select a canyon file named ${CANYON_JSON_FILENAME}.`,
+    };
+  }
+
+  return loadJsonFromFile(selectedPath);
 });
 
 ipcMain.handle("json:load-path", async (_event, requestedPath: string): Promise<LoadJsonResult> => {
@@ -698,18 +727,44 @@ ipcMain.handle(
     }
 
     const warnings: string[] = [...(request.trackSnapshot?.warnings ?? [])];
+    let targetJsonPath = target.filePath;
 
     try {
-      const targetJsonPath = target.filePath;
+      const canyonNameForSave = resolveSaveCanyonName(request.canyonData, request.canyonName);
+      targetJsonPath = await maybeRenameCanyonFolderOnSave({
+        currentFilePath: request.currentFilePath ?? null,
+        targetJsonPath,
+        canyonName: canyonNameForSave,
+      });
+
       const targetJsonDirectory = path.dirname(targetJsonPath);
       const tracksDirectory = path.join(targetJsonDirectory, "tracks");
-      await mkdir(tracksDirectory, { recursive: true });
 
       const nextData = cloneValue(request.canyonData);
       const sectionsValue = Array.isArray(nextData.sections) ? nextData.sections : [];
       const tracksAccessValue = Array.isArray(nextData.tracks_access) ? nextData.tracks_access : [];
 
       const snapshotTracks = request.trackSnapshot?.tracks ?? [];
+      if (snapshotTracks.length === 0) {
+        const hasLinkedTracks =
+          sectionsValue.some(
+            (entry) => isObjectRecord(entry) && typeof entry.track_canyon === "string" && entry.track_canyon.trim(),
+          ) || tracksAccessValue.some((entry) => typeof entry === "string" && entry.trim());
+        if (hasLinkedTracks) {
+          warnings.push("Track snapshot was not available. Existing track files and links were preserved.");
+        }
+
+        await writeFile(targetJsonPath, JSON.stringify(nextData, null, 2), "utf8");
+        return {
+          canceled: false,
+          filePath: targetJsonPath,
+          warnings,
+          data: nextData,
+        };
+      }
+
+      await mkdir(tracksDirectory, { recursive: true });
+
       const sectionTracksByIndex = new Map<number, MultiTrackItemPayload>();
       const accessTracksInOrder: MultiTrackItemPayload[] = [];
 
@@ -721,28 +776,6 @@ ipcMain.handle(
 
         if (track.kind === "access") {
           accessTracksInOrder.push(track);
-        }
-      }
-
-      if (accessTracksInOrder.length === 0) {
-        for (let index = 0; index < tracksAccessValue.length; index += 1) {
-          const entry = tracksAccessValue[index];
-          if (typeof entry !== "string") {
-            continue;
-          }
-
-          accessTracksInOrder.push({
-            id: `access_fallback_${index}`,
-            kind: "access",
-            displayName: `Access ${index + 1}`,
-            filePath: entry,
-            color: "black",
-            routePoints: [],
-            routeFeature: null,
-            missingFile: false,
-            legacyFormat: false,
-            needsRebuild: false,
-          });
         }
       }
 
@@ -782,6 +815,19 @@ ipcMain.handle(
         }
 
         const sectionTrack = sectionTracksByIndex.get(sectionIndex) ?? null;
+        if (!sectionTrack) {
+          const preservedLink =
+            typeof sectionEntry.track_canyon === "string"
+              ? normalizeTrackLink(sectionEntry.track_canyon)
+              : "";
+          if (preservedLink) {
+            sectionEntry.track_canyon = preservedLink;
+            const preservedAbsolutePath = resolveTrackAbsolutePath(targetJsonPath, preservedLink);
+            usedAbsolutePaths.add(normalizeAbsolutePathForCompare(preservedAbsolutePath));
+          }
+          continue;
+        }
+
         const sectionName = typeof sectionEntry.name === "string" ? sectionEntry.name : `Section ${sectionIndex + 1}`;
         const sectionId = Number.isFinite(Number(sectionEntry.id)) ? Number(sectionEntry.id) : sectionIndex;
 
@@ -790,7 +836,7 @@ ipcMain.handle(
           baseName = `${baseName}_section_${sectionId}`;
         }
 
-        const previousLinkFromTrack = sectionTrack ? normalizeTrackLink(sectionTrack.filePath) : "";
+        const previousLinkFromTrack = normalizeTrackLink(sectionTrack.filePath);
         const previousLinkFromData =
           typeof sectionEntry.track_canyon === "string" ? normalizeTrackLink(sectionEntry.track_canyon) : "";
         const previousLink = previousLinkFromTrack || previousLinkFromData;
@@ -808,19 +854,11 @@ ipcMain.handle(
         const link = toTrackLink(resolved.fileName);
         sectionEntry.track_canyon = link;
 
-        const logicalTrack: MultiTrackItemPayload = sectionTrack ?? {
-          id: `section_fallback_${sectionIndex}`,
-          kind: "section",
+        const logicalTrack: MultiTrackItemPayload = {
+          ...sectionTrack,
+          filePath: link,
           sectionIndex,
           sectionId,
-          displayName: sectionName,
-          filePath: link,
-          color: "orange",
-          routePoints: [],
-          routeFeature: null,
-          missingFile: false,
-          legacyFormat: false,
-          needsRebuild: false,
         };
         const trackPayload = buildRouteFeatureCollection(logicalTrack, sectionName);
         if (trackPayload.incomplete) {
@@ -833,39 +871,19 @@ ipcMain.handle(
         });
       }
 
-      const usedAccessIndices = new Set<number>();
-      for (const entry of tracksAccessValue) {
-        if (typeof entry !== "string") {
-          continue;
-        }
-
-        const parsed = parseAccessTrackIndex(entry);
-        if (parsed !== null) {
-          usedAccessIndices.add(parsed);
-        }
-      }
-
-      const nextAccessIndexRef = {
-        value: Math.max(...Array.from(usedAccessIndices), 0) + 1,
-      };
-
       const nextTracksAccess: string[] = [];
       for (let accessIndex = 0; accessIndex < accessTracksInOrder.length; accessIndex += 1) {
         const accessTrack = accessTracksInOrder[accessIndex];
         const displayName = accessTrack.displayName?.trim() || `Access ${accessIndex + 1}`;
+        const baseName = sanitizeTrackBaseName(displayName) || `access_track_${accessIndex + 1}`;
         const previousLink = normalizeTrackLink(accessTrack.filePath);
         const previousAbsolutePath = previousLink
           ? resolveTrackAbsolutePath(targetJsonPath, previousLink)
           : null;
-        const preferredIndex = parseAccessTrackIndex(previousLink);
-        if (preferredIndex !== null) {
-          usedAccessIndices.add(preferredIndex);
-        }
 
-        const resolved = resolveAccessFileName({
+        const resolved = resolveUniqueSectionFileName({
           tracksDir: tracksDirectory,
-          preferredIndex,
-          nextIndexRef: nextAccessIndexRef,
+          baseName,
           previousAbsolutePath,
           usedAbsolutePaths,
           knownOwnedAbsolutePaths,
@@ -905,7 +923,7 @@ ipcMain.handle(
     } catch (error) {
       return {
         canceled: false,
-        filePath: target.filePath,
+        filePath: targetJsonPath,
         error: toErrorMessage(error),
       };
     }

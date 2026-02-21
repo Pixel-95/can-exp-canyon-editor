@@ -159,12 +159,12 @@ type ManualCoordinateActionOption =
 
 type LocalizedText = Record<string, string>;
 type PointOfInterest = {
-  coordinates: [number, number];
+  coordinates: [number, number] | null;
   name: LocalizedText;
   description: LocalizedText;
 };
 type ParkingLot = {
-  coordinates: [number, number];
+  coordinates: [number, number] | null;
   name: LocalizedText;
 };
 type PoiEditorState = {
@@ -195,6 +195,17 @@ type ClearTrackModalState = {
   trackId: string;
   displayName: string;
 } | null;
+
+type PendingPlacementState =
+  | {
+      kind: "poi";
+      index: number;
+    }
+  | {
+      kind: "parking";
+      index: number;
+    }
+  | null;
 
 export type SectionTrackBinding = {
   sectionIndex: number;
@@ -893,6 +904,14 @@ export function RouteMapApp({
   const autoViewportAppliedForKeyRef = useRef<string>("");
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const searchDebounceTimeoutRef = useRef<number | null>(null);
+  const pointsOfInterestRef = useRef<PointOfInterest[]>(pointsOfInterest);
+  const parkingLotsRef = useRef<ParkingLot[]>(parkingLots);
+  const onPointsOfInterestChangeRef = useRef<RouteMapAppProps["onPointsOfInterestChange"]>(
+    onPointsOfInterestChange,
+  );
+  const onParkingLotsChangeRef = useRef<RouteMapAppProps["onParkingLotsChange"]>(onParkingLotsChange);
+  const pendingPlacementRef = useRef<PendingPlacementState>(null);
+  const effectiveDefaultLanguageRef = useRef<(typeof STATIC_LANGUAGE_KEYS)[number]>("en");
 
   const [mapboxToken, setMapboxToken] = useState<string>("");
   const [mapReadyVersion, setMapReadyVersion] = useState(0);
@@ -912,6 +931,7 @@ export function RouteMapApp({
   const [poiPasteModal, setPoiPasteModal] = useState<PoiPasteModalState | null>(null);
   const [parkingEditor, setParkingEditor] = useState<ParkingEditorState | null>(null);
   const [parkingPasteModal, setParkingPasteModal] = useState<ParkingPasteModalState | null>(null);
+  const [pendingPlacement, setPendingPlacement] = useState<PendingPlacementState>(null);
   const [accessDeleteModal, setAccessDeleteModal] = useState<AccessDeleteModalState>(null);
   const [clearTrackModal, setClearTrackModal] = useState<ClearTrackModalState>(null);
   const [coordinateInput, setCoordinateInput] = useState("");
@@ -927,6 +947,7 @@ export function RouteMapApp({
   const effectiveDefaultLanguage: (typeof STATIC_LANGUAGE_KEYS)[number] = STATIC_LANGUAGE_SET.has(defaultLanguage)
     ? defaultLanguage
     : "en";
+  effectiveDefaultLanguageRef.current = effectiveDefaultLanguage;
 
   const activeTrack = activeTrackId ? tracksById[activeTrackId] ?? null : null;
   const showSecondaryPanels = viewMode !== "expanded" || Boolean(activeTrack);
@@ -936,6 +957,11 @@ export function RouteMapApp({
   activeTrackIdRef.current = activeTrackId;
   tracksByIdRef.current = tracksById;
   trackOrderRef.current = trackOrder;
+  pointsOfInterestRef.current = pointsOfInterest;
+  parkingLotsRef.current = parkingLots;
+  onPointsOfInterestChangeRef.current = onPointsOfInterestChange;
+  onParkingLotsChangeRef.current = onParkingLotsChange;
+  pendingPlacementRef.current = pendingPlacement;
 
   const closeAllMenus = useCallback((): void => {
     setContextMenu(null);
@@ -958,6 +984,7 @@ export function RouteMapApp({
   useEffect(() => {
     viewModeRef.current = viewMode;
     autoViewportAppliedForKeyRef.current = "";
+    setPendingPlacement(null);
     deactivateTrackEditing();
     closeAllMenus();
   }, [closeAllMenus, deactivateTrackEditing, viewMode]);
@@ -1378,11 +1405,15 @@ export function RouteMapApp({
     }
 
     pointsOfInterest.forEach((poi) => {
-      coordinates.push(poi.coordinates);
+      if (poi.coordinates) {
+        coordinates.push(poi.coordinates);
+      }
     });
 
     parkingLots.forEach((parkingLot) => {
-      coordinates.push(parkingLot.coordinates);
+      if (parkingLot.coordinates) {
+        coordinates.push(parkingLot.coordinates);
+      }
     });
 
     trackOrder.forEach((trackId) => {
@@ -2137,6 +2168,7 @@ export function RouteMapApp({
         Number(event.lngLat.lat.toFixed(6)),
       ];
 
+      setPendingPlacement(null);
       closeAllMenus();
       setContextMenu({
         x: Math.round(event.point.x),
@@ -2148,6 +2180,65 @@ export function RouteMapApp({
     const onMapClick = (event: mapboxgl.MapMouseEvent): void => {
       if (viewModeRef.current !== "expanded") {
         onRequestExpandMap?.();
+        return;
+      }
+
+      const coordinate: Coordinate = [
+        Number(event.lngLat.lng.toFixed(6)),
+        Number(event.lngLat.lat.toFixed(6)),
+      ];
+
+      const placement = pendingPlacementRef.current;
+      if (placement) {
+        if (placement.kind === "poi") {
+          const onChangePoi = onPointsOfInterestChangeRef.current;
+          const currentPoi = pointsOfInterestRef.current;
+          if (
+            onChangePoi &&
+            placement.index >= 0 &&
+            placement.index < currentPoi.length
+          ) {
+            const next = currentPoi.map((poi, index) =>
+              index === placement.index
+                ? {
+                    ...poi,
+                    coordinates: coordinate,
+                  }
+                : poi,
+            );
+            onChangePoi(next);
+            setPoiEditor({
+              index: placement.index,
+              language: effectiveDefaultLanguageRef.current,
+            });
+          }
+        } else {
+          const onChangeParking = onParkingLotsChangeRef.current;
+          const currentParkingLots = parkingLotsRef.current;
+          if (
+            onChangeParking &&
+            placement.index >= 0 &&
+            placement.index < currentParkingLots.length
+          ) {
+            const next = currentParkingLots.map((parkingLot, index) =>
+              index === placement.index
+                ? {
+                    ...parkingLot,
+                    coordinates: coordinate,
+                  }
+                : parkingLot,
+            );
+            onChangeParking(next);
+            setParkingEditor({
+              index: placement.index,
+              language: effectiveDefaultLanguageRef.current,
+            });
+          }
+        }
+
+        setContextMenu(null);
+        setActiveSubmenu(null);
+        setPendingPlacement(null);
         return;
       }
 
@@ -2184,6 +2275,15 @@ export function RouteMapApp({
         Number(event.lngLat.lng.toFixed(6)),
         Number(event.lngLat.lat.toFixed(6)),
       ];
+
+      if (pendingPlacementRef.current) {
+        hoveredTrackIdRef.current = null;
+        if (map.getLayer(TRACKS_HOVER_LAYER_ID)) {
+          map.setFilter(TRACKS_HOVER_LAYER_ID, ["==", ["get", "trackId"], NO_HOVER_TRACK_ID]);
+        }
+        map.getCanvas().style.cursor = "crosshair";
+        return;
+      }
 
       const lineLayerIds = [TRACKS_ACTIVE_LAYER_ID, TRACKS_INACTIVE_LAYER_ID].filter((layerId) =>
         Boolean(map.getLayer(layerId)),
@@ -2234,6 +2334,12 @@ export function RouteMapApp({
     };
 
     const onMapMoveStart = (): void => {
+      if (pendingPlacementRef.current) {
+        setContextMenu(null);
+        setActiveSubmenu(null);
+        return;
+      }
+
       closeAllMenus();
     };
 
@@ -2412,6 +2518,10 @@ export function RouteMapApp({
     poiMarkersRef.current = [];
 
     pointsOfInterest.forEach((poi, index) => {
+      if (!poi.coordinates) {
+        return;
+      }
+
       const markerElement = document.createElement("button");
       markerElement.type = "button";
       markerElement.className = "poi-marker";
@@ -2437,6 +2547,7 @@ export function RouteMapApp({
 
         deactivateTrackEditing();
         closeAllMenus();
+        setPendingPlacement(null);
         setPoiEditor({
           index,
           language: effectiveDefaultLanguage,
@@ -2507,6 +2618,10 @@ export function RouteMapApp({
     parkingLotMarkersRef.current = [];
 
     parkingLots.forEach((parkingLot, index) => {
+      if (!parkingLot.coordinates) {
+        return;
+      }
+
       const markerElement = document.createElement("button");
       markerElement.type = "button";
       markerElement.className = "parking-lot-marker";
@@ -2532,6 +2647,7 @@ export function RouteMapApp({
 
         deactivateTrackEditing();
         closeAllMenus();
+        setPendingPlacement(null);
         setParkingEditor({
           index,
           language: effectiveDefaultLanguage,
@@ -2589,6 +2705,37 @@ export function RouteMapApp({
       setParkingPasteModal(null);
     }
   }, [parkingEditor, parkingLots.length]);
+
+  useEffect(() => {
+    if (!pendingPlacement) {
+      return;
+    }
+
+    if (pendingPlacement.kind === "poi") {
+      if (pendingPlacement.index < 0 || pendingPlacement.index >= pointsOfInterest.length) {
+        setPendingPlacement(null);
+      }
+      return;
+    }
+
+    if (pendingPlacement.index < 0 || pendingPlacement.index >= parkingLots.length) {
+      setPendingPlacement(null);
+    }
+  }, [parkingLots.length, pendingPlacement, pointsOfInterest.length]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    if (pendingPlacement) {
+      map.getCanvas().style.cursor = "crosshair";
+      return;
+    }
+
+    map.getCanvas().style.cursor = hoveredTrackIdRef.current ? "pointer" : "";
+  }, [mapReadyVersion, pendingPlacement]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -3161,6 +3308,62 @@ export function RouteMapApp({
     [contextMenu, insertPointAt],
   );
 
+  const onStartPoiPlacement = useCallback(
+    (poiIndex: number): void => {
+      if (!onPointsOfInterestChange) {
+        return;
+      }
+
+      if (poiIndex < 0 || poiIndex >= pointsOfInterest.length) {
+        return;
+      }
+
+      deactivateTrackEditing();
+      setContextMenu(null);
+      setActiveSubmenu(null);
+      setPoiPasteModal(null);
+      setParkingEditor(null);
+      setParkingPasteModal(null);
+      setPoiEditor({
+        index: poiIndex,
+        language: effectiveDefaultLanguage,
+      });
+      setPendingPlacement({
+        kind: "poi",
+        index: poiIndex,
+      });
+    },
+    [deactivateTrackEditing, effectiveDefaultLanguage, onPointsOfInterestChange, pointsOfInterest.length],
+  );
+
+  const onStartParkingPlacement = useCallback(
+    (parkingLotIndex: number): void => {
+      if (!onParkingLotsChange) {
+        return;
+      }
+
+      if (parkingLotIndex < 0 || parkingLotIndex >= parkingLots.length) {
+        return;
+      }
+
+      deactivateTrackEditing();
+      setContextMenu(null);
+      setActiveSubmenu(null);
+      setPoiEditor(null);
+      setPoiPasteModal(null);
+      setParkingPasteModal(null);
+      setParkingEditor({
+        index: parkingLotIndex,
+        language: effectiveDefaultLanguage,
+      });
+      setPendingPlacement({
+        kind: "parking",
+        index: parkingLotIndex,
+      });
+    },
+    [deactivateTrackEditing, effectiveDefaultLanguage, onParkingLotsChange, parkingLots.length],
+  );
+
   const onAddPointOfInterestFromContextMenu = useCallback((): void => {
     if (!contextMenu) {
       return;
@@ -3181,6 +3384,7 @@ export function RouteMapApp({
     const next = [...pointsOfInterest, nextPoi];
     onPointsOfInterestChange(next);
     deactivateTrackEditing();
+    setPendingPlacement(null);
     setContextMenu(null);
     setActiveSubmenu(null);
     setPoiPasteModal(null);
@@ -3248,6 +3452,24 @@ export function RouteMapApp({
 
     const next = pointsOfInterest.filter((_, index) => index !== poiIndex);
     onPointsOfInterestChange(next);
+    setPendingPlacement((current) => {
+      if (!current || current.kind !== "poi") {
+        return current;
+      }
+
+      if (current.index === poiIndex) {
+        return null;
+      }
+
+      if (current.index > poiIndex) {
+        return {
+          kind: "poi",
+          index: current.index - 1,
+        };
+      }
+
+      return current;
+    });
     setPoiEditor(null);
     setPoiPasteModal(null);
     setStatusText("Point of interest removed.");
@@ -3355,6 +3577,7 @@ export function RouteMapApp({
     const next = [...parkingLots, nextParkingLot];
     onParkingLotsChange(next);
     deactivateTrackEditing();
+    setPendingPlacement(null);
     setContextMenu(null);
     setActiveSubmenu(null);
     setPoiEditor(null);
@@ -3422,6 +3645,24 @@ export function RouteMapApp({
 
     const next = parkingLots.filter((_, index) => index !== parkingLotIndex);
     onParkingLotsChange(next);
+    setPendingPlacement((current) => {
+      if (!current || current.kind !== "parking") {
+        return current;
+      }
+
+      if (current.index === parkingLotIndex) {
+        return null;
+      }
+
+      if (current.index > parkingLotIndex) {
+        return {
+          kind: "parking",
+          index: current.index - 1,
+        };
+      }
+
+      return current;
+    });
     setParkingEditor(null);
     setParkingPasteModal(null);
     setStatusText("Parking lot removed.");
@@ -3565,6 +3806,7 @@ export function RouteMapApp({
     }
 
     closeAllMenus();
+    setPendingPlacement(null);
     setActiveTrackId(trackId);
     setStatusText(`Active track: ${track.displayName}`);
   }, [closeAllMenus]);
@@ -3967,6 +4209,26 @@ export function RouteMapApp({
         .filter((track): track is MultiTrackItem => Boolean(track) && track.kind === "access"),
     [trackOrder, tracksById],
   );
+  const unplacedPoiIndices = useMemo(
+    () =>
+      pointsOfInterest.reduce<number[]>((indices, poi, index) => {
+        if (!poi.coordinates) {
+          indices.push(index);
+        }
+        return indices;
+      }, []),
+    [pointsOfInterest],
+  );
+  const unplacedParkingLotIndices = useMemo(
+    () =>
+      parkingLots.reduce<number[]>((indices, parkingLot, index) => {
+        if (!parkingLot.coordinates) {
+          indices.push(index);
+        }
+        return indices;
+      }, []),
+    [parkingLots],
+  );
   const onTrackPanelBackgroundClick = useCallback((event: ReactMouseEvent<HTMLElement>): void => {
     const target = event.target as HTMLElement | null;
     if (!target) {
@@ -3991,6 +4253,8 @@ export function RouteMapApp({
     poiEditor && poiEditor.index >= 0 && poiEditor.index < pointsOfInterest.length
       ? pointsOfInterest[poiEditor.index]
       : null;
+  const isPoiPlacementPending =
+    pendingPlacement?.kind === "poi" && poiEditor ? pendingPlacement.index === poiEditor.index : false;
   const poiEditorPosition = useMemo(() => {
     if (!poiEditor || !activePoi) {
       return null;
@@ -4002,9 +4266,14 @@ export function RouteMapApp({
       return null;
     }
 
-    const projected = map.project(activePoi.coordinates);
-    const popupWidth = 320;
     const margin = 12;
+    const projected = activePoi.coordinates
+      ? map.project(activePoi.coordinates)
+      : {
+          x: margin,
+          y: margin + 76,
+        };
+    const popupWidth = 320;
     const availableWidth = container.clientWidth;
     const availableHeight = container.clientHeight;
 
@@ -4027,6 +4296,10 @@ export function RouteMapApp({
     parkingEditor && parkingEditor.index >= 0 && parkingEditor.index < parkingLots.length
       ? parkingLots[parkingEditor.index]
       : null;
+  const isParkingPlacementPending =
+    pendingPlacement?.kind === "parking" && parkingEditor
+      ? pendingPlacement.index === parkingEditor.index
+      : false;
   const parkingEditorPosition = useMemo(() => {
     if (!parkingEditor || !activeParkingLot) {
       return null;
@@ -4038,9 +4311,14 @@ export function RouteMapApp({
       return null;
     }
 
-    const projected = map.project(activeParkingLot.coordinates);
-    const popupWidth = 320;
     const margin = 12;
+    const projected = activeParkingLot.coordinates
+      ? map.project(activeParkingLot.coordinates)
+      : {
+          x: margin,
+          y: margin + 116,
+        };
+    const popupWidth = 320;
     const availableWidth = container.clientWidth;
     const availableHeight = container.clientHeight;
 
@@ -4437,6 +4715,26 @@ export function RouteMapApp({
                   <span className="map-context-menu-item-label">Add point of interest</span>
                 </span>
               </button>
+              {unplacedParkingLotIndices.map((index) => (
+                <button key={`set-unplaced-parking-${index}`} type="button" onClick={() => onStartParkingPlacement(index)}>
+                  <span className="map-context-menu-item map-context-menu-item-main">
+                    <span className="map-menu-icon parking" aria-hidden="true">
+                      P
+                    </span>
+                    <span className="map-context-menu-item-label">{`Set location for parking lot ${index + 1}`}</span>
+                  </span>
+                </button>
+              ))}
+              {unplacedPoiIndices.map((index) => (
+                <button key={`set-unplaced-poi-${index}`} type="button" onClick={() => onStartPoiPlacement(index)}>
+                  <span className="map-context-menu-item map-context-menu-item-main">
+                    <span className="map-menu-icon poi" aria-hidden="true">
+                      POI
+                    </span>
+                    <span className="map-context-menu-item-label">{`Set location for point of interest ${index + 1}`}</span>
+                  </span>
+                </button>
+              ))}
               <button type="button" onClick={onSetOverviewCoordinateFromContextMenu}>
                 <span className="map-context-menu-item map-context-menu-item-main">
                   <span className="map-menu-icon overview" aria-hidden="true">
@@ -4637,6 +4935,9 @@ export function RouteMapApp({
                   type="button"
                   className="poi-editor-close"
                   onClick={() => {
+                    setPendingPlacement((current) =>
+                      current?.kind === "poi" && current.index === poiEditor.index ? null : current,
+                    );
                     setPoiEditor(null);
                     setPoiPasteModal(null);
                   }}
@@ -4658,6 +4959,22 @@ export function RouteMapApp({
                   {language.toUpperCase()}
                 </button>
               ))}
+            </div>
+            <div className="poi-editor-placement">
+              <button
+                type="button"
+                className={`poi-editor-set-location${isPoiPlacementPending ? " active" : ""}`}
+                onClick={() => onStartPoiPlacement(poiEditor.index)}
+              >
+                Set location on map
+              </button>
+              <p className="poi-editor-placement-hint">
+                {isPoiPlacementPending
+                  ? "Click anywhere on the map to place this point."
+                  : activePoi.coordinates
+                    ? "Location is set."
+                    : "Location not set yet."}
+              </p>
             </div>
 
             <div className="poi-editor-field">
@@ -4717,6 +5034,9 @@ export function RouteMapApp({
                   type="button"
                   className="poi-editor-close"
                   onClick={() => {
+                    setPendingPlacement((current) =>
+                      current?.kind === "parking" && current.index === parkingEditor.index ? null : current,
+                    );
                     setParkingEditor(null);
                     setParkingPasteModal(null);
                   }}
@@ -4738,6 +5058,22 @@ export function RouteMapApp({
                   {language.toUpperCase()}
                 </button>
               ))}
+            </div>
+            <div className="poi-editor-placement">
+              <button
+                type="button"
+                className={`poi-editor-set-location${isParkingPlacementPending ? " active" : ""}`}
+                onClick={() => onStartParkingPlacement(parkingEditor.index)}
+              >
+                Set location on map
+              </button>
+              <p className="poi-editor-placement-hint">
+                {isParkingPlacementPending
+                  ? "Click anywhere on the map to place this parking lot."
+                  : activeParkingLot.coordinates
+                    ? "Location is set."
+                    : "Location not set yet."}
+              </p>
             </div>
 
             <div className="poi-editor-field">

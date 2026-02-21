@@ -154,6 +154,10 @@ function hasRecommendedRopes(value: unknown): boolean {
   return normalized !== "" && normalized !== "2x0m";
 }
 
+function isNotNull(value: unknown): boolean {
+  return value !== null && typeof value !== "undefined";
+}
+
 function buildSectionNode(
   sectionValue: unknown,
   sectionIndex: number,
@@ -220,6 +224,11 @@ function buildSectionNode(
       `section/${sectionIndex}/recommended-ropes`,
       "Recommended ropes",
       hasRecommendedRopes(section.recommended_ropes),
+    ),
+    createLeaf(
+      `section/${sectionIndex}/catchment-area`,
+      "Catchment area",
+      isNotNull(section.catchment_area_in_km2),
     ),
     createLeaf(
       `section/${sectionIndex}/track`,

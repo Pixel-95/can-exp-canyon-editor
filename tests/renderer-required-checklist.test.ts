@@ -9,6 +9,7 @@ import {
   type ChecklistNode,
   type ChecklistStatus,
 } from "../renderer/src/json-editor/requiredDataChecklist";
+import { normalizeCanyonForEditor } from "../renderer/src/json-editor/canyonSchemaDefaults";
 
 function localized(value: string): Record<string, string> {
   return {
@@ -60,6 +61,7 @@ function createValidCanyonData(): Record<string, unknown> {
         },
         max_rappel_in_meter: 18,
         recommended_ropes: "1x 40m",
+        catchment_area_in_km2: 4.2,
         topo: "./topos/KangarooJump.webp",
       },
     ],
@@ -243,6 +245,7 @@ test("section fields enforce author, numeric, ropes, and section-track requireme
   };
   section.max_rappel_in_meter = 0;
   section.recommended_ropes = "  2X   0m ";
+  section.catchment_area_in_km2 = null;
 
   const snapshot = createValidTrackSnapshot();
   snapshot.tracks[0] = {
@@ -260,7 +263,27 @@ test("section fields enforce author, numeric, ropes, and section-track requireme
   assert.equal(getNodeStatus(tree, "section/0/durations/canyon"), "missing");
   assert.equal(getNodeStatus(tree, "section/0/max-rappel"), "missing");
   assert.equal(getNodeStatus(tree, "section/0/recommended-ropes"), "missing");
+  assert.equal(getNodeStatus(tree, "section/0/catchment-area"), "missing");
   assert.equal(getNodeStatus(tree, "section/0/track"), "missing");
+});
+
+test("catchment area is present when set to 0 and missing when null", () => {
+  const canyonData = createValidCanyonData();
+  const section = (canyonData.sections as Array<Record<string, unknown>>)[0];
+  section.catchment_area_in_km2 = null;
+
+  const treeWhenNull = buildRequiredDataChecklist({
+    canyonData,
+    trackSnapshot: createValidTrackSnapshot(),
+  });
+  assert.equal(getNodeStatus(treeWhenNull, "section/0/catchment-area"), "missing");
+
+  section.catchment_area_in_km2 = 0;
+  const treeWhenZero = buildRequiredDataChecklist({
+    canyonData,
+    trackSnapshot: createValidTrackSnapshot(),
+  });
+  assert.equal(getNodeStatus(treeWhenZero, "section/0/catchment-area"), "present");
 });
 
 test("topo validity requires /topos path and image extension", () => {
@@ -301,4 +324,21 @@ test("section topo node is missing when path is outside /topos", () => {
   });
 
   assert.equal(getNodeStatus(tree, "section/0/topo"), "missing");
+});
+
+test("normalized missing-key defaults are treated as missing in checklist", () => {
+  const canyonData = normalizeCanyonForEditor({
+    name: "Test canyon",
+    sections: [{}],
+  });
+
+  const tree = buildRequiredDataChecklist({
+    canyonData,
+    trackSnapshot: { tracks: [] },
+  });
+
+  assert.equal(getNodeStatus(tree, "canyon/overview"), "missing");
+  assert.equal(getNodeStatus(tree, "canyon/location/country"), "missing");
+  assert.equal(getNodeStatus(tree, "section/0/recommended-ropes"), "missing");
+  assert.equal(getNodeStatus(tree, "section/0/catchment-area"), "missing");
 });

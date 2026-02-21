@@ -494,6 +494,38 @@
   color: #0c4a6e;
 }
 
+.poi-editor-placement {
+  display: grid;
+  gap: 4px;
+}
+
+.poi-editor-set-location {
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 0.74rem;
+  text-align: left;
+}
+
+.poi-editor-set-location:hover {
+  background: var(--bg-hover);
+}
+
+.poi-editor-set-location.active {
+  border-color: #60a5fa;
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.poi-editor-placement-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+}
+
 .poi-editor-field {
   display: grid;
   gap: 4px;
@@ -731,6 +763,7 @@
 
 .poi-editor-close,
 .poi-editor-field-head button,
+.poi-editor-set-location,
 .poi-editor-field input,
 .poi-editor-field textarea {
   border-color: var(--color-border);

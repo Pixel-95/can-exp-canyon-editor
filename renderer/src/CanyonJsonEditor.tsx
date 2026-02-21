@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RouteMapApp, type TrackBindings, type TrackSnapshot } from "./RouteMapApp";
 import { buildTrackBindings, withSectionTourDimensionsFromTracks } from "./json-editor/trackUtils";
 import {
   buildRequiredDataChecklist,
   type ChecklistNode,
   type ChecklistStatus,
+  isValidTopoPath,
 } from "./json-editor/requiredDataChecklist";
+import {
+  createDefaultSection,
+  createEmptyLocalizedText,
+  normalizeCanyonForEditor,
+} from "./json-editor/canyonSchemaDefaults";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -24,12 +30,12 @@ type SpecialNoteDefinition = {
 };
 type LocalizedText = Record<string, string>;
 type PointOfInterest = {
-  coordinates: [number, number];
+  coordinates: [number, number] | null;
   name: LocalizedText;
   description: LocalizedText;
 };
 type ParkingLot = {
-  coordinates: [number, number];
+  coordinates: [number, number] | null;
   name: LocalizedText;
 };
 type CanyonJsonEditorProps = {
@@ -42,6 +48,12 @@ type SectionDeleteConfirmState = {
   sectionLabel: string;
 };
 type ChecklistExpansionState = "expanded" | "collapsed";
+type SaveFeedbackPopup = {
+  tone: "success" | "warning";
+  message: string;
+  missingItems: string[];
+  hiddenCount: number;
+};
 
 const DEFAULT_JSON_PATH = "data/Kobelache/data.json";
 const COUNTRY_ASSET_PATH = "assets/countries_and_regions.json";
@@ -52,12 +64,12 @@ const LANGUAGE_KEY_PATTERN = /^[a-z]{2}(?:-[A-Za-z]{2})?$/i;
 const STATIC_LANGUAGE_KEYS = ["de", "en", "es", "fr", "it", "pt"] as const;
 const STATIC_LANGUAGE_SET = new Set<string>(STATIC_LANGUAGE_KEYS);
 const LANGUAGE_TEXTAREA_PLACEHOLDER: Record<(typeof STATIC_LANGUAGE_KEYS)[number], string> = {
-  de: "Hier deutschen Text einfügen",
+  de: "Hier deutschen Text einf\u00FCgen",
   en: "Put in some English text here",
-  es: "Pon aquí texto en español",
-  fr: "Mettez ici du texte français",
+  es: "Pon aqu\u00ED texto en espa\u00F1ol",
+  fr: "Mettez ici du texte fran\u00E7ais",
   it: "Inserisci qui del testo italiano",
-  pt: "Coloque aqui texto em português",
+  pt: "Coloque aqui texto em portugu\u00EAs",
 };
 const LOCALIZED_JSON_PLACEHOLDER = `{
   "de": "",
@@ -79,6 +91,7 @@ const SECTION_EDITABLE_KEYS = new Set([
   "durations_in_minutes",
   "max_rappel_in_meter",
   "recommended_ropes",
+  "catchment_area_in_km2",
   "topo",
 ]);
 const SECTION_DESCRIPTION_KEYS = new Set(["approach", "canyon", "exit"]);
@@ -90,6 +103,9 @@ const SECTION_DURATION_KEYS = [
   "exit_with_shuttle",
 ] as const;
 const DEFAULT_RECOMMENDED_ROPES = "2x 0m";
+const SAVE_FEEDBACK_MAX_ITEMS = 12;
+const SAVE_FEEDBACK_SUCCESS_DURATION_MS = 3200;
+const SAVE_FEEDBACK_WARNING_DURATION_MS = 6400;
 const COMMITMENT_ROMAN_BY_VALUE = ["0", "I", "II", "III", "IV", "V", "VI"] as const;
 const COMMITMENT_VALUE_BY_ROMAN: Record<string, number> = {
   0: 0,
@@ -265,14 +281,6 @@ function parseCoordinatePair(value: JsonValue): [number, number] | null {
   return [lng, lat];
 }
 
-function createEmptyLocalizedText(): LocalizedText {
-  const value: LocalizedText = {};
-  for (const language of STATIC_LANGUAGE_KEYS) {
-    value[language] = "";
-  }
-  return value;
-}
-
 function normalizeLocalizedText(value: JsonValue): LocalizedText {
   if (!isJsonObject(value)) {
     return createEmptyLocalizedText();
@@ -298,13 +306,8 @@ function parsePointsOfInterest(value: JsonValue): PointOfInterest[] {
       continue;
     }
 
-    const coordinates = parseCoordinatePair(entry.coordinates ?? null);
-    if (!coordinates) {
-      continue;
-    }
-
     points.push({
-      coordinates,
+      coordinates: parseCoordinatePair(entry.coordinates ?? null),
       name: normalizeLocalizedText(entry.name ?? null),
       description: normalizeLocalizedText(entry.description ?? null),
     });
@@ -332,13 +335,8 @@ function parseParkingLots(value: JsonValue): ParkingLot[] {
       continue;
     }
 
-    const coordinates = parseCoordinatePair(entry.coordinates ?? null);
-    if (!coordinates) {
-      continue;
-    }
-
     parkingLots.push({
-      coordinates,
+      coordinates: parseCoordinatePair(entry.coordinates ?? null),
       name: normalizeLocalizedText(entry.name ?? null),
     });
   }
@@ -579,24 +577,12 @@ function parseParkingLotSuggestionsFromAsset(payload: unknown): LocalizedText[] 
 }
 
 function createEmptyNewCanyonData(template: JsonObject, canyonName: string): JsonObject {
-  const description: JsonObject = {};
-  for (const language of STATIC_LANGUAGE_KEYS) {
-    description[language] = "";
-  }
-
-  const location: JsonObject = {
-    country_code: "",
-    region_code: "",
-  };
-
-  return {
+  return normalizeCanyonForEditor({
     ...template,
     name: canyonName,
     coordinates: null,
-    description,
-    location,
-    sections: [createDefaultSection([])],
-  };
+    sections: [createDefaultSection(0)],
+  });
 }
 
 function shouldRenderChild(parentPath: PathSegment[], key: string, value: JsonValue): boolean {
@@ -704,29 +690,6 @@ function moveArrayItem<T>(items: T[], fromIndex: number, toIndex: number): T[] {
   return clone;
 }
 
-function withGeneratedSectionIds(root: JsonObject): JsonObject {
-  const sectionsValue = root.sections;
-  if (!Array.isArray(sectionsValue)) {
-    return root;
-  }
-
-  const nextSections = sectionsValue.map((entry, index) => {
-    if (!isJsonObject(entry)) {
-      return entry;
-    }
-
-    return {
-      ...entry,
-      id: index,
-    } as JsonValue;
-  });
-
-  return {
-    ...root,
-    sections: nextSections,
-  };
-}
-
 function defaultFromSample(sample: JsonValue): JsonValue {
   if (sample === null) {
     return "";
@@ -755,50 +718,9 @@ function defaultFromSample(sample: JsonValue): JsonValue {
   return output;
 }
 
-function createDefaultSection(existingSections: JsonValue[]): JsonObject {
-  let maxId = -1;
-  for (const section of existingSections) {
-    if (isJsonObject(section) && typeof section.id === "number" && Number.isFinite(section.id)) {
-      maxId = Math.max(maxId, section.id);
-    }
-  }
-
-  return {
-    id: maxId + 1,
-    name: "Part1",
-    authors: [],
-    descriptions: {
-      approach: { en: "" },
-      canyon: { en: "" },
-      exit: { en: "" },
-    },
-    special_notes: [],
-    difficulties: {
-      vertical: 0,
-      aquatic: 0,
-      general: 0,
-    },
-    durations_in_minutes: {
-      approach_no_shuttle: 0,
-      approach_with_shuttle: 0,
-      canyon: 0,
-      exit_no_shuttle: 0,
-      exit_with_shuttle: 0,
-    },
-    tour_dimensions_in_meter: {
-      elevation_start: 0,
-      elevation_exit: 0,
-      horizontal_length: 0,
-    },
-    max_rappel_in_meter: 0,
-    recommended_ropes: DEFAULT_RECOMMENDED_ROPES,
-    topo: "",
-  };
-}
-
 function newArrayItem(path: PathSegment[], arrayValue: JsonValue[]): JsonValue {
   if (path.length === 1 && path[0] === "sections") {
-    return createDefaultSection(arrayValue);
+    return createDefaultSection(arrayValue.length);
   }
 
   if (arrayValue.length > 0) {
@@ -822,6 +744,63 @@ function isTopoPath(path: PathSegment[]): boolean {
   );
 }
 
+function hasLinkedTrackBindings(trackBindings: TrackBindings): boolean {
+  const hasSectionTrackLink = trackBindings.sections.some((binding) => Boolean(binding.filePath));
+  const hasAccessTrackLink = trackBindings.access.length > 0;
+  return hasSectionTrackLink || hasAccessTrackLink;
+}
+
+function collectInvalidTopoSections(canyonData: Record<string, unknown>): string[] {
+  const sections = Array.isArray(canyonData.sections) ? canyonData.sections : [];
+  const invalid: string[] = [];
+
+  for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex += 1) {
+    const section = sections[sectionIndex];
+    if (!isJsonObject(section)) {
+      continue;
+    }
+
+    const topoValue = section.topo;
+    if (topoValue === null || typeof topoValue === "undefined") {
+      continue;
+    }
+
+    if (typeof topoValue !== "string") {
+      invalid.push(typeof section.name === "string" && section.name.trim() ? section.name.trim() : `Section ${sectionIndex + 1}`);
+      continue;
+    }
+
+    if (!topoValue.trim()) {
+      continue;
+    }
+
+    if (!isValidTopoPath(topoValue)) {
+      invalid.push(typeof section.name === "string" && section.name.trim() ? section.name.trim() : `Section ${sectionIndex + 1}`);
+    }
+  }
+
+  return invalid;
+}
+
+function collectMissingChecklistLeafPaths(nodes: ChecklistNode[]): string[] {
+  const missing: string[] = [];
+
+  const visit = (node: ChecklistNode, parentPath: string[]): void => {
+    const currentPath = [...parentPath, node.label];
+    if (node.children.length === 0) {
+      if (node.status === "missing") {
+        missing.push(currentPath.join(" > "));
+      }
+      return;
+    }
+
+    node.children.forEach((child) => visit(child, currentPath));
+  };
+
+  nodes.forEach((node) => visit(node, []));
+  return missing;
+}
+
 function TrashIcon({ className = "icon-trash" }: { className?: string }): JSX.Element {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
@@ -837,6 +816,7 @@ function TrashIcon({ className = "icon-trash" }: { className?: string }): JSX.El
 export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEditorProps): JSX.Element {
   const trackSnapshotRef = useRef<TrackSnapshot | null>(null);
   const previousRequiredChecklistStatusByIdRef = useRef<Record<string, ChecklistStatus>>({});
+  const saveFeedbackTimeoutRef = useRef<number | null>(null);
   const [canyonData, setCanyonData] = useState<JsonObject | null>(null);
   const [trackSnapshot, setTrackSnapshot] = useState<TrackSnapshot | null>(null);
   const [mapSessionKey, setMapSessionKey] = useState(0);
@@ -870,6 +850,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   const [newCanyonNameDraft, setNewCanyonNameDraft] = useState("");
   const [newCanyonNameError, setNewCanyonNameError] = useState("");
   const [sectionDeleteConfirm, setSectionDeleteConfirm] = useState<SectionDeleteConfirmState | null>(null);
+  const [saveFeedbackPopup, setSaveFeedbackPopup] = useState<SaveFeedbackPopup | null>(null);
   const [requiredChecklistExpansion, setRequiredChecklistExpansion] = useState<
     Record<string, ChecklistExpansionState>
   >({});
@@ -963,6 +944,49 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     trackSnapshotRef.current = snapshot;
     setTrackSnapshot(snapshot);
   }, []);
+  const clearSaveFeedbackPopupTimer = useCallback((): void => {
+    if (saveFeedbackTimeoutRef.current !== null) {
+      window.clearTimeout(saveFeedbackTimeoutRef.current);
+      saveFeedbackTimeoutRef.current = null;
+    }
+  }, []);
+  const dismissSaveFeedbackPopup = useCallback((): void => {
+    clearSaveFeedbackPopupTimer();
+    setSaveFeedbackPopup(null);
+  }, [clearSaveFeedbackPopupTimer]);
+  const showSaveFeedbackPopup = useCallback(
+    (missingItems: string[]): void => {
+      clearSaveFeedbackPopupTimer();
+
+      const hiddenCount = Math.max(0, missingItems.length - SAVE_FEEDBACK_MAX_ITEMS);
+      const visibleMissingItems = missingItems.slice(0, SAVE_FEEDBACK_MAX_ITEMS);
+      const tone = visibleMissingItems.length === 0 ? "success" : "warning";
+      const message =
+        tone === "success"
+          ? "Canyon saved successfully."
+          : "Canyon saved, but the following fields are missing:";
+      setSaveFeedbackPopup({
+        tone,
+        message,
+        missingItems: visibleMissingItems,
+        hiddenCount,
+      });
+
+      const timeoutMs =
+        tone === "success" ? SAVE_FEEDBACK_SUCCESS_DURATION_MS : SAVE_FEEDBACK_WARNING_DURATION_MS;
+      saveFeedbackTimeoutRef.current = window.setTimeout(() => {
+        setSaveFeedbackPopup(null);
+        saveFeedbackTimeoutRef.current = null;
+      }, timeoutMs);
+    },
+    [clearSaveFeedbackPopupTimer],
+  );
+
+  useEffect(() => {
+    return () => {
+      clearSaveFeedbackPopupTimer();
+    };
+  }, [clearSaveFeedbackPopupTimer]);
 
   useEffect(() => {
     const previousStatusById = previousRequiredChecklistStatusByIdRef.current;
@@ -1039,7 +1063,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
         }
 
         if (isSectionsArrayPath(path) || path[0] === "sections") {
-          return withGeneratedSectionIds(updated);
+          return normalizeCanyonForEditor(updated);
         }
 
         return updated;
@@ -1068,7 +1092,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       }
 
       if (!result.canceled && result.data && isJsonObject(result.data)) {
-        setCanyonData(withGeneratedSectionIds(cloneJsonValue(result.data)));
+        setCanyonData(normalizeCanyonForEditor(cloneJsonValue(result.data)));
         trackSnapshotRef.current = null;
         setTrackSnapshot(null);
         setCurrentFilePath(result.filePath ?? null);
@@ -1081,7 +1105,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
         return;
       }
 
-      setCanyonData(isJsonObject(template) ? withGeneratedSectionIds(cloneJsonValue(template)) : null);
+      setCanyonData(isJsonObject(template) ? normalizeCanyonForEditor(cloneJsonValue(template)) : null);
       trackSnapshotRef.current = null;
       setTrackSnapshot(null);
       setCurrentFilePath(null);
@@ -1228,7 +1252,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       return;
     }
 
-    setCanyonData(withGeneratedSectionIds(cloneJsonValue(result.data)));
+    setCanyonData(normalizeCanyonForEditor(cloneJsonValue(result.data)));
     trackSnapshotRef.current = null;
     setTrackSnapshot(null);
     setCurrentFilePath(result.filePath ?? null);
@@ -1237,8 +1261,9 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     setCollapsedGroups({});
     setRequiredChecklistExpansion({});
     setLanguageTabs({});
+    dismissSaveFeedbackPopup();
     setStatusMessage(result.filePath ?? "JSON file");
-  }, []);
+  }, [dismissSaveFeedbackPopup]);
 
   const onNewJson = useCallback((): void => {
     setIsNewCanyonModalOpen(true);
@@ -1271,7 +1296,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     }
 
     const nextData = createEmptyNewCanyonData(cloneJsonValue(template), canyonName);
-    setCanyonData(withGeneratedSectionIds(nextData));
+    setCanyonData(normalizeCanyonForEditor(nextData));
     trackSnapshotRef.current = null;
     setTrackSnapshot(null);
     setCurrentFilePath(folderResult.dataJsonPath ?? null);
@@ -1280,10 +1305,11 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     setCollapsedGroups({});
     setRequiredChecklistExpansion({});
     setLanguageTabs({});
+    dismissSaveFeedbackPopup();
     setIsNewCanyonModalOpen(false);
     setNewCanyonNameError("");
     setStatusMessage(`Created new canyon folder: ${folderResult.folderPath ?? "data"}`);
-  }, [newCanyonNameDraft]);
+  }, [dismissSaveFeedbackPopup, newCanyonNameDraft]);
 
   const onSaveJson = useCallback(async (): Promise<void> => {
     if (!canyonData) {
@@ -1296,13 +1322,45 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       return;
     }
 
+    const hasLinkedTracks = hasLinkedTrackBindings(trackBindings);
+    const trackSnapshot = trackSnapshotRef.current;
+    const expectedLinkedTrackCount =
+      trackBindings.sections.filter((binding) => Boolean(binding.filePath)).length +
+      trackBindings.access.length;
+    if (
+      hasLinkedTracks &&
+      (!trackSnapshot || trackSnapshot.tracks.length === 0 || trackSnapshot.tracks.length < expectedLinkedTrackCount)
+    ) {
+      setStatusMessage("Track data is not fully loaded yet. Wait until tracks are ready, then save again.");
+      return;
+    }
+
+    const normalizedCanyonData = normalizeCanyonForEditor(cloneJsonValue(canyonData));
+    const canyonDataForSave = withSectionTourDimensionsFromTracks(
+      normalizedCanyonData,
+      trackSnapshot,
+    );
+
+    const invalidTopoSections = collectInvalidTopoSections(canyonDataForSave);
+    if (invalidTopoSections.length > 0) {
+      const visibleCount = Math.min(invalidTopoSections.length, 4);
+      const listedSections = invalidTopoSections.slice(0, visibleCount).join(", ");
+      const hiddenCount = Math.max(0, invalidTopoSections.length - visibleCount);
+      const warningMessage = `Invalid topo path in ${listedSections}${hiddenCount > 0 ? ` (+${hiddenCount} more)` : ""}. Use /topos/*.webp|png|jpg|jpeg.`;
+      setStatusMessage(warningMessage);
+      setTopoWarningMessage(warningMessage);
+      return;
+    }
+
+    const checklistForSave = buildRequiredDataChecklist({
+      canyonData: canyonDataForSave,
+      trackSnapshot,
+    });
+    const missingChecklistLeafPaths = collectMissingChecklistLeafPaths(checklistForSave);
+
+    dismissSaveFeedbackPopup();
     setIsSaving(true);
     try {
-      const trackSnapshot = trackSnapshotRef.current;
-      const canyonDataForSave = withSectionTourDimensionsFromTracks(
-        cloneJsonValue(canyonData),
-        trackSnapshot,
-      );
       const result = await window.api.saveCanyonWithTracks({
         currentFilePath,
         canyonName: typeof canyonDataForSave.name === "string" ? canyonDataForSave.name : "canyon",
@@ -1325,13 +1383,14 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       }
 
       if (result.data && isJsonObject(result.data)) {
-        setCanyonData(withGeneratedSectionIds(cloneJsonValue(result.data)));
+        setCanyonData(normalizeCanyonForEditor(cloneJsonValue(result.data)));
       }
 
       trackSnapshotRef.current = null;
       setTrackSnapshot(null);
       setMapSessionKey((current) => current + 1);
 
+      showSaveFeedbackPopup(missingChecklistLeafPaths);
       if (Array.isArray(result.warnings) && result.warnings.length > 0) {
         setStatusMessage(`Saved with warnings: ${result.warnings.join(" | ")}`);
         return;
@@ -1344,7 +1403,14 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     } finally {
       setIsSaving(false);
     }
-  }, [canyonData, currentFilePath, validationErrors]);
+  }, [
+    canyonData,
+    currentFilePath,
+    dismissSaveFeedbackPopup,
+    showSaveFeedbackPopup,
+    trackBindings,
+    validationErrors,
+  ]);
 
   const onNumberDraftChange = useCallback(
     (path: PathSegment[], nextText: string): void => {
@@ -1356,6 +1422,31 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
       if (!nextText.trim()) {
         setValidationError(key, "Number is required.");
+        return;
+      }
+
+      const parsed = Number(nextText);
+      if (!Number.isFinite(parsed)) {
+        setValidationError(key, "Must be a valid number.");
+        return;
+      }
+
+      setPathValue(path, parsed);
+      clearValidationError(key);
+    },
+    [clearValidationError, setPathValue, setValidationError],
+  );
+  const onNullableNumberDraftChange = useCallback(
+    (path: PathSegment[], nextText: string): void => {
+      const key = toPathKey(path);
+      setInputDrafts((current) => ({
+        ...current,
+        [key]: nextText,
+      }));
+
+      if (!nextText.trim()) {
+        setPathValue(path, null);
+        clearValidationError(key);
         return;
       }
 
@@ -1645,7 +1736,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       if (!isJsonObject(next)) {
         return current;
       }
-      return withGeneratedSectionIds(next);
+      return normalizeCanyonForEditor(next);
     });
     setSectionDeleteConfirm(null);
   }, [sectionDeleteConfirm]);
@@ -2503,6 +2594,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               ([entryKey]) =>
                 entryKey !== "max_rappel_in_meter" &&
                 entryKey !== "recommended_ropes" &&
+                entryKey !== "catchment_area_in_km2" &&
                 entryKey !== "topo",
             )
           : entries;
@@ -2519,6 +2611,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
         const maxRappelValue = isSectionPath(path) ? value.max_rappel_in_meter ?? null : null;
         const recommendedRopesValue = isSectionPath(path) ? value.recommended_ropes ?? null : null;
+        const catchmentAreaValue = isSectionPath(path) ? value.catchment_area_in_km2 ?? null : null;
         const topoValue = isSectionPath(path) && typeof value.topo === "string" ? value.topo : null;
         const maxRappelPath = isSectionPath(path) ? [...path, "max_rappel_in_meter"] : null;
         const maxRappelPathKey = maxRappelPath ? toPathKey(maxRappelPath) : "";
@@ -2530,6 +2623,14 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               : "";
         const recommendedRopesPath = isSectionPath(path) ? [...path, "recommended_ropes"] : null;
         const recommendedRopesDisplay = typeof recommendedRopesValue === "string" ? recommendedRopesValue : "";
+        const catchmentAreaPath = isSectionPath(path) ? [...path, "catchment_area_in_km2"] : null;
+        const catchmentAreaPathKey = catchmentAreaPath ? toPathKey(catchmentAreaPath) : "";
+        const catchmentAreaDisplay =
+          catchmentAreaPath && typeof catchmentAreaValue === "number"
+            ? (inputDrafts[catchmentAreaPathKey] ?? String(catchmentAreaValue))
+            : catchmentAreaPath
+              ? (inputDrafts[catchmentAreaPathKey] ?? "")
+              : "";
         const objectBody = (
           <div className="json-object-body">
             {isSectionPath(path) && (sectionAuthorsEntry || sectionDifficultyEntry) ? (
@@ -2555,10 +2656,13 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                 {renderNode(child, [...path, key], key)}
               </div>
             ))}
-            {isSectionPath(path) && (maxRappelValue !== null || recommendedRopesValue !== null) ? (
+            {isSectionPath(path) && (maxRappelPath || recommendedRopesPath || catchmentAreaPath) ? (
               <div className="json-input-field json-max-rope-group">
-                <div className="json-two-col-row json-max-rope-row">
-                  {maxRappelValue !== null && maxRappelPath ? (
+                <div
+                  className="json-horizontal-fields json-max-rope-row"
+                  style={{ gridTemplateColumns: `repeat(${SECTION_DURATION_KEYS.length}, minmax(0, 1fr))` }}
+                >
+                  {maxRappelPath ? (
                     <label className="json-max-rope-item">
                       <span className="json-max-rope-group-label">{titleCase("max_rappel_in_meter")}</span>
                       <input
@@ -2572,7 +2676,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                       ) : null}
                     </label>
                   ) : null}
-                  {recommendedRopesValue !== null && recommendedRopesPath ? (
+                  {recommendedRopesPath ? (
                     <label className="json-max-rope-item">
                       <span className="json-max-rope-group-label">{titleCase("recommended_ropes")}</span>
                       <input
@@ -2581,6 +2685,21 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                         placeholder={DEFAULT_RECOMMENDED_ROPES}
                         onChange={(event) => setPathValue(recommendedRopesPath, event.target.value)}
                       />
+                    </label>
+                  ) : null}
+                  {catchmentAreaPath ? (
+                    <label className="json-max-rope-item">
+                      <span className="json-max-rope-group-label">Catchment Area (km{"\u00B2"})</span>
+                      <input
+                        type="number"
+                        value={catchmentAreaDisplay}
+                        placeholder={`0km${"\u00B2"}`}
+                        onChange={(event) => onNullableNumberDraftChange(catchmentAreaPath, event.target.value)}
+                        onBlur={() => clearDraft(catchmentAreaPathKey)}
+                      />
+                      {validationErrors[catchmentAreaPathKey] ? (
+                        <p className="json-inline-error">{validationErrors[catchmentAreaPathKey]}</p>
+                      ) : null}
                     </label>
                   ) : null}
                 </div>
@@ -2775,6 +2894,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       parkingLotSuggestions,
       trackBindings,
       onNumberDraftChange,
+      onNullableNumberDraftChange,
       onOverviewCoordinateSet,
       onPointsOfInterestChange,
       onParkingLotsChange,
@@ -2843,6 +2963,32 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
           <div className="json-empty-text">No JSON loaded.</div>
         )}
       </section>
+
+      {saveFeedbackPopup ? (
+        <div
+          className={`json-save-feedback-toast ${saveFeedbackPopup.tone}`}
+          role="status"
+          aria-live="polite"
+          aria-label="Save feedback"
+        >
+          <div className="json-save-feedback-header">
+            <p>{saveFeedbackPopup.message}</p>
+            <button type="button" onClick={dismissSaveFeedbackPopup} aria-label="Close save feedback">
+              X
+            </button>
+          </div>
+          {saveFeedbackPopup.missingItems.length > 0 ? (
+            <ul className="json-save-feedback-list">
+              {saveFeedbackPopup.missingItems.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+              {saveFeedbackPopup.hiddenCount > 0 ? (
+                <li className="json-save-feedback-more">+{saveFeedbackPopup.hiddenCount} more</li>
+              ) : null}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
 
       {languagePasteTargetPath ? (
         <div className="json-modal-backdrop" role="presentation">

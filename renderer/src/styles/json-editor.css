@@ -70,6 +70,80 @@
   word-break: break-word;
 }
 
+.json-save-feedback-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: min(560px, calc(100vw - 36px));
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-3);
+  z-index: 1210;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.json-save-feedback-toast.success {
+  border-color: color-mix(in srgb, #16a34a 45%, var(--color-border-subtle) 55%);
+  background: color-mix(in srgb, #dcfce7 34%, var(--color-bg-surface) 66%);
+}
+
+.json-save-feedback-toast.warning {
+  border-color: color-mix(in srgb, #b91c1c 45%, var(--color-border-subtle) 55%);
+  background: color-mix(in srgb, #fee2e2 38%, var(--color-bg-surface) 62%);
+}
+
+.json-save-feedback-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.json-save-feedback-header p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-normal);
+}
+
+.json-save-feedback-header button {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.json-save-feedback-header button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.json-save-feedback-list {
+  margin: 0;
+  padding: 0 0 0 16px;
+  display: grid;
+  gap: 2px;
+}
+
+.json-save-feedback-list li {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  line-height: 1.35;
+}
+
+.json-save-feedback-list .json-save-feedback-more {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
 .json-file-path {
   margin-bottom: 6px;
   font-size: 0.78rem;
@@ -1352,8 +1426,7 @@
 }
 
 .json-max-rope-row {
-  grid-template-columns: repeat(2, minmax(0, calc((100% - (var(--space-3) * 4)) / 5)));
-  justify-content: start;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .json-max-rope-item {
