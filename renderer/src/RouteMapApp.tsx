@@ -900,6 +900,7 @@ export function RouteMapApp({
   const trackOrderRef = useRef<string[]>(initialTrackState.trackOrder);
   const syncRouteStateFromTrackRef = useRef(false);
   const lastLoadedTrackBindingKeyRef = useRef<string>("");
+  const bindingsHydratedRef = useRef(false);
   const newAccessTrackCounterRef = useRef(initialTrackState.newAccessTrackCounter);
   const autoViewportAppliedForKeyRef = useRef<string>("");
   const searchAbortControllerRef = useRef<AbortController | null>(null);
@@ -1058,10 +1059,12 @@ export function RouteMapApp({
       return;
     }
     lastLoadedTrackBindingKeyRef.current = bindingKey;
+    bindingsHydratedRef.current = false;
 
     let canceled = false;
     async function loadTracksFromBindings(): Promise<void> {
       const existingTracksById = tracksByIdRef.current;
+      const snapshotProvided = trackSnapshot !== null;
       const nextTracksById: Record<string, MultiTrackItem> = {};
       const nextTrackOrder: string[] = [];
       const toLoad: Array<{ id: string; kind: TrackKind; filePath: string }> = [];
@@ -1071,6 +1074,20 @@ export function RouteMapApp({
         const trackId = `section:${sectionBinding.sectionIndex}`;
         const normalizedPath = normalizeTrackLink(sectionBinding.filePath ?? "");
         const existing = existingTracksById[trackId];
+        if (snapshotProvided && existing && existing.kind === "section") {
+          nextTracksById[trackId] = {
+            ...existing,
+            kind: "section",
+            sectionIndex: sectionBinding.sectionIndex,
+            sectionId: sectionBinding.sectionId,
+            displayName: sectionBinding.sectionName || existing.displayName,
+            color: "orange",
+            filePath: normalizeTrackLink(existing.filePath) || normalizedPath,
+          };
+          nextTrackOrder.push(trackId);
+          continue;
+        }
+
         if (shouldReuseHydratedTrackForBinding(existing, normalizedPath)) {
           nextTracksById[trackId] = {
             ...existing,
@@ -1112,6 +1129,23 @@ export function RouteMapApp({
         const trackId = `access:${accessBinding.accessIndex}`;
         const normalizedPath = normalizeTrackLink(accessBinding.filePath);
         const existing = existingTracksById[trackId];
+        if (snapshotProvided) {
+          if (existing && existing.kind === "access") {
+            nextTracksById[trackId] = {
+              ...existing,
+              kind: "access",
+              color: "black",
+              displayName: existing.displayName || getTrackDisplayNameFromFilePath(
+                normalizedPath,
+                `Access ${accessBinding.accessIndex + 1}`,
+              ),
+              filePath: normalizeTrackLink(existing.filePath) || normalizedPath,
+            };
+            nextTrackOrder.push(trackId);
+          }
+          continue;
+        }
+
         if (shouldReuseHydratedTrackForBinding(existing, normalizedPath)) {
           nextTracksById[trackId] = {
             ...existing,
@@ -1222,10 +1256,12 @@ export function RouteMapApp({
       setTracksById(nextTracksById);
       setTrackOrder(nextTrackOrder);
       setActiveTrackId((current) => (current && nextTracksById[current] ? current : null));
+      bindingsHydratedRef.current = true;
     }
 
     void loadTracksFromBindings().catch((error) => {
       if (!canceled) {
+        bindingsHydratedRef.current = true;
         setStatusText(`Failed to load tracks: ${formatError(error)}`);
       }
     });
@@ -1324,6 +1360,10 @@ export function RouteMapApp({
 
   useEffect(() => {
     if (!onTrackSnapshotChange) {
+      return;
+    }
+
+    if (!bindingsHydratedRef.current) {
       return;
     }
 

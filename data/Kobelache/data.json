@@ -173,6 +173,9 @@
         "elevation_exit": 670,
         "horizontal_length": 1500
       },
+      "max_rappel_in_meter": 12,
+      "recommended_ropes": "1x 30m",
+      "catchment_area_in_km2": 2.5,
       "subjective_rating": 0,
       "quality_anchoring": 0,
       "subjective_rating_count": 0,

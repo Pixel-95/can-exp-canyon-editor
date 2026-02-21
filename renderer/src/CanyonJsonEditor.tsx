@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RouteMapApp, type TrackBindings, type TrackSnapshot } from "./RouteMapApp";
 import { buildTrackBindings, withSectionTourDimensionsFromTracks } from "./json-editor/trackUtils";
+import { normalizeTrackLink } from "./shared/trackLinks";
 import {
   buildRequiredDataChecklist,
   type ChecklistNode,
@@ -690,6 +691,20 @@ function moveArrayItem<T>(items: T[], fromIndex: number, toIndex: number): T[] {
   return clone;
 }
 
+function areStringArraysEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function defaultFromSample(sample: JsonValue): JsonValue {
   if (sample === null) {
     return "";
@@ -943,6 +958,33 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   const onTrackSnapshotChange = useCallback((snapshot: TrackSnapshot): void => {
     trackSnapshotRef.current = snapshot;
     setTrackSnapshot(snapshot);
+
+    const nextAccessTrackLinks = snapshot.tracks
+      .filter((track) => track.kind === "access")
+      .map((track) => normalizeTrackLink(track.filePath))
+      .filter((link): link is string => Boolean(link));
+
+    setCanyonData((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const currentAccessTrackLinks = Array.isArray(current.tracks_access)
+        ? current.tracks_access
+            .filter((entry): entry is string => typeof entry === "string")
+            .map((entry) => normalizeTrackLink(entry))
+            .filter((entry): entry is string => Boolean(entry))
+        : [];
+
+      if (areStringArraysEqual(currentAccessTrackLinks, nextAccessTrackLinks)) {
+        return current;
+      }
+
+      return normalizeCanyonForEditor({
+        ...current,
+        tracks_access: nextAccessTrackLinks,
+      });
+    });
   }, []);
   const clearSaveFeedbackPopupTimer = useCallback((): void => {
     if (saveFeedbackTimeoutRef.current !== null) {
