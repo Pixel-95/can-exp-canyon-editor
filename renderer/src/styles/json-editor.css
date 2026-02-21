@@ -952,6 +952,16 @@
   background: var(--bg-hover);
 }
 
+.json-danger-button:hover:not(:disabled) {
+  border-color: #fda4af !important;
+  background: var(--bg-hover-destructive) !important;
+}
+
+.json-modal-delete:hover:not(:disabled) {
+  border-color: #fda4af;
+  background: var(--bg-hover-destructive);
+}
+
 .json-language-tab {
   border-radius: var(--radius-pill);
   padding: 3px 10px;

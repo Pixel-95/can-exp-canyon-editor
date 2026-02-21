@@ -218,9 +218,9 @@
   justify-content: center;
 }
 
-.track-list-delete:hover {
+.track-list-delete:hover:not(:disabled) {
   border-color: #fda4af;
-  background: var(--bg-hover);
+  background: var(--bg-hover-destructive);
 }
 
 .track-list-delete-inline {
@@ -469,7 +469,7 @@
 
 .route-points-clear:hover:not(:disabled) {
   border-color: #fda4af;
-  background: var(--bg-hover);
+  background: var(--bg-hover-destructive);
 }
 
 .route-points-invert:disabled,
@@ -605,9 +605,9 @@
   justify-content: center;
 }
 
-.route-point-delete:hover {
+.route-point-delete:hover:not(:disabled) {
   border-color: #fda4af;
-  background: var(--bg-hover);
+  background: var(--bg-hover-destructive);
 }
 
 @media (max-width: 900px) {

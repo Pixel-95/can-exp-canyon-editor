@@ -43,6 +43,13 @@ textarea {
     box-shadow var(--duration-fast) var(--easing-standard);
 }
 
+button:hover:not(:disabled),
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,

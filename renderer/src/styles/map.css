@@ -455,6 +455,11 @@
   line-height: 1;
 }
 
+.poi-editor-remove:hover:not(:disabled) {
+  border-color: #fda4af;
+  background: var(--bg-hover-destructive);
+}
+
 .poi-editor-close {
   width: 26px;
   height: 26px;
@@ -637,6 +642,11 @@
   color: #9f1239;
   cursor: pointer;
   text-align: center;
+}
+
+.segment-mode-popup-remove:hover:not(:disabled) {
+  border-color: #fda4af;
+  background: var(--bg-hover-destructive);
 }
 
 @media (max-width: 900px) {
