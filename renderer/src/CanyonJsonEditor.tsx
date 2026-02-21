@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RouteMapApp, type TrackBindings, type TrackSnapshot } from "./RouteMapApp";
 import { buildTrackBindings, withSectionTourDimensionsFromTracks } from "./json-editor/trackUtils";
+import {
+  buildRequiredDataChecklist,
+  type ChecklistNode,
+  type ChecklistStatus,
+} from "./json-editor/requiredDataChecklist";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -36,6 +41,7 @@ type SectionDeleteConfirmState = {
   index: number;
   sectionLabel: string;
 };
+type ChecklistExpansionState = "expanded" | "collapsed";
 
 const DEFAULT_JSON_PATH = "data/Kobelache/data.json";
 const COUNTRY_ASSET_PATH = "assets/countries_and_regions.json";
@@ -821,7 +827,9 @@ function TrashIcon({ className = "icon-trash" }: { className?: string }): JSX.El
 
 export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEditorProps): JSX.Element {
   const trackSnapshotRef = useRef<TrackSnapshot | null>(null);
+  const previousRequiredChecklistStatusByIdRef = useRef<Record<string, ChecklistStatus>>({});
   const [canyonData, setCanyonData] = useState<JsonObject | null>(null);
+  const [trackSnapshot, setTrackSnapshot] = useState<TrackSnapshot | null>(null);
   const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("Loading data/Kobelache/data.json...");
   const [countries, setCountries] = useState<CountryOption[]>([]);
@@ -852,6 +860,9 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   const [newCanyonNameDraft, setNewCanyonNameDraft] = useState("");
   const [newCanyonNameError, setNewCanyonNameError] = useState("");
   const [sectionDeleteConfirm, setSectionDeleteConfirm] = useState<SectionDeleteConfirmState | null>(null);
+  const [requiredChecklistExpansion, setRequiredChecklistExpansion] = useState<
+    Record<string, ChecklistExpansionState>
+  >({});
 
   const baseDirectory = useMemo(() => getDirectoryPath(currentFilePath), [currentFilePath]);
   const topoDefaultDirectory = useMemo(
@@ -903,10 +914,76 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     () => buildTrackBindings(canyonData, currentFilePath),
     [canyonData, currentFilePath],
   );
+  const requiredChecklistTree = useMemo(
+    () =>
+      buildRequiredDataChecklist({
+        canyonData,
+        trackSnapshot,
+      }),
+    [canyonData, trackSnapshot],
+  );
+  const { requiredChecklistStatusById, requiredChecklistLeafTotal, requiredChecklistLeafPresent } = useMemo(() => {
+    const statusById: Record<string, ChecklistStatus> = {};
+    let leafTotal = 0;
+    let leafPresent = 0;
+
+    const visit = (node: ChecklistNode): void => {
+      statusById[node.id] = node.status;
+      if (node.children.length === 0) {
+        leafTotal += 1;
+        if (node.status === "present") {
+          leafPresent += 1;
+        }
+        return;
+      }
+
+      node.children.forEach((child) => visit(child));
+    };
+
+    requiredChecklistTree.forEach((node) => visit(node));
+
+    return {
+      requiredChecklistStatusById: statusById,
+      requiredChecklistLeafTotal: leafTotal,
+      requiredChecklistLeafPresent: leafPresent,
+    };
+  }, [requiredChecklistTree]);
 
   const onTrackSnapshotChange = useCallback((snapshot: TrackSnapshot): void => {
     trackSnapshotRef.current = snapshot;
+    setTrackSnapshot(snapshot);
   }, []);
+
+  useEffect(() => {
+    const previousStatusById = previousRequiredChecklistStatusByIdRef.current;
+    setRequiredChecklistExpansion((current) => {
+      let changed = false;
+      const next: Record<string, ChecklistExpansionState> = {};
+      for (const [nodeId, expansionState] of Object.entries(current)) {
+        const nextStatus = requiredChecklistStatusById[nodeId];
+        if (!nextStatus) {
+          changed = true;
+          continue;
+        }
+
+        const previousStatus = previousStatusById[nodeId];
+        if (previousStatus && previousStatus !== nextStatus) {
+          changed = true;
+          continue;
+        }
+
+        next[nodeId] = expansionState;
+      }
+
+      if (!changed && Object.keys(next).length === Object.keys(current).length) {
+        return current;
+      }
+
+      return next;
+    });
+
+    previousRequiredChecklistStatusByIdRef.current = requiredChecklistStatusById;
+  }, [requiredChecklistStatusById]);
 
   const clearValidationError = useCallback((pathKey: string): void => {
     setValidationErrors((current) => {
@@ -983,6 +1060,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       if (!result.canceled && result.data && isJsonObject(result.data)) {
         setCanyonData(withGeneratedSectionIds(cloneJsonValue(result.data)));
         trackSnapshotRef.current = null;
+        setTrackSnapshot(null);
         setCurrentFilePath(result.filePath ?? null);
         setStatusMessage(result.filePath ?? DEFAULT_JSON_PATH);
         return;
@@ -995,6 +1073,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
       setCanyonData(isJsonObject(template) ? cloneJsonValue(template) : null);
       trackSnapshotRef.current = null;
+      setTrackSnapshot(null);
       setCurrentFilePath(null);
       setStatusMessage(
         result.error ? `Could not load default JSON: ${result.error}` : "Started with a new JSON template.",
@@ -1141,10 +1220,12 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
     setCanyonData(withGeneratedSectionIds(cloneJsonValue(result.data)));
     trackSnapshotRef.current = null;
+    setTrackSnapshot(null);
     setCurrentFilePath(result.filePath ?? null);
     setValidationErrors({});
     setInputDrafts({});
     setCollapsedGroups({});
+    setRequiredChecklistExpansion({});
     setLanguageTabs({});
     setStatusMessage(result.filePath ?? "JSON file");
   }, []);
@@ -1182,10 +1263,12 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     const nextData = createEmptyNewCanyonData(cloneJsonValue(template), canyonName);
     setCanyonData(withGeneratedSectionIds(nextData));
     trackSnapshotRef.current = null;
+    setTrackSnapshot(null);
     setCurrentFilePath(folderResult.dataJsonPath ?? null);
     setValidationErrors({});
     setInputDrafts({});
     setCollapsedGroups({});
+    setRequiredChecklistExpansion({});
     setLanguageTabs({});
     setIsNewCanyonModalOpen(false);
     setNewCanyonNameError("");
@@ -1552,6 +1635,91 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     });
     setSectionDeleteConfirm(null);
   }, [sectionDeleteConfirm]);
+
+  const onToggleRequiredChecklistNode = useCallback((nodeId: string, expanded: boolean): void => {
+    setRequiredChecklistExpansion((current) => {
+      const nextState: ChecklistExpansionState = expanded ? "collapsed" : "expanded";
+      if (current[nodeId] === nextState) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [nodeId]: nextState,
+      };
+    });
+  }, []);
+
+  const renderRequiredChecklistNode = useCallback(
+    (node: ChecklistNode): JSX.Element => {
+      const hasChildren = node.children.length > 0;
+      const autoCollapsed = hasChildren && node.status === "present";
+      const manualState = requiredChecklistExpansion[node.id];
+      const isExpanded = hasChildren
+        ? manualState
+          ? manualState === "expanded"
+          : !autoCollapsed
+        : false;
+      const toggleNode = (): void => {
+        onToggleRequiredChecklistNode(node.id, isExpanded);
+      };
+
+      return (
+        <li key={node.id} className="json-required-tree-item">
+          <div
+            className={`json-required-node-row ${node.status}${hasChildren ? " has-children" : ""}`}
+            role={hasChildren ? "button" : undefined}
+            tabIndex={hasChildren ? 0 : undefined}
+            aria-expanded={hasChildren ? isExpanded : undefined}
+            onClick={hasChildren ? toggleNode : undefined}
+            onKeyDown={
+              hasChildren
+                ? (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      toggleNode();
+                    }
+                  }
+                : undefined
+            }
+          >
+            <span
+              className={`json-required-node-marker${hasChildren ? " branch" : " leaf"}${
+                hasChildren ? (isExpanded ? " expanded" : " collapsed") : ""
+              }`}
+              aria-hidden="true"
+            >
+              {hasChildren ? (isExpanded ? "\u25BE" : "\u25B8") : null}
+            </span>
+            <span className="json-required-node-label">{node.label}</span>
+          </div>
+          {hasChildren && isExpanded ? (
+            <ul className="json-required-node-children">
+              {node.children.map((child) => renderRequiredChecklistNode(child))}
+            </ul>
+          ) : null}
+        </li>
+      );
+    },
+    [onToggleRequiredChecklistNode, requiredChecklistExpansion],
+  );
+
+  const requiredDataPanelContent = useMemo((): JSX.Element => {
+    if (requiredChecklistTree.length === 0) {
+      return <p className="json-required-empty">No canyon loaded.</p>;
+    }
+
+    return (
+      <div className="json-required-data-content">
+        <ul className="json-required-tree">
+          {requiredChecklistTree.map((node) => renderRequiredChecklistNode(node))}
+        </ul>
+      </div>
+    );
+  }, [
+    renderRequiredChecklistNode,
+    requiredChecklistTree,
+  ]);
 
   const renderNode = useCallback(
     (value: JsonValue, path: PathSegment[], label: string): JSX.Element | null => {
@@ -2096,8 +2264,13 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                     <div className="json-overview-side-panel">
                       <div className="json-overview-map-inner">{mapTools}</div>
                       <section className="json-required-data-panel" aria-label="Required Data">
-                        <h3>Required Data</h3>
-                        <div className="json-required-data-scroll" />
+                        <h3>
+                          Required Data
+                          <span className="json-required-heading-progress">
+                            {requiredChecklistLeafPresent}/{requiredChecklistLeafTotal} complete
+                          </span>
+                        </h3>
+                        <div className="json-required-data-scroll">{requiredDataPanelContent}</div>
                       </section>
                     </div>
                   ) : (
@@ -2577,6 +2750,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       onSpecialNoteToggle,
       onTopoFilePick,
       onToggleMapView,
+      requiredDataPanelContent,
       selectedCountryRegions,
       setPathValue,
       specialNoteById,

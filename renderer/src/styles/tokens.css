@@ -42,6 +42,13 @@
   --color-text-primary: #000000;
   --color-text-secondary: #000000;
   --color-text-muted: #FFFFFF;
+  --color-check-present-bg: #dcfce7;
+  --color-check-present-text: #166534;
+  --color-check-present-border: #86efac;
+  --color-check-missing-bg: #fee2e2;
+  --color-check-missing-text: #991b1b;
+  --color-check-missing-border: #fca5a5;
+  --color-check-row-hover: #f3f4f6;
 
   --color-focus: #60A5FA;
 
