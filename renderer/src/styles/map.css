@@ -605,13 +605,11 @@
   align-items: center;
   justify-content: center;
   transition:
-    transform var(--duration-fast) var(--easing-standard),
     border-color var(--duration-fast) var(--easing-standard),
     box-shadow var(--duration-fast) var(--easing-standard);
 }
 
 .overview-point-marker:hover {
-  transform: scale(1.14);
   border-color: #dbeafe;
   box-shadow:
     0 0 0 4px color-mix(in srgb, var(--color-focus) 45%, transparent),
