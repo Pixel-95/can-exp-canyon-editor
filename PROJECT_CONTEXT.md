@@ -147,3 +147,7 @@ Save:
 3. Typecheck: `npm run typecheck`
 4. Unit tests: `npm run test:unit`
 5. Package: `npm run package`
+6. Windows portable: `npm run package:win` then `npm run package:dist`
+7. macOS local packaging requires macOS (`npm run package:mac`)
+8. macOS from Windows uses GitHub Actions workflow:
+   `.github/workflows/build-macos.yml` (manual trigger) and uploads artifact `canyon-editor-macos`
