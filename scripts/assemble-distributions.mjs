@@ -54,11 +54,22 @@ async function resolveWindowsPortableExecutable() {
 }
 
 async function resolveMacAppBundle() {
-  const macDir = path.join(releaseDir, "mac");
-  const entries = await listEntries(macDir);
-  const candidates = entries
-    .filter((entry) => entry.isDirectory() && entry.name.toLowerCase().endsWith(".app"))
-    .map((entry) => path.join(macDir, entry.name));
+  const releaseEntries = await listEntries(releaseDir);
+  const macOutputDirectories = releaseEntries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((name) => /^mac($|-)/i.test(name))
+    .map((name) => path.join(releaseDir, name));
+
+  const candidates = [];
+  for (const macDir of macOutputDirectories) {
+    const entries = await listEntries(macDir);
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.toLowerCase().endsWith(".app")) {
+        candidates.push(path.join(macDir, entry.name));
+      }
+    }
+  }
 
   return selectLatestPath(candidates);
 }
