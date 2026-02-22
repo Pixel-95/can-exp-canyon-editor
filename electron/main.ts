@@ -1,4 +1,4 @@
-import { Menu, app, BrowserWindow, dialog, ipcMain, screen } from "electron";
+import { Menu, app, BrowserWindow, clipboard, dialog, ipcMain, screen } from "electron";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -541,6 +541,14 @@ process.on("unhandledRejection", (reason) => {
 
 ipcMain.handle("config:get-mapbox-token", async () => {
   return resolveMapboxToken(getAppRuntimeRootDir());
+});
+
+ipcMain.handle("clipboard:write-text", (_event, text: unknown): void => {
+  if (typeof text !== "string") {
+    throw new Error("Clipboard text must be a string.");
+  }
+
+  clipboard.writeText(text);
 });
 
 ipcMain.handle(

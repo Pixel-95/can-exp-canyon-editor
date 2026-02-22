@@ -16,6 +16,8 @@ import type {
 contextBridge.exposeInMainWorld("api", {
   getMapboxToken: (): Promise<string | null> =>
     ipcRenderer.invoke("config:get-mapbox-token"),
+  copyTextToClipboard: (text: string): Promise<void> =>
+    ipcRenderer.invoke("clipboard:write-text", text),
   saveGeoJSON: (
     filenameSuggestion: string,
     geojsonString: string,

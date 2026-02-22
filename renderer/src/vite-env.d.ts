@@ -18,6 +18,7 @@ declare global {
   interface Window {
     api: {
       getMapboxToken: () => Promise<string | null>;
+      copyTextToClipboard: (text: string) => Promise<void>;
       saveGeoJSON: (filenameSuggestion: string, geojsonString: string) => Promise<SaveGeoJSONResult>;
       loadJsonFromDialog: () => Promise<LoadJsonResult>;
       loadJsonFromPath: (requestedPath: string) => Promise<LoadJsonResult>;

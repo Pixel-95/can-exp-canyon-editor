@@ -1,7 +1,9 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { WheelEvent as ReactWheelEvent } from "react";
 import { RouteMapApp, type TrackBindings, type TrackSnapshot } from "./RouteMapApp";
 import { buildTrackBindings, withSectionTourDimensionsFromTracks } from "./json-editor/trackUtils";
 import { normalizeTrackLink } from "./shared/trackLinks";
+import { parseCommandsToCopyFromAsset, type CommandToCopy } from "./shared/commandsToCopy";
 import {
   buildRequiredDataChecklist,
   type ChecklistNode,
@@ -59,6 +61,7 @@ type SaveFeedbackPopup = {
 const COUNTRY_ASSET_PATH = "assets/countries_and_regions.json";
 const SPECIAL_NOTES_ASSET_PATH = "assets/special_notes_possibilities.json";
 const PARKING_LOT_SUGGESTIONS_ASSET_PATH = "assets/parking_lot_suggestions.json";
+const COMMANDS_TO_COPY_ASSET_PATH = "assets/commands_to_copy.json";
 const DEFAULT_LANGUAGE_STORAGE_KEY = "canyon-editor.default-language";
 const LANGUAGE_KEY_PATTERN = /^[a-z]{2}(?:-[A-Za-z]{2})?$/i;
 const STATIC_LANGUAGE_KEYS = ["de", "en", "es", "fr", "it", "pt"] as const;
@@ -835,9 +838,19 @@ function TrashIcon({ className = "icon-trash" }: { className?: string }): JSX.El
   );
 }
 
+function CopyIcon({ className = "icon-copy" }: { className?: string }): JSX.Element {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M15 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2" />
+    </svg>
+  );
+}
+
 export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEditorProps): JSX.Element {
   const trackSnapshotRef = useRef<TrackSnapshot | null>(null);
   const previousRequiredChecklistStatusByIdRef = useRef<Record<string, ChecklistStatus>>({});
+  const copiedCommandTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [canyonData, setCanyonData] = useState<JsonObject | null>(null);
   const [trackSnapshot, setTrackSnapshot] = useState<TrackSnapshot | null>(null);
   const [mapSessionKey, setMapSessionKey] = useState(0);
@@ -846,6 +859,8 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [specialNoteDefinitions, setSpecialNoteDefinitions] = useState<SpecialNoteDefinition[]>([]);
   const [parkingLotSuggestions, setParkingLotSuggestions] = useState<LocalizedText[]>([]);
+  const [commandsToCopy, setCommandsToCopy] = useState<CommandToCopy[]>([]);
+  const [copiedCommandIndex, setCopiedCommandIndex] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({});
@@ -1109,6 +1124,15 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   }, [defaultLanguage]);
 
   useEffect(() => {
+    return () => {
+      if (copiedCommandTimeoutRef.current) {
+        clearTimeout(copiedCommandTimeoutRef.current);
+        copiedCommandTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     let canceled = false;
 
     async function loadParkingLotSuggestions(): Promise<void> {
@@ -1127,6 +1151,34 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     void loadParkingLotSuggestions().catch(() => {
       if (!canceled) {
         setParkingLotSuggestions([]);
+      }
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let canceled = false;
+
+    async function loadCommandsToCopy(): Promise<void> {
+      const result = await window.api.loadJsonFromPath(COMMANDS_TO_COPY_ASSET_PATH);
+      if (canceled) {
+        return;
+      }
+
+      if (result.canceled || !result.data) {
+        setCommandsToCopy([]);
+        return;
+      }
+
+      setCommandsToCopy(parseCommandsToCopyFromAsset(result.data));
+    }
+
+    void loadCommandsToCopy().catch(() => {
+      if (!canceled) {
+        setCommandsToCopy([]);
       }
     });
 
@@ -1395,6 +1447,47 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     trackBindings,
     validationErrors,
   ]);
+
+  const onCopyCommand = useCallback(async (command: string, index: number): Promise<void> => {
+    try {
+      await window.api.copyTextToClipboard(command);
+      setCopiedCommandIndex(index);
+
+      if (copiedCommandTimeoutRef.current) {
+        clearTimeout(copiedCommandTimeoutRef.current);
+      }
+
+      copiedCommandTimeoutRef.current = setTimeout(() => {
+        setCopiedCommandIndex((current) => (current === index ? null : current));
+        copiedCommandTimeoutRef.current = null;
+      }, 240);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected clipboard error.";
+      setStatusMessage(`Copy failed: ${message}`);
+    }
+  }, []);
+
+  const onCommandStripWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>): void => {
+    const container = event.currentTarget;
+    const delta = Math.abs(event.deltaX) > 0 ? event.deltaX : event.deltaY;
+    if (delta === 0) {
+      return;
+    }
+
+    const maxScrollLeft = container.scrollWidth - container.clientWidth;
+    if (maxScrollLeft <= 0) {
+      return;
+    }
+
+    const previousLeft = container.scrollLeft;
+    const nextLeft = Math.min(Math.max(previousLeft + delta, 0), maxScrollLeft);
+    if (nextLeft === previousLeft) {
+      return;
+    }
+
+    container.scrollLeft = nextLeft;
+    event.preventDefault();
+  }, []);
 
   const onNumberDraftChange = useCallback(
     (path: PathSegment[], nextText: string): void => {
@@ -2915,41 +3008,60 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     ],
   );
 
+  const currentDataJsonLabel = currentFilePath ?? "No data.json loaded";
+
   return (
     <div className="json-editor-shell">
       <header className="json-toolbar">
-        <div className="json-toolbar-buttons">
-          <button type="button" onClick={() => void onNewJson()}>
-            New canyon
-          </button>
-          <button type="button" onClick={() => void onLoadJson()}>
-            Load canyon
-          </button>
-          <button type="button" disabled={!canyonData || isSaving} onClick={() => void onSaveJson()}>
-            {isSaving ? "Saving..." : "Save canyon"}
-          </button>
-          {canyonData ? (
-            <label className="json-default-language-selector">
-              <span>Default language</span>
-              <select
-                value={defaultLanguage}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  if (STATIC_LANGUAGE_SET.has(nextValue)) {
-                    setDefaultLanguage(nextValue as (typeof STATIC_LANGUAGE_KEYS)[number]);
-                  }
-                }}
-              >
-                {STATIC_LANGUAGE_KEYS.map((language) => (
-                  <option key={language} value={language}>
-                    {language.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+        <div className="json-toolbar-leading">
+          <div className="json-toolbar-buttons">
+            <button type="button" onClick={() => void onNewJson()}>
+              New canyon
+            </button>
+            <button type="button" onClick={() => void onLoadJson()}>
+              Load canyon
+            </button>
+            <button type="button" disabled={!canyonData || isSaving} onClick={() => void onSaveJson()}>
+              {isSaving ? "Saving..." : "Save canyon"}
+            </button>
+            <select
+              className="json-toolbar-language-select"
+              aria-label="Default language"
+              value={defaultLanguage}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                if (STATIC_LANGUAGE_SET.has(nextValue)) {
+                  setDefaultLanguage(nextValue as (typeof STATIC_LANGUAGE_KEYS)[number]);
+                }
+              }}
+            >
+              {STATIC_LANGUAGE_KEYS.map((language) => (
+                <option key={language} value={language}>
+                  {language.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </div>
+          <section className="json-toolbar-copy-strip" aria-label="Copy commands">
+            <div className="json-toolbar-copy-scroll" onWheel={onCommandStripWheel}>
+              {commandsToCopy.map((commandToCopy, index) => (
+                <button
+                  key={`${commandToCopy.buttonName}-${index}`}
+                  type="button"
+                  className={`json-copy-command-button${copiedCommandIndex === index ? " copied" : ""}`}
+                  onClick={() => void onCopyCommand(commandToCopy.command, index)}
+                  title={commandToCopy.command}
+                >
+                  <CopyIcon />
+                  <span>{commandToCopy.buttonName}</span>
+                </button>
+              ))}
+            </div>
+          </section>
         </div>
-        {canyonData && statusMessage ? <p className="json-status">{statusMessage}</p> : null}
+        <p className="json-current-file" title={currentDataJsonLabel}>
+          {currentDataJsonLabel}
+        </p>
       </header>
 
       {canyonData ? <section className="json-editor-body">{renderNode(canyonData, [], "Canyon")}</section> : null}
