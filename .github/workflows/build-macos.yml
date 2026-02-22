@@ -58,9 +58,12 @@ jobs:
       - name: Verify output
         run: ls -la release/distributions/macos
 
+      - name: Create macOS tarball (preserve app bundle permissions)
+        run: tar -czf release/canyon-editor-macos.tar.gz -C release/distributions macos
+
       - name: Upload macOS distribution artifact
         uses: actions/upload-artifact@v4
         with:
           name: canyon-editor-macos
-          path: release/distributions/macos/**
+          path: release/canyon-editor-macos.tar.gz
           if-no-files-found: error

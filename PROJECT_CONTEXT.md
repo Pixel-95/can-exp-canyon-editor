@@ -160,3 +160,4 @@ Save:
 9. macOS packages are built as `x64` (not arm64) to keep Catalina compatibility.
 10. macOS from Windows uses GitHub Actions workflow:
    `.github/workflows/build-macos.yml` (manual trigger) and uploads artifact `canyon-editor-macos`
+   containing `canyon-editor-macos.tar.gz` to preserve app bundle executable permissions.

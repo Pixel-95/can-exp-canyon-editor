@@ -59,9 +59,17 @@ GitHub workflow file:
 5. Download artifact `canyon-editor-macos`.
 
 Artifact content:
-- `Canyon Editor.app`
-- `assets/`
-- `data/` (empty)
+- `canyon-editor-macos.tar.gz` (contains `macos/Canyon Editor.app`, `macos/assets/`, `macos/data/`)
+
+On macOS, extract with:
+```bash
+tar -xzf canyon-editor-macos.tar.gz
+```
+
+If Gatekeeper blocks first launch:
+```bash
+xattr -dr com.apple.quarantine "macos/Canyon Editor.app"
+```
 
 Note:
 - The artifact does not include your local `.env`.
