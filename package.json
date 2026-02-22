@@ -22,6 +22,8 @@
     "package:win": "npm run build && electron-builder --win portable",
     "package:mac": "npm run build && electron-builder --mac dir",
     "package:mac:zip": "npm run build && electron-builder --mac dir zip",
+    "package:mac:catalina": "npm run package:mac",
+    "package:mac:catalina:zip": "npm run package:mac:zip",
     "package:dist": "node scripts/assemble-distributions.mjs"
   },
   "dependencies": {
@@ -41,7 +43,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
-    "electron": "^34.2.0",
+    "electron": "^32.3.3",
     "electron-builder": "^25.1.8",
     "nodemon": "^3.1.9",
     "typescript": "^5.7.3",
@@ -64,6 +66,7 @@
     },
     "mac": {
       "icon": "build/icon.png",
+      "minimumSystemVersion": "10.15.0",
       "target": [
         "dir"
       ],

@@ -36,9 +36,16 @@ Build Windows portable executable
 `npm run package:win`
 `npm run package:dist`
 
-Build macOS app directory artifact
+Build macOS app directory artifact (compatible with macOS 10.15 Catalina and newer)
 `npm run package:mac`
 `npm run package:dist`
+
+Build macOS ZIP artifact (Catalina compatible)
+`npm run package:mac:zip`
+`npm run package:dist`
+
+Compatibility note:
+- This project is pinned to Electron 32.x so the app can run on macOS 10.15.6.
 
 ## Build macOS on GitHub Actions (from Windows)
 GitHub workflow file:
