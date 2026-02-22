@@ -12,6 +12,11 @@ It edits one canyon JSON payload plus linked track GeoJSON files.
 3. React + TypeScript renderer (`renderer/src/*`)
 4. Map rendering and routing with Mapbox GL (`renderer/src/RouteMapApp.tsx`)
 
+Electron runtime policy:
+
+1. Project is pinned to Electron `32.x` for macOS Catalina compatibility.
+2. Electron builder macOS minimum system version is `10.15.0`.
+
 ## Repository Structure
 
 1. `renderer/src/CanyonJsonEditor.tsx`
@@ -149,5 +154,7 @@ Save:
 5. Package: `npm run package`
 6. Windows portable: `npm run package:win` then `npm run package:dist`
 7. macOS local packaging requires macOS (`npm run package:mac`)
-8. macOS from Windows uses GitHub Actions workflow:
+8. Catalina-compatible macOS aliases:
+   `npm run package:mac:catalina` and `npm run package:mac:catalina:zip`
+9. macOS from Windows uses GitHub Actions workflow:
    `.github/workflows/build-macos.yml` (manual trigger) and uploads artifact `canyon-editor-macos`
