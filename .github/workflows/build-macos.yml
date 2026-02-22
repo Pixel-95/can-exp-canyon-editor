@@ -58,6 +58,16 @@ jobs:
       - name: Verify output
         run: ls -la release/distributions/macos
 
+      - name: Verify distributed app framework linkage
+        run: |
+          DIST_APP="release/distributions/macos/Canyon Editor.app"
+          FRAMEWORK_BIN="$DIST_APP/Contents/Frameworks/Electron Framework.framework/Electron Framework"
+          if [ ! -e "$FRAMEWORK_BIN" ]; then
+            echo "Distributed app is missing Electron Framework binary: $FRAMEWORK_BIN"
+            exit 1
+          fi
+          echo "Distributed framework binary present: $FRAMEWORK_BIN"
+
       - name: Create macOS tarball (preserve app bundle permissions)
         run: tar -czf release/canyon-editor-macos.tar.gz -C release/distributions macos
 

@@ -121,7 +121,11 @@ async function assembleMacDistribution() {
   const macTarget = path.join(distributionRoot, "macos");
   await prepareTargetDirectory(macTarget);
 
-  await cp(sourceAppPath, path.join(macTarget, path.basename(sourceAppPath)), { recursive: true });
+  await cp(sourceAppPath, path.join(macTarget, path.basename(sourceAppPath)), {
+    recursive: true,
+    // Preserve macOS app bundle symlinks exactly. Electron frameworks rely on this.
+    verbatimSymlinks: true,
+  });
   await copyEditableData(macTarget);
   console.log(`macOS distribution assembled at ${macTarget}`);
   return true;
