@@ -16,6 +16,7 @@ Electron runtime policy:
 
 1. Project is pinned to Electron `32.x` for macOS Catalina compatibility.
 2. Electron builder macOS minimum system version is `10.15.0`.
+3. macOS packaging is forced to `x64` because `arm64` binaries require macOS `11.0+`.
 
 ## Repository Structure
 
@@ -156,5 +157,6 @@ Save:
 7. macOS local packaging requires macOS (`npm run package:mac`)
 8. Catalina-compatible macOS aliases:
    `npm run package:mac:catalina` and `npm run package:mac:catalina:zip`
-9. macOS from Windows uses GitHub Actions workflow:
+9. macOS packages are built as `x64` (not arm64) to keep Catalina compatibility.
+10. macOS from Windows uses GitHub Actions workflow:
    `.github/workflows/build-macos.yml` (manual trigger) and uploads artifact `canyon-editor-macos`

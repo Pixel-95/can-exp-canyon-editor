@@ -46,6 +46,7 @@ Build macOS ZIP artifact (Catalina compatible)
 
 Compatibility note:
 - This project is pinned to Electron 32.x so the app can run on macOS 10.15.6.
+- macOS packaging is forced to `x64` for Catalina support (`arm64` requires macOS 11+).
 
 ## Build macOS on GitHub Actions (from Windows)
 GitHub workflow file:
@@ -54,7 +55,7 @@ GitHub workflow file:
 1. Commit and push your changes (including the workflow file) to GitHub.
 2. In GitHub, open `Actions` -> `Build macOS Distribution`.
 3. Click `Run workflow` and select your branch.
-4. Wait until the run is green.
+4. Wait until the run is green (workflow verifies `x86_64` arch and `LSMinimumSystemVersion=10.15.0`).
 5. Download artifact `canyon-editor-macos`.
 
 Artifact content:

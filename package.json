@@ -20,8 +20,8 @@
     "build:electron": "tsc -p electron/tsconfig.json",
     "package": "npm run build && electron-builder",
     "package:win": "npm run build && electron-builder --win portable",
-    "package:mac": "npm run build && electron-builder --mac dir",
-    "package:mac:zip": "npm run build && electron-builder --mac dir zip",
+    "package:mac": "npm run build && electron-builder --mac dir --x64",
+    "package:mac:zip": "npm run build && electron-builder --mac dir zip --x64",
     "package:mac:catalina": "npm run package:mac",
     "package:mac:catalina:zip": "npm run package:mac:zip",
     "package:dist": "node scripts/assemble-distributions.mjs"

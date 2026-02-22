@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-13
     permissions:
       contents: read
     env:
@@ -23,8 +23,34 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build macOS app
-        run: npm run package:mac
+      - name: Build macOS app (Catalina-compatible x64)
+        run: npm run package:mac:catalina
+
+      - name: Verify app architecture and minimum macOS version
+        run: |
+          APP_PATH="$(find release -type d -name 'Canyon Editor.app' | head -n 1)"
+          if [ -z "$APP_PATH" ]; then
+            echo "Canyon Editor.app not found under release/"
+            exit 1
+          fi
+
+          BIN_PATH="$APP_PATH/Contents/MacOS/Canyon Editor"
+          PLIST_PATH="$APP_PATH/Contents/Info.plist"
+          ARCHS="$(lipo -archs "$BIN_PATH")"
+          MIN_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$PLIST_PATH")"
+
+          echo "App path: $APP_PATH"
+          echo "Binary archs: $ARCHS"
+          echo "LSMinimumSystemVersion: $MIN_VERSION"
+
+          if [ "$ARCHS" != "x86_64" ]; then
+            echo "Expected x86_64-only build for Catalina compatibility."
+            exit 1
+          fi
+          if [ "$MIN_VERSION" != "10.15.0" ]; then
+            echo "Expected LSMinimumSystemVersion=10.15.0."
+            exit 1
+          fi
 
       - name: Assemble distributable folder
         run: npm run package:dist
