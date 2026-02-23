@@ -190,6 +190,14 @@ export function resolveTrackAbsolutePath(canyonJsonPath: string, trackLink: stri
   return path.resolve(path.dirname(canyonJsonPath), trackLink);
 }
 
+export function normalizeSectionTopoForSave(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  return value.trim() ? value : null;
+}
+
 export function toCoordinatePair(value: unknown): [number, number] | null {
   if (!Array.isArray(value) || value.length < 2) {
     return null;

@@ -10,6 +10,7 @@ import {
   isObjectRecord,
   normalizeAbsolutePathForCompare,
   normalizeRoutePoints,
+  normalizeSectionTopoForSave,
   normalizeTrackLink,
   resolveTrackPersistenceMode,
   resolveTrackAbsolutePath,
@@ -41,6 +42,17 @@ import type {
 
 let mainWindow: BrowserWindow | null = null;
 const CANYON_JSON_FILENAME = "data.json";
+
+function normalizeSectionToposForSave(canyonData: Record<string, unknown>): void {
+  const sections = Array.isArray(canyonData.sections) ? canyonData.sections : [];
+  for (const section of sections) {
+    if (!isObjectRecord(section)) {
+      continue;
+    }
+
+    section.topo = normalizeSectionTopoForSave(section.topo);
+  }
+}
 
 function getAppRuntimeRootDir(): string {
   return getRuntimeRootDir({
@@ -813,6 +825,7 @@ ipcMain.handle(
       const tracksDirectory = path.join(targetJsonDirectory, "tracks");
 
       const nextData = cloneValue(request.canyonData);
+      normalizeSectionToposForSave(nextData);
       const sectionsValue = Array.isArray(nextData.sections) ? nextData.sections : [];
       const tracksAccessValue = Array.isArray(nextData.tracks_access) ? nextData.tracks_access : [];
 

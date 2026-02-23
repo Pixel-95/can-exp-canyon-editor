@@ -6,6 +6,7 @@ import {
   getCanyonFolderPath,
   getRuntimeRootDir,
   normalizeRoutePoints,
+  normalizeSectionTopoForSave,
   normalizeTrackLink,
   parseAccessTrackIndex,
   resolveTrackPersistenceMode,
@@ -28,6 +29,14 @@ test("track link helpers keep current path behavior", () => {
   assert.equal(toTrackLink("access_01.json"), "./tracks/access_01.json");
   assert.equal(parseAccessTrackIndex("./tracks/access_07.json"), 7);
   assert.equal(parseAccessTrackIndex("./tracks/not_access.json"), null);
+});
+
+test("normalizeSectionTopoForSave returns null for unset topo values", () => {
+  assert.equal(normalizeSectionTopoForSave(""), null);
+  assert.equal(normalizeSectionTopoForSave("   "), null);
+  assert.equal(normalizeSectionTopoForSave(null), null);
+  assert.equal(normalizeSectionTopoForSave(undefined), null);
+  assert.equal(normalizeSectionTopoForSave("./topos/example.webp"), "./topos/example.webp");
 });
 
 test("normalizeRoutePoints keeps boundary/waypoint contract", () => {
