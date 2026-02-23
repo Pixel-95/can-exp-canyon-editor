@@ -109,7 +109,7 @@ const SECTION_DURATION_KEYS = [
 ] as const;
 const DEFAULT_RECOMMENDED_ROPES = "2x 0m";
 const SAVE_FEEDBACK_MAX_ITEMS = 12;
-const COMMITMENT_ROMAN_BY_VALUE = ["0", "I", "II", "III", "IV", "V", "VI"] as const;
+const COMMITMENT_ROMAN_BY_VALUE = ["0", "I", "II", "III", "IV", "V", "VI", "VII"] as const;
 const COMMITMENT_VALUE_BY_ROMAN: Record<string, number> = {
   0: 0,
   I: 1,
@@ -118,6 +118,7 @@ const COMMITMENT_VALUE_BY_ROMAN: Record<string, number> = {
   IV: 4,
   V: 5,
   VI: 6,
+  VII: 7,
 };
 const IGNORED_KEYS = new Set([
   "coordinates",
@@ -248,6 +249,11 @@ function parseCommitmentDifficulty(value: string): number | null {
   const normalized = value.trim().toUpperCase();
   if (!normalized) {
     return null;
+  }
+
+  if (/^[0-9]$/.test(normalized)) {
+    const parsed = Number.parseInt(normalized, 10);
+    return parsed < COMMITMENT_ROMAN_BY_VALUE.length ? parsed : null;
   }
 
   return COMMITMENT_VALUE_BY_ROMAN[normalized] ?? null;
@@ -1601,7 +1607,12 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   const onDifficultyRomanDraftChange = useCallback(
     (path: PathSegment[], nextText: string): void => {
       const key = toPathKey(path);
-      const normalizedText = nextText.toUpperCase();
+      const upperText = nextText.toUpperCase().trim();
+      const digitValue = /^[0-9]$/.test(upperText) ? Number.parseInt(upperText, 10) : null;
+      const normalizedText =
+        digitValue !== null && digitValue < COMMITMENT_ROMAN_BY_VALUE.length
+          ? COMMITMENT_ROMAN_BY_VALUE[digitValue]
+          : upperText;
 
       setInputDrafts((current) => ({
         ...current,
@@ -1610,7 +1621,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
 
       const parsed = parseCommitmentDifficulty(normalizedText);
       if (parsed === null) {
-        setValidationError(key, "Use 0, I, II, III, IV, V, or VI.");
+        setValidationError(key, "Use 0-7 or I-VII.");
         return;
       }
 
@@ -1646,9 +1657,9 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       const draftNumber = parseCommitmentDifficulty(draftValue);
       const storedNumber =
         typeof storedValue === "number" && Number.isFinite(storedValue)
-          ? clampInRange(Math.trunc(storedValue), 0, 6)
+          ? clampInRange(Math.trunc(storedValue), 0, COMMITMENT_ROMAN_BY_VALUE.length - 1)
           : 0;
-      const next = clampInRange((draftNumber ?? storedNumber) + delta, 0, 6);
+      const next = clampInRange((draftNumber ?? storedNumber) + delta, 0, COMMITMENT_ROMAN_BY_VALUE.length - 1);
 
       setInputDrafts((current) => ({
         ...current,
