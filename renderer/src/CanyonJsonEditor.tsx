@@ -4,6 +4,7 @@ import { RouteMapApp, type TrackBindings, type TrackSnapshot } from "./RouteMapA
 import { buildTrackBindings, withSectionTourDimensionsFromTracks } from "./json-editor/trackUtils";
 import { normalizeTrackLink } from "./shared/trackLinks";
 import { parseCommandsToCopyFromAsset, type CommandToCopy } from "./shared/commandsToCopy";
+import { parsePoiSuggestionsFromAsset, type PoiSuggestionPreset } from "./shared/poiSuggestions";
 import {
   buildRequiredDataChecklist,
   type ChecklistNode,
@@ -61,6 +62,7 @@ type SaveFeedbackPopup = {
 const COUNTRY_ASSET_PATH = "assets/countries_and_regions.json";
 const SPECIAL_NOTES_ASSET_PATH = "assets/special_notes_possibilities.json";
 const PARKING_LOT_SUGGESTIONS_ASSET_PATH = "assets/parking_lot_suggestions.json";
+const POI_SUGGESTIONS_ASSET_PATH = "assets/poi_suggestions.json";
 const COMMANDS_TO_COPY_ASSET_PATH = "assets/commands_to_copy.json";
 const DEFAULT_LANGUAGE_STORAGE_KEY = "canyon-editor.default-language";
 const LANGUAGE_KEY_PATTERN = /^[a-z]{2}(?:-[A-Za-z]{2})?$/i;
@@ -858,6 +860,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   const [statusMessage, setStatusMessage] = useState("");
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [specialNoteDefinitions, setSpecialNoteDefinitions] = useState<SpecialNoteDefinition[]>([]);
+  const [poiSuggestions, setPoiSuggestions] = useState<PoiSuggestionPreset[]>([]);
   const [parkingLotSuggestions, setParkingLotSuggestions] = useState<LocalizedText[]>([]);
   const [commandsToCopy, setCommandsToCopy] = useState<CommandToCopy[]>([]);
   const [copiedCommandIndex, setCopiedCommandIndex] = useState<number | null>(null);
@@ -1129,6 +1132,34 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
         clearTimeout(copiedCommandTimeoutRef.current);
         copiedCommandTimeoutRef.current = null;
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    let canceled = false;
+
+    async function loadPoiSuggestions(): Promise<void> {
+      const result = await window.api.loadJsonFromPath(POI_SUGGESTIONS_ASSET_PATH);
+      if (canceled) {
+        return;
+      }
+
+      if (result.canceled || !result.data) {
+        setPoiSuggestions([]);
+        return;
+      }
+
+      setPoiSuggestions(parsePoiSuggestionsFromAsset(result.data));
+    }
+
+    void loadPoiSuggestions().catch(() => {
+      if (!canceled) {
+        setPoiSuggestions([]);
+      }
+    });
+
+    return () => {
+      canceled = true;
     };
   }, []);
 
@@ -2434,6 +2465,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               onPointsOfInterestChange={onPointsOfInterestChange}
               parkingLots={parkingLots}
               onParkingLotsChange={onParkingLotsChange}
+              poiSuggestions={poiSuggestions}
               parkingLotSuggestions={parkingLotSuggestions}
               trackBindings={trackBindings}
               trackSnapshot={trackSnapshot}
@@ -2980,6 +3012,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       overviewCoordinate,
       pointsOfInterest,
       parkingLots,
+      poiSuggestions,
       parkingLotSuggestions,
       trackBindings,
       onNumberDraftChange,

@@ -47,6 +47,7 @@ import {
   isUnsavedNewAccessTrack,
   shouldReuseHydratedTrackForBinding,
 } from "./shared/trackSnapshotState";
+import type { PoiSuggestionPreset } from "./shared/poiSuggestions";
 
 type Coordinate = [number, number];
 type RoutePointType = "start" | "waypoint" | "end";
@@ -260,6 +261,7 @@ type RouteMapAppProps = {
   onPointsOfInterestChange?: (points: PointOfInterest[]) => void;
   parkingLots?: ParkingLot[];
   onParkingLotsChange?: (parkingLots: ParkingLot[]) => void;
+  poiSuggestions?: PoiSuggestionPreset[];
   parkingLotSuggestions?: LocalizedText[];
   trackBindings?: TrackBindings | null;
   trackSnapshot?: TrackSnapshot | null;
@@ -869,6 +871,7 @@ export function RouteMapApp({
   onPointsOfInterestChange,
   parkingLots = [],
   onParkingLotsChange,
+  poiSuggestions = [],
   parkingLotSuggestions = [],
   trackBindings = null,
   trackSnapshot = null,
@@ -3489,6 +3492,33 @@ export function RouteMapApp({
     [onPointsOfInterestChange, pointsOfInterest],
   );
 
+  const onApplyPoiPreset = useCallback(
+    (poiIndex: number, preset: PoiSuggestionPreset): void => {
+      if (!onPointsOfInterestChange) {
+        return;
+      }
+
+      if (poiIndex < 0 || poiIndex >= pointsOfInterest.length) {
+        return;
+      }
+
+      const next = pointsOfInterest.map((poi, index) => {
+        if (index !== poiIndex) {
+          return poi;
+        }
+
+        return {
+          ...poi,
+          name: normalizeLocalizedText(preset.name),
+          description: normalizeLocalizedText(preset.description),
+        };
+      });
+
+      onPointsOfInterestChange(next);
+    },
+    [onPointsOfInterestChange, pointsOfInterest],
+  );
+
   const onDeletePointOfInterest = useCallback((poiIndex: number): void => {
     if (!onPointsOfInterestChange) {
       return;
@@ -5051,6 +5081,18 @@ export function RouteMapApp({
                   onPoiTextChange(poiEditor.index, "description", activePoiLanguage, event.target.value)
                 }
               />
+              <div className="parking-name-presets">
+                {poiSuggestions.map((preset, presetIndex) => (
+                  <button
+                    key={`poi-preset-${presetIndex}`}
+                    type="button"
+                    className="parking-name-preset-button"
+                    onClick={() => onApplyPoiPreset(poiEditor.index, preset)}
+                  >
+                    {`Set to "${preset.buttonText}"`}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : null}
