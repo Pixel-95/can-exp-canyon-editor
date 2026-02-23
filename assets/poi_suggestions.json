@@ -1,0 +1,21 @@
+[
+  {
+    "button_text": "Water flow check point",
+    "name": {
+      "de": "Stelle für Wasserstandskontrolle",
+      "en": "Water flow check point",
+      "es": "Punto de control del caudal",
+      "fr": "Point de contrôle du débit",
+      "it": "Punto di controllo della portata",
+      "pt": "Ponto de controlo do caudal"
+    },
+    "description": {
+      "de": "Vor Einstieg, hier Wasserstand kontrollieren.",
+      "en": "Before entry, check the water level here.",
+      "es": "Antes del inicio, comprobar aquí el nivel del agua.",
+      "fr": "Avant l'entrée, vérifier ici le niveau d'eau.",
+      "it": "Prima dell'ingresso, controllare qui il livello dell'acqua.",
+      "pt": "Antes da entrada, verificar aqui o nível da água."
+    }
+  }
+]
