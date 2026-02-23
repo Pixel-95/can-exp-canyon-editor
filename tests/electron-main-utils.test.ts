@@ -8,9 +8,11 @@ import {
   normalizeRoutePoints,
   normalizeTrackLink,
   parseAccessTrackIndex,
+  resolveTrackPersistenceMode,
   sanitizeFileName,
   sanitizeFolderName,
   sanitizeTrackBaseName,
+  trackHasPersistableContent,
   toAbsolutePath,
   toTrackLink,
 } from "../electron/mainUtils";
@@ -100,5 +102,93 @@ test("new canyon folder path resolves into runtime root data directory", () => {
   assert.equal(
     getCanyonFolderPath("/portable-root", "My Canyon"),
     path.normalize(path.join("/portable-root", "data", "My_Canyon")),
+  );
+});
+
+test("trackHasPersistableContent detects route point and geometry coordinates", () => {
+  assert.equal(
+    trackHasPersistableContent({
+      routePoints: [],
+      routeFeature: null,
+    } as any),
+    false,
+  );
+
+  assert.equal(
+    trackHasPersistableContent({
+      routePoints: [{ id: "a", type: "start", coordinates: [8.1, 47.2] }],
+      routeFeature: null,
+    } as any),
+    true,
+  );
+
+  assert.equal(
+    trackHasPersistableContent({
+      routePoints: [{ id: "a", type: "start", coordinates: [Number.NaN, 47.2] }],
+      routeFeature: null,
+    } as any),
+    false,
+  );
+
+  assert.equal(
+    trackHasPersistableContent({
+      routePoints: [],
+      routeFeature: {
+        type: "Feature",
+        geometry: {
+          type: "LineString",
+          coordinates: [[8.2, 47.3]],
+        },
+        properties: {
+          distance_m: 0,
+          duration_s: 0,
+          profile: "walking",
+          start: [8.2, 47.3],
+          end: [8.2, 47.3],
+          waypoints: [],
+          segments: [],
+          generated_at: "2026-01-01T00:00:00.000Z",
+        },
+      },
+    } as any),
+    true,
+  );
+});
+
+test("resolveTrackPersistenceMode follows hybrid preserve/remove policy", () => {
+  assert.equal(
+    resolveTrackPersistenceMode({
+      hasPersistableContent: false,
+      previousLink: "",
+      missingFile: true,
+    }),
+    "remove-link",
+  );
+
+  assert.equal(
+    resolveTrackPersistenceMode({
+      hasPersistableContent: false,
+      previousLink: "./tracks/section_01.json",
+      missingFile: true,
+    }),
+    "preserve-link",
+  );
+
+  assert.equal(
+    resolveTrackPersistenceMode({
+      hasPersistableContent: false,
+      previousLink: "./tracks/section_01.json",
+      missingFile: false,
+    }),
+    "remove-link",
+  );
+
+  assert.equal(
+    resolveTrackPersistenceMode({
+      hasPersistableContent: true,
+      previousLink: "./tracks/section_01.json",
+      missingFile: false,
+    }),
+    "write",
   );
 });

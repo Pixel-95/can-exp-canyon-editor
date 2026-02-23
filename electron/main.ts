@@ -11,9 +11,11 @@ import {
   normalizeAbsolutePathForCompare,
   normalizeRoutePoints,
   normalizeTrackLink,
+  resolveTrackPersistenceMode,
   resolveTrackAbsolutePath,
   sanitizeFolderName,
   sanitizeTrackBaseName,
+  trackHasPersistableContent,
   toAbsolutePath,
   toCoordinatePair,
   toErrorMessage,
@@ -898,6 +900,26 @@ ipcMain.handle(
           continue;
         }
 
+        const previousLinkFromTrack = normalizeTrackLink(sectionTrack.filePath);
+        const previousLinkFromData =
+          typeof sectionEntry.track_canyon === "string" ? normalizeTrackLink(sectionEntry.track_canyon) : "";
+        const previousLink = previousLinkFromTrack || previousLinkFromData;
+        const persistenceMode = resolveTrackPersistenceMode({
+          hasPersistableContent: trackHasPersistableContent(sectionTrack),
+          previousLink,
+          missingFile: sectionTrack.missingFile,
+        });
+        if (persistenceMode !== "write") {
+          if (persistenceMode === "preserve-link") {
+            sectionEntry.track_canyon = previousLink;
+            const preservedAbsolutePath = resolveTrackAbsolutePath(targetJsonPath, previousLink);
+            usedAbsolutePaths.add(normalizeAbsolutePathForCompare(preservedAbsolutePath));
+          } else {
+            sectionEntry.track_canyon = "";
+          }
+          continue;
+        }
+
         const sectionName = typeof sectionEntry.name === "string" ? sectionEntry.name : `Section ${sectionIndex + 1}`;
         const sectionId = Number.isFinite(Number(sectionEntry.id)) ? Number(sectionEntry.id) : sectionIndex;
 
@@ -906,10 +928,6 @@ ipcMain.handle(
           baseName = `${baseName}_section_${sectionId}`;
         }
 
-        const previousLinkFromTrack = normalizeTrackLink(sectionTrack.filePath);
-        const previousLinkFromData =
-          typeof sectionEntry.track_canyon === "string" ? normalizeTrackLink(sectionEntry.track_canyon) : "";
-        const previousLink = previousLinkFromTrack || previousLinkFromData;
         const previousAbsolutePath = previousLink
           ? resolveTrackAbsolutePath(targetJsonPath, previousLink)
           : null;
@@ -947,6 +965,20 @@ ipcMain.handle(
         const displayName = accessTrack.displayName?.trim() || `Access ${accessIndex + 1}`;
         const baseName = sanitizeTrackBaseName(displayName) || `access_track_${accessIndex + 1}`;
         const previousLink = normalizeTrackLink(accessTrack.filePath);
+        const persistenceMode = resolveTrackPersistenceMode({
+          hasPersistableContent: trackHasPersistableContent(accessTrack),
+          previousLink,
+          missingFile: accessTrack.missingFile,
+        });
+        if (persistenceMode !== "write") {
+          if (persistenceMode === "preserve-link") {
+            nextTracksAccess.push(previousLink);
+            const preservedAbsolutePath = resolveTrackAbsolutePath(targetJsonPath, previousLink);
+            usedAbsolutePaths.add(normalizeAbsolutePathForCompare(preservedAbsolutePath));
+          }
+          continue;
+        }
+
         const previousAbsolutePath = previousLink
           ? resolveTrackAbsolutePath(targetJsonPath, previousLink)
           : null;

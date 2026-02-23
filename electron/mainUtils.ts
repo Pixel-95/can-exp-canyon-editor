@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { RoutePointPayload } from "./ipcTypes";
+import type { MultiTrackItemPayload, RoutePointPayload } from "./ipcTypes";
 
 const WINDOWS_RESERVED_NAMES = new Set([
   "CON",
@@ -230,4 +230,40 @@ export function normalizeRoutePoints(points: RoutePointPayload[]): RoutePointPay
       ...(index > 0 ? { segmentMode: point.segmentMode ?? "straight" } : {}),
     };
   });
+}
+
+export function trackHasPersistableContent(
+  track: Pick<MultiTrackItemPayload, "routePoints" | "routeFeature">,
+): boolean {
+  const hasRoutePointCoordinates = Array.isArray(track.routePoints)
+    ? track.routePoints.some((point) => toCoordinatePair(point.coordinates) !== null)
+    : false;
+  if (hasRoutePointCoordinates) {
+    return true;
+  }
+
+  const geometryCoordinates = track.routeFeature?.geometry?.coordinates;
+  if (!Array.isArray(geometryCoordinates)) {
+    return false;
+  }
+
+  return geometryCoordinates.some((coordinate) => toCoordinatePair(coordinate) !== null);
+}
+
+export type TrackPersistenceMode = "write" | "preserve-link" | "remove-link";
+
+export function resolveTrackPersistenceMode(options: {
+  hasPersistableContent: boolean;
+  previousLink: string;
+  missingFile: boolean;
+}): TrackPersistenceMode {
+  if (options.hasPersistableContent) {
+    return "write";
+  }
+
+  if (options.previousLink && options.missingFile) {
+    return "preserve-link";
+  }
+
+  return "remove-link";
 }
