@@ -4,6 +4,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   cloneValue,
+  extractSectionPictureDescriptors,
   getCanyonDataDirectory,
   getCanyonFolderPath,
   getRuntimeRootDir,
@@ -16,6 +17,7 @@ import {
   resolveTrackAbsolutePath,
   sanitizeFolderName,
   sanitizeTrackBaseName,
+  syncSectionPictureFolders,
   trackHasPersistableContent,
   toAbsolutePath,
   toCoordinatePair,
@@ -23,7 +25,9 @@ import {
   toRelativePath,
   toTrackLink,
 } from "./mainUtils";
+import type { PictureSectionDescriptor } from "./mainUtils";
 import type {
+  CreateCanyonFolderRequest,
   CreateCanyonFolderResult,
   LoadJsonResult,
   LoadTrackFilesRequest,
@@ -471,6 +475,64 @@ function createNewJsonTemplate(canyonName: string): Record<string, unknown> {
   };
 }
 
+function parseCreateCanyonFolderRequest(
+  request: unknown,
+): { canyonName: string; initialSectionNames: string[] } {
+  if (typeof request === "string") {
+    return {
+      canyonName: request,
+      initialSectionNames: [],
+    };
+  }
+
+  if (!isObjectRecord(request)) {
+    return {
+      canyonName: "",
+      initialSectionNames: [],
+    };
+  }
+
+  const canyonName = typeof request.canyonName === "string" ? request.canyonName : "";
+  const initialSectionNames = Array.isArray(request.initialSectionNames)
+    ? request.initialSectionNames.filter((name): name is string => typeof name === "string")
+    : [];
+
+  return {
+    canyonName,
+    initialSectionNames,
+  };
+}
+
+function toSectionDescriptorsFromNames(initialSectionNames: string[]): PictureSectionDescriptor[] {
+  return initialSectionNames.map((name, index) => ({
+    index,
+    sectionId: index,
+    name,
+  }));
+}
+
+async function loadSectionDescriptorsFromExistingJson(
+  canyonJsonPath: string,
+): Promise<PictureSectionDescriptor[] | null> {
+  try {
+    const raw = await readFile(canyonJsonPath, "utf8");
+    const parsed = JSON.parse(stripUtf8Bom(raw)) as unknown;
+    if (!isObjectRecord(parsed)) {
+      return null;
+    }
+
+    return extractSectionPictureDescriptors(parsed);
+  } catch (error) {
+    const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+    if (code === "ENOENT") {
+      return null;
+    }
+
+    console.error(`Failed to read previous canyon JSON at ${canyonJsonPath}:`, toErrorMessage(error));
+    return null;
+  }
+}
+
 function parseMapboxTokenFromDotEnv(dotEnvContents: string): string | null {
   const lines = dotEnvContents.split(/\r?\n/g);
   for (const line of lines) {
@@ -655,8 +717,9 @@ ipcMain.handle("json:new-template", (_event, canyonName: string): Record<string,
 
 ipcMain.handle(
   "json:create-canyon-folder",
-  async (_event, canyonName: string): Promise<CreateCanyonFolderResult> => {
-    const rawName = typeof canyonName === "string" ? canyonName.trim() : "";
+  async (_event, request: CreateCanyonFolderRequest | string): Promise<CreateCanyonFolderResult> => {
+    const parsedRequest = parseCreateCanyonFolderRequest(request);
+    const rawName = parsedRequest.canyonName.trim();
     if (!rawName) {
       return {
         canceled: false,
@@ -678,6 +741,11 @@ ipcMain.handle(
         mkdir(path.join(folderPath, "topos"), { recursive: true }),
         mkdir(path.join(folderPath, "tracks"), { recursive: true }),
       ]);
+      await syncSectionPictureFolders({
+        canyonDirectory: folderPath,
+        currentSections: toSectionDescriptorsFromNames(parsedRequest.initialSectionNames),
+        previousSections: null,
+      });
       return {
         canceled: false,
         folderPath,
@@ -823,11 +891,19 @@ ipcMain.handle(
 
       const targetJsonDirectory = path.dirname(targetJsonPath);
       const tracksDirectory = path.join(targetJsonDirectory, "tracks");
+      const previousSections = await loadSectionDescriptorsFromExistingJson(targetJsonPath);
 
       const nextData = cloneValue(request.canyonData);
       normalizeSectionToposForSave(nextData);
       const sectionsValue = Array.isArray(nextData.sections) ? nextData.sections : [];
       const tracksAccessValue = Array.isArray(nextData.tracks_access) ? nextData.tracks_access : [];
+      const currentSections = extractSectionPictureDescriptors(nextData);
+
+      await syncSectionPictureFolders({
+        canyonDirectory: targetJsonDirectory,
+        currentSections,
+        previousSections,
+      });
 
       const snapshotTracks = request.trackSnapshot?.tracks ?? [];
       if (snapshotTracks.length === 0) {

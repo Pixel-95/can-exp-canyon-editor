@@ -1,4 +1,5 @@
 import type {
+  CreateCanyonFolderRequest,
   CreateCanyonFolderResult,
   LoadJsonResult,
   LoadTrackFilesRequest,
@@ -23,7 +24,7 @@ declare global {
       loadJsonFromDialog: () => Promise<LoadJsonResult>;
       loadJsonFromPath: (requestedPath: string) => Promise<LoadJsonResult>;
       createNewJsonTemplate: (canyonName: string) => Promise<Record<string, unknown>>;
-      createCanyonFolder: (canyonName: string) => Promise<CreateCanyonFolderResult>;
+      createCanyonFolder: (request: CreateCanyonFolderRequest) => Promise<CreateCanyonFolderResult>;
       saveJson: (request: SaveJsonRequest) => Promise<SaveJsonResult>;
       saveCanyonWithTracks: (request: SaveCanyonWithTracksRequest) => Promise<SaveCanyonWithTracksResult>;
       pickFile: (request: PickFileRequest) => Promise<PickFileResult>;

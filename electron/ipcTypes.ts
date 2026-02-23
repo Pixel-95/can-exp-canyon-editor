@@ -140,6 +140,11 @@ export type PickFileResult = {
   relativePath?: string;
 };
 
+export type CreateCanyonFolderRequest = {
+  canyonName: string;
+  initialSectionNames?: string[];
+};
+
 export type CreateCanyonFolderResult = {
   canceled: boolean;
   folderPath?: string;

@@ -1356,12 +1356,6 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       return;
     }
 
-    const folderResult = await window.api.createCanyonFolder(canyonName);
-    if (folderResult.error) {
-      setNewCanyonNameError(folderResult.error);
-      return;
-    }
-
     const template = await window.api.createNewJsonTemplate(canyonName);
     if (!isJsonObject(template)) {
       setNewCanyonNameError("Could not create JSON template.");
@@ -1369,6 +1363,21 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     }
 
     const nextData = createEmptyNewCanyonData(cloneJsonValue(template), canyonName);
+    const initialSectionNames = Array.isArray(nextData.sections)
+      ? nextData.sections.map((entry) =>
+        isJsonObject(entry) && typeof entry.name === "string" ? entry.name : "",
+      )
+      : [];
+
+    const folderResult = await window.api.createCanyonFolder({
+      canyonName,
+      initialSectionNames,
+    });
+    if (folderResult.error) {
+      setNewCanyonNameError(folderResult.error);
+      return;
+    }
+
     setCanyonData(normalizeCanyonForEditor(nextData));
     trackSnapshotRef.current = null;
     setTrackSnapshot(null);

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
+  CreateCanyonFolderRequest,
   CreateCanyonFolderResult,
   LoadJsonResult,
   LoadTrackFilesRequest,
@@ -29,8 +30,8 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("json:load-path", requestedPath),
   createNewJsonTemplate: (canyonName: string): Promise<Record<string, unknown>> =>
     ipcRenderer.invoke("json:new-template", canyonName),
-  createCanyonFolder: (canyonName: string): Promise<CreateCanyonFolderResult> =>
-    ipcRenderer.invoke("json:create-canyon-folder", canyonName),
+  createCanyonFolder: (request: CreateCanyonFolderRequest): Promise<CreateCanyonFolderResult> =>
+    ipcRenderer.invoke("json:create-canyon-folder", request),
   saveJson: (request: SaveJsonRequest): Promise<SaveJsonResult> =>
     ipcRenderer.invoke("json:save", request),
   saveCanyonWithTracks: (request: SaveCanyonWithTracksRequest): Promise<SaveCanyonWithTracksResult> =>

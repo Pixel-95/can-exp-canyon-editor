@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import path from "node:path";
 
 import {
+  PictureSectionDescriptor,
+  planSectionPictureFolderNames,
+  sanitizeSectionPictureFolderName,
   getCanyonFolderPath,
   getRuntimeRootDir,
   normalizeRoutePoints,
@@ -22,6 +25,30 @@ test("sanitize helpers keep current filename semantics", () => {
   assert.equal(sanitizeFileName(" My Canyon "), "My-Canyon");
   assert.equal(sanitizeFolderName(" My Canyon "), "My_Canyon");
   assert.equal(sanitizeTrackBaseName("Section: 1"), "Section_1");
+});
+
+test("sanitizeSectionPictureFolderName keeps only ASCII-safe folder characters", () => {
+  assert.equal(sanitizeSectionPictureFolderName(" Merlin's World "), "Merlins_World");
+  assert.equal(sanitizeSectionPictureFolderName("Känguru Überlauf"), "Kanguru_Uberlauf");
+  assert.equal(sanitizeSectionPictureFolderName("###"), "");
+});
+
+test("planSectionPictureFolderNames resolves collisions with section id and numeric suffix", () => {
+  const sections: PictureSectionDescriptor[] = [
+    { index: 0, sectionId: 0, name: "Foo" },
+    { index: 1, sectionId: 1, name: "Foo!" },
+    { index: 2, sectionId: 2, name: "" },
+  ];
+
+  assert.deepEqual(
+    planSectionPictureFolderNames(sections),
+    ["Foo_section_0", "Foo_section_1", "section_2"],
+  );
+
+  assert.deepEqual(
+    planSectionPictureFolderNames(sections, new Set(["Foo_section_0"])),
+    ["Foo_section_0_02", "Foo_section_1", "section_2"],
+  );
 });
 
 test("track link helpers keep current path behavior", () => {
