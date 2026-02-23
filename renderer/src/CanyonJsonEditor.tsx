@@ -2569,6 +2569,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                   <div className="json-difficulty-stepper">
                     <button
                       type="button"
+                      tabIndex={-1}
                       aria-label="Increase vertical difficulty"
                       onClick={() => onDifficultyArabicStep(verticalPath, verticalDisplay, value.vertical, 1)}
                     >
@@ -2576,6 +2577,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                     </button>
                     <button
                       type="button"
+                      tabIndex={-1}
                       aria-label="Decrease vertical difficulty"
                       onClick={() => onDifficultyArabicStep(verticalPath, verticalDisplay, value.vertical, -1)}
                     >
@@ -2601,6 +2603,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                   <div className="json-difficulty-stepper">
                     <button
                       type="button"
+                      tabIndex={-1}
                       aria-label="Increase aquatic difficulty"
                       onClick={() => onDifficultyArabicStep(aquaticPath, aquaticDisplay, value.aquatic, 1)}
                     >
@@ -2608,6 +2611,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                     </button>
                     <button
                       type="button"
+                      tabIndex={-1}
                       aria-label="Decrease aquatic difficulty"
                       onClick={() => onDifficultyArabicStep(aquaticPath, aquaticDisplay, value.aquatic, -1)}
                     >
@@ -2631,6 +2635,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                   <div className="json-difficulty-stepper">
                     <button
                       type="button"
+                      tabIndex={-1}
                       aria-label="Increase commitment difficulty"
                       onClick={() => onDifficultyRomanStep(commitmentPath, commitmentDisplay, value.general, 1)}
                     >
@@ -2638,6 +2643,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                     </button>
                     <button
                       type="button"
+                      tabIndex={-1}
                       aria-label="Decrease commitment difficulty"
                       onClick={() => onDifficultyRomanStep(commitmentPath, commitmentDisplay, value.general, -1)}
                     >
