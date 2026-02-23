@@ -161,3 +161,12 @@ Save:
 10. macOS from Windows uses GitHub Actions workflow:
    `.github/workflows/build-macos.yml` (manual trigger) and uploads artifact `canyon-editor-macos`
    containing `canyon-editor-macos.tar.gz` to preserve app bundle executable permissions.
+
+## Documentation Baseline
+
+`README.md` is expected to stay aligned with current packaging/runtime behavior:
+
+1. Includes local run and packaging commands for Windows and macOS.
+2. Documents Catalina compatibility constraints (`Electron 32.x`, `x64`, `10.15.0` minimum).
+3. Documents GitHub Actions macOS build flow and artifact extraction (`tar -xzf`).
+4. Notes that Mapbox token setup is runtime-local via `assets/.env` with `MAPBOX_TOKEN=...`.

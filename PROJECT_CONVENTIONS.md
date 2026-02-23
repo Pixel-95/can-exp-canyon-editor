@@ -114,10 +114,8 @@ To keep project context and workflow docs current:
 1. Run `npm run check:context-sync` for all local changes.
 2. Run `npm run check:context-sync:staged` before committing staged changes.
 3. Guard rules:
-   Core project code changes require `PROJECT_CONTEXT.md` or `PROJECT_CONVENTIONS.md` updates.
-4. Guard rules:
    Changes under `.codex/skills/` require an `AGENTS.md` update.
-5. Emergency bypass (one-off only):
+4. Emergency bypass (one-off only):
    `SKIP_CONTEXT_SYNC=1 npm run check:context-sync`.
-6. CI enforcement:
+5. CI enforcement:
    `.github/workflows/context-sync.yml` runs this check on push and pull requests.

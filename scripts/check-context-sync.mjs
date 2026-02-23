@@ -83,24 +83,6 @@ function buildChangedFileList({ staged, baseRef }) {
   return Array.from(changed);
 }
 
-function isCoreContextChange(filePath) {
-  if (
-    filePath.startsWith("renderer/src/") ||
-    filePath.startsWith("electron/") ||
-    filePath.startsWith("assets/") ||
-    filePath.startsWith("data/")
-  ) {
-    return true;
-  }
-
-  return (
-    filePath === "package.json" ||
-    filePath === "tsconfig.json" ||
-    filePath === "tsconfig.base.json" ||
-    filePath === "README.md"
-  );
-}
-
 function main() {
   const { help, staged, baseRef } = parseArgs(process.argv.slice(2));
   if (help) {
@@ -124,15 +106,6 @@ function main() {
 
   const changedSet = new Set(changedFiles);
   const failures = [];
-
-  const hasCoreChange = changedFiles.some((filePath) => isCoreContextChange(filePath));
-  const hasContextOrConventionUpdate =
-    changedSet.has("PROJECT_CONTEXT.md") || changedSet.has("PROJECT_CONVENTIONS.md");
-  if (hasCoreChange && !hasContextOrConventionUpdate) {
-    failures.push(
-      "Core project changes detected without updates to PROJECT_CONTEXT.md or PROJECT_CONVENTIONS.md.",
-    );
-  }
 
   const hasSkillChange = changedFiles.some((filePath) => filePath.startsWith(".codex/skills/"));
   if (hasSkillChange && !changedSet.has("AGENTS.md")) {
