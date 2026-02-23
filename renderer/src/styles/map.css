@@ -649,6 +649,52 @@
     0 6px 14px rgba(15, 23, 42, 0.45);
 }
 
+.map-area.compact .overview-point-marker:hover {
+  border-color: var(--color-bg-surface);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.35);
+}
+
+.map-area.compact .overview-point-marker,
+.map-area.compact .overview-point-marker:active {
+  cursor: pointer;
+}
+
+.map-area.compact .overview-point-marker {
+  transition: none;
+}
+
+.map-area.compact .poi-marker:hover,
+.map-area.compact .parking-lot-marker:hover {
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.24);
+}
+
+.map-area.compact .poi-marker,
+.map-area.compact .parking-lot-marker {
+  transition: none;
+}
+
+.map-area.compact .poi-marker:hover,
+.map-area.compact .poi-marker:focus,
+.map-area.compact .poi-marker:focus-visible,
+.map-area.compact .poi-marker:active {
+  background: var(--color-bg-surface);
+  border-color: var(--color-text-primary);
+  color: var(--color-text-primary);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.24);
+  outline: none;
+}
+
+.map-area.compact .parking-lot-marker:hover,
+.map-area.compact .parking-lot-marker:focus,
+.map-area.compact .parking-lot-marker:focus-visible,
+.map-area.compact .parking-lot-marker:active {
+  background: #005EA8;
+  border-color: var(--color-bg-surface);
+  color: var(--color-bg-surface);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.24);
+  outline: none;
+}
+
 .overview-point-marker:active {
   cursor: grabbing;
 }

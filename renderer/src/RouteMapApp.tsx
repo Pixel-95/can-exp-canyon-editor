@@ -2327,6 +2327,15 @@ export function RouteMapApp({
         Number(event.lngLat.lat.toFixed(6)),
       ];
 
+      if (viewModeRef.current !== "expanded") {
+        hoveredTrackIdRef.current = null;
+        if (map.getLayer(TRACKS_HOVER_LAYER_ID)) {
+          map.setFilter(TRACKS_HOVER_LAYER_ID, ["==", ["get", "trackId"], NO_HOVER_TRACK_ID]);
+        }
+        map.getCanvas().style.cursor = "pointer";
+        return;
+      }
+
       if (pendingPlacementRef.current) {
         hoveredTrackIdRef.current = null;
         if (map.getLayer(TRACKS_HOVER_LAYER_ID)) {
@@ -2462,6 +2471,11 @@ export function RouteMapApp({
     map.keyboard.disable();
     map.doubleClickZoom.disable();
     map.touchZoomRotate.disable();
+    hoveredTrackIdRef.current = null;
+    if (map.getLayer(TRACKS_HOVER_LAYER_ID)) {
+      map.setFilter(TRACKS_HOVER_LAYER_ID, ["==", ["get", "trackId"], NO_HOVER_TRACK_ID]);
+    }
+    map.getCanvas().style.cursor = "pointer";
   }, [viewMode, mapReadyVersion]);
 
   useEffect(() => {
@@ -2780,13 +2794,18 @@ export function RouteMapApp({
       return;
     }
 
+    if (viewMode !== "expanded") {
+      map.getCanvas().style.cursor = "pointer";
+      return;
+    }
+
     if (pendingPlacement) {
       map.getCanvas().style.cursor = "crosshair";
       return;
     }
 
     map.getCanvas().style.cursor = hoveredTrackIdRef.current ? "pointer" : "";
-  }, [mapReadyVersion, pendingPlacement]);
+  }, [mapReadyVersion, pendingPlacement, viewMode]);
 
   useEffect(() => {
     const map = mapRef.current;
