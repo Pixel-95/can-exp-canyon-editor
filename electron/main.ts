@@ -517,10 +517,14 @@ async function resolveMapboxToken(runtimeRootDir: string): Promise<string | null
   return null;
 }
 
+function stripUtf8Bom(content: string): string {
+  return content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
+}
+
 async function loadJsonFromFile(filePath: string): Promise<LoadJsonResult> {
   try {
     const jsonString = await readFile(filePath, "utf8");
-    const parsed = JSON.parse(jsonString) as unknown;
+    const parsed = JSON.parse(stripUtf8Bom(jsonString)) as unknown;
     return {
       canceled: false,
       filePath,
@@ -751,7 +755,7 @@ ipcMain.handle(
 
       try {
         const raw = await readFile(absolutePath, "utf8");
-        const parsed = JSON.parse(raw) as unknown;
+        const parsed = JSON.parse(stripUtf8Bom(raw)) as unknown;
         entries.push({
           id: requestedTrack.id,
           kind: requestedTrack.kind,
