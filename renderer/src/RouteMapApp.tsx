@@ -5196,6 +5196,7 @@ export function RouteMapApp({
                 Provide valid JSON with exactly these keys: {STATIC_LANGUAGE_KEYS.join(", ")}.
               </p>
               <textarea
+                autoFocus
                 value={poiPasteModal.draft}
                 rows={12}
                 placeholder={LOCALIZED_JSON_PLACEHOLDER}
@@ -5239,6 +5240,7 @@ export function RouteMapApp({
                 Provide valid JSON with exactly these keys: {STATIC_LANGUAGE_KEYS.join(", ")}.
               </p>
               <textarea
+                autoFocus
                 value={parkingPasteModal.draft}
                 rows={12}
                 placeholder={LOCALIZED_JSON_PLACEHOLDER}

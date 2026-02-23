@@ -3143,6 +3143,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               Provide valid JSON with exactly these keys: {STATIC_LANGUAGE_KEYS.join(", ")}.
             </p>
             <textarea
+              autoFocus
               value={languagePasteDraft}
               rows={12}
               placeholder={LOCALIZED_JSON_PLACEHOLDER}
