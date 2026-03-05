@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, rename } from "node:fs/promises";
+import { mkdir, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import type { MultiTrackItemPayload, RoutePointPayload } from "./ipcTypes";
 
@@ -372,6 +372,21 @@ async function readDirectoryNames(directoryPath: string): Promise<Set<string>> {
   }
 }
 
+async function prunePictureFolders(options: {
+  picturesDirectory: string;
+  existingFolderNames: Iterable<string>;
+  preservedFolderNames: ReadonlySet<string>;
+}): Promise<void> {
+  const { picturesDirectory, existingFolderNames, preservedFolderNames } = options;
+  for (const folderName of existingFolderNames) {
+    if (folderName === "_cover" || preservedFolderNames.has(folderName)) {
+      continue;
+    }
+
+    await rm(path.join(picturesDirectory, folderName), { recursive: true, force: true });
+  }
+}
+
 function buildLegacySectionFolderCandidates(
   section: PictureSectionDescriptor,
   plannedFolderName: string,
@@ -548,18 +563,22 @@ export async function syncSectionPictureFolders(options: {
     previousPlannedFolderNames,
     existingFolderNames,
   });
-  const mappedSourceFolders = new Set(sourceFolderBySectionIndex.values());
-
-  const reservedFolderNames = new Set<string>();
-  for (const folderName of existingFolderNames) {
-    if (folderName === "_cover" || mappedSourceFolders.has(folderName)) {
-      continue;
+  const currentSectionIndexes = new Set(options.currentSections.map((section) => section.index));
+  const mappedSourceFoldersInUse = new Set<string>();
+  for (const [sectionIndex, folderName] of sourceFolderBySectionIndex.entries()) {
+    if (currentSectionIndexes.has(sectionIndex)) {
+      mappedSourceFoldersInUse.add(folderName);
     }
-
-    reservedFolderNames.add(folderName);
   }
 
-  const currentSectionFolderNames = planSectionPictureFolderNames(options.currentSections, reservedFolderNames);
+  await prunePictureFolders({
+    picturesDirectory,
+    existingFolderNames,
+    preservedFolderNames: mappedSourceFoldersInUse,
+  });
+
+  const existingFolderNamesAfterPrune = await readDirectoryNames(picturesDirectory);
+  const currentSectionFolderNames = planSectionPictureFolderNames(options.currentSections);
   const renameOperations: PictureFolderRenameOperation[] = [];
   const currentSectionOrder: number[] = [];
   for (let index = 0; index < options.currentSections.length; index += 1) {
@@ -579,7 +598,7 @@ export async function syncSectionPictureFolders(options: {
     });
   }
 
-  const occupiedFolderNames = new Set(existingFolderNames);
+  const occupiedFolderNames = new Set(existingFolderNamesAfterPrune);
   await applyPictureFolderRenames({
     picturesDirectory,
     renameOperations,

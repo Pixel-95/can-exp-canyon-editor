@@ -46,7 +46,7 @@ test("syncSectionPictureFolders creates required structure for all sections", as
   });
 });
 
-test("syncSectionPictureFolders renames mapped section folders on save and preserves extras", async () => {
+test("syncSectionPictureFolders renames mapped section folders on save and prunes extras", async () => {
   await withTempCanyon(async (canyonDirectory) => {
     const picturesDirectory = path.join(canyonDirectory, "pictures");
     await mkdir(path.join(picturesDirectory, "Alpha", "Original", "cover"), { recursive: true });
@@ -78,7 +78,7 @@ test("syncSectionPictureFolders renames mapped section folders on save and prese
     const alphaMarker = await readFile(path.join(picturesDirectory, "Alpha", "marker.txt"), "utf8");
     assert.equal(betaMarker, "alpha");
     assert.equal(alphaMarker, "beta");
-    assert.equal(existsSync(path.join(picturesDirectory, "legacy_extra")), true);
+    assert.equal(existsSync(path.join(picturesDirectory, "legacy_extra")), false);
     await assertDirectoryExists(path.join(picturesDirectory, "_cover", "Original"));
   });
 });
@@ -102,7 +102,7 @@ test("syncSectionPictureFolders creates pictures folder when missing", async () 
   });
 });
 
-test("syncSectionPictureFolders avoids overriding unrelated existing folders", async () => {
+test("syncSectionPictureFolders prunes unrelated existing folders and keeps canonical names", async () => {
   await withTempCanyon(async (canyonDirectory) => {
     const picturesDirectory = path.join(canyonDirectory, "pictures");
     await mkdir(path.join(picturesDirectory, "Part1"), { recursive: true });
@@ -113,9 +113,35 @@ test("syncSectionPictureFolders avoids overriding unrelated existing folders", a
       previousSections: null,
     });
 
-    assert.deepEqual(result.sectionFolderNames, ["Part1_02"]);
-    await assertDirectoryExists(path.join(picturesDirectory, "Part1"));
-    await assertDirectoryExists(path.join(picturesDirectory, "Part1_02", "Original", "cover"));
-    await assertDirectoryExists(path.join(picturesDirectory, "Part1_02", "Original", "additional"));
+    assert.deepEqual(result.sectionFolderNames, ["Part1"]);
+    await assertDirectoryExists(path.join(picturesDirectory, "Part1", "Original", "cover"));
+    await assertDirectoryExists(path.join(picturesDirectory, "Part1", "Original", "additional"));
+  });
+});
+
+test("syncSectionPictureFolders removes old folders for deleted sections", async () => {
+  await withTempCanyon(async (canyonDirectory) => {
+    const picturesDirectory = path.join(canyonDirectory, "pictures");
+    await mkdir(path.join(picturesDirectory, "Alpha", "Original", "cover"), { recursive: true });
+    await mkdir(path.join(picturesDirectory, "Alpha", "Original", "additional"), { recursive: true });
+    await mkdir(path.join(picturesDirectory, "Beta", "Original", "cover"), { recursive: true });
+    await mkdir(path.join(picturesDirectory, "Beta", "Original", "additional"), { recursive: true });
+
+    await writeFile(path.join(picturesDirectory, "Alpha", "marker.txt"), "alpha", "utf8");
+    await writeFile(path.join(picturesDirectory, "Beta", "marker.txt"), "beta", "utf8");
+
+    const result = await syncSectionPictureFolders({
+      canyonDirectory,
+      previousSections: [
+        { index: 0, sectionId: 0, name: "Alpha" },
+        { index: 1, sectionId: 1, name: "Beta" },
+      ],
+      currentSections: [{ index: 0, sectionId: 0, name: "Gamma" }],
+    });
+
+    assert.deepEqual(result.sectionFolderNames, ["Gamma"]);
+    assert.equal(existsSync(path.join(picturesDirectory, "Beta")), false);
+    assert.equal(await readFile(path.join(picturesDirectory, "Gamma", "marker.txt"), "utf8"), "alpha");
+    await assertDirectoryExists(path.join(picturesDirectory, "_cover", "Original"));
   });
 });
