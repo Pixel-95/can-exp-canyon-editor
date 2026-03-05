@@ -245,7 +245,6 @@ test("section fields enforce author, numeric, ropes, and section-track requireme
   };
   section.max_rappel_in_meter = 0;
   section.recommended_ropes = "  2X   0m ";
-  section.catchment_area_in_km2 = null;
 
   const snapshot = createValidTrackSnapshot();
   snapshot.tracks[0] = {
@@ -263,27 +262,16 @@ test("section fields enforce author, numeric, ropes, and section-track requireme
   assert.equal(getNodeStatus(tree, "section/0/durations/canyon"), "missing");
   assert.equal(getNodeStatus(tree, "section/0/max-rappel"), "missing");
   assert.equal(getNodeStatus(tree, "section/0/recommended-ropes"), "missing");
-  assert.equal(getNodeStatus(tree, "section/0/catchment-area"), "missing");
   assert.equal(getNodeStatus(tree, "section/0/track"), "missing");
 });
 
-test("catchment area is present when set to 0 and missing when null", () => {
+test("catchment area is not part of the required checklist", () => {
   const canyonData = createValidCanyonData();
-  const section = (canyonData.sections as Array<Record<string, unknown>>)[0];
-  section.catchment_area_in_km2 = null;
-
-  const treeWhenNull = buildRequiredDataChecklist({
+  const tree = buildRequiredDataChecklist({
     canyonData,
     trackSnapshot: createValidTrackSnapshot(),
   });
-  assert.equal(getNodeStatus(treeWhenNull, "section/0/catchment-area"), "missing");
-
-  section.catchment_area_in_km2 = 0;
-  const treeWhenZero = buildRequiredDataChecklist({
-    canyonData,
-    trackSnapshot: createValidTrackSnapshot(),
-  });
-  assert.equal(getNodeStatus(treeWhenZero, "section/0/catchment-area"), "present");
+  assert.equal(findNode(tree, "section/0/catchment-area"), null);
 });
 
 test("topo validity requires /topos path and image extension", () => {
@@ -340,5 +328,4 @@ test("normalized missing-key defaults are treated as missing in checklist", () =
   assert.equal(getNodeStatus(tree, "canyon/overview"), "missing");
   assert.equal(getNodeStatus(tree, "canyon/location/country"), "missing");
   assert.equal(getNodeStatus(tree, "section/0/recommended-ropes"), "missing");
-  assert.equal(getNodeStatus(tree, "section/0/catchment-area"), "missing");
 });
