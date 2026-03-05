@@ -1428,7 +1428,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       const visibleCount = Math.min(invalidTopoSections.length, 4);
       const listedSections = invalidTopoSections.slice(0, visibleCount).join(", ");
       const hiddenCount = Math.max(0, invalidTopoSections.length - visibleCount);
-      const warningMessage = `Invalid topo path in ${listedSections}${hiddenCount > 0 ? ` (+${hiddenCount} more)` : ""}. Use /topos/*.webp|png|jpg|jpeg.`;
+      const warningMessage = `Invalid topo path in ${listedSections}${hiddenCount > 0 ? ` (+${hiddenCount} more)` : ""}. Use ./topos/*.webp|png|jpg|jpeg.`;
       setStatusMessage(warningMessage);
       setTopoWarningMessage(warningMessage);
       return;
@@ -1784,13 +1784,13 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       const normalizedRelativePath = relativePath.replace(/\\/g, "/");
       if (!normalizedRelativePath.startsWith("./topos/")) {
         setPathValue(path, "");
-        const warningMessage = "Invalid topo selection. The image must be located in the /topos folder.";
+        const warningMessage = "Invalid topo selection. The image must be located in the ./topos folder.";
         setStatusMessage(warningMessage);
         setTopoWarningMessage(warningMessage);
         return;
       }
 
-      const storedTopoPath = `/${normalizedRelativePath.slice(2)}`;
+      const storedTopoPath = normalizedRelativePath;
       setPathValue(path, storedTopoPath);
     },
     [baseDirectory, setPathValue, setStatusMessage, topoDefaultDirectory],

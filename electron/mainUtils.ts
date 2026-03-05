@@ -296,7 +296,20 @@ export function normalizeSectionTopoForSave(value: unknown): string | null {
     return null;
   }
 
-  return value.trim() ? value : null;
+  const normalized = value.replace(/\\/g, "/").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.startsWith("./topos/")) {
+    return normalized;
+  }
+
+  if (normalized.startsWith("/topos/")) {
+    return `.${normalized}`;
+  }
+
+  return normalized;
 }
 
 export function toCoordinatePair(value: unknown): [number, number] | null {

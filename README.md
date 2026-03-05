@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://canyon-explore.com/"><strong>Canyon Explore</strong></a>
+  <a href="https://canyon-explore.com/"><strong>Website 🔗</strong></a>
 </p>
 
 <p align="center">

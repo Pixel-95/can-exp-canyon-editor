@@ -63,7 +63,9 @@ test("normalizeSectionTopoForSave returns null for unset topo values", () => {
   assert.equal(normalizeSectionTopoForSave("   "), null);
   assert.equal(normalizeSectionTopoForSave(null), null);
   assert.equal(normalizeSectionTopoForSave(undefined), null);
+  assert.equal(normalizeSectionTopoForSave("/topos/example.webp"), "./topos/example.webp");
   assert.equal(normalizeSectionTopoForSave("./topos/example.webp"), "./topos/example.webp");
+  assert.equal(normalizeSectionTopoForSave("\\topos\\example.webp"), "./topos/example.webp");
 });
 
 test("normalizeRoutePoints keeps boundary/waypoint contract", () => {
