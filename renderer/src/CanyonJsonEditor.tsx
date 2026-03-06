@@ -2,6 +2,7 @@
 import type { WheelEvent as ReactWheelEvent } from "react";
 import { RouteMapApp, type TrackBindings, type TrackSnapshot } from "./RouteMapApp";
 import { buildTrackBindings, withSectionTourDimensionsFromTracks } from "./json-editor/trackUtils";
+import { buildLocationFallbackQuery } from "./shared/locationFallback";
 import { normalizeTrackLink } from "./shared/trackLinks";
 import { parseCommandsToCopyFromAsset, type CommandToCopy } from "./shared/commandsToCopy";
 import { parsePoiSuggestionsFromAsset, type PoiSuggestionPreset } from "./shared/poiSuggestions";
@@ -922,9 +923,24 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     const countryValue = valueAtPath(canyonData, ["location", "country_code"]);
     return typeof countryValue === "string" ? countryValue : "";
   }, [canyonData]);
-  const selectedCountryRegions = useMemo(() => {
-    return countryByCode.get(selectedCountryCode)?.regions ?? [];
+  const selectedCountry = useMemo(() => {
+    return countryByCode.get(selectedCountryCode) ?? null;
   }, [countryByCode, selectedCountryCode]);
+  const selectedCountryRegions = useMemo(() => {
+    return selectedCountry?.regions ?? [];
+  }, [selectedCountry]);
+  const selectedRegionCode = useMemo(() => {
+    if (!canyonData) {
+      return "";
+    }
+
+    const regionValue = valueAtPath(canyonData, ["location", "region_code"]);
+    return typeof regionValue === "string" ? regionValue : "";
+  }, [canyonData]);
+  const locationFallbackQuery = useMemo(() => {
+    const selectedRegionName = selectedCountryRegions.find((region) => region.code === selectedRegionCode)?.name ?? "";
+    return buildLocationFallbackQuery(selectedCountry?.name ?? "", selectedRegionName);
+  }, [selectedCountry, selectedCountryRegions, selectedRegionCode]);
   const overviewCoordinate = useMemo(() => {
     if (!canyonData) {
       return null;
@@ -1288,25 +1304,19 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       return;
     }
 
-    const selectedCountry = countryByCode.get(selectedCountryCode);
     if (!selectedCountry) {
       return;
     }
 
-    const regionValue = valueAtPath(canyonData, ["location", "region_code"]);
-    if (typeof regionValue !== "string") {
-      return;
-    }
-
-    if (!regionValue) {
+    if (!selectedRegionCode) {
       return;
     }
 
     const validRegionCodes = new Set(selectedCountry.regions.map((region) => region.code));
-    if (!validRegionCodes.has(regionValue)) {
+    if (!validRegionCodes.has(selectedRegionCode)) {
       setPathValue(["location", "region_code"], "");
     }
-  }, [canyonData, countryByCode, selectedCountryCode, setPathValue]);
+  }, [canyonData, selectedCountry, selectedCountryCode, selectedRegionCode, setPathValue]);
 
   const onLoadJson = useCallback(async (): Promise<void> => {
     const result = await window.api.loadJsonFromDialog();
@@ -2490,6 +2500,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               trackBindings={trackBindings}
               trackSnapshot={trackSnapshot}
               onTrackSnapshotChange={onTrackSnapshotChange}
+              locationFallbackQuery={locationFallbackQuery}
             />
           );
 

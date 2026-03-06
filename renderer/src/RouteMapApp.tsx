@@ -47,6 +47,7 @@ import {
   isUnsavedNewAccessTrack,
   shouldReuseHydratedTrackForBinding,
 } from "./shared/trackSnapshotState";
+import { getLocationFallbackDecision } from "./shared/locationFallback";
 import type { PoiSuggestionPreset } from "./shared/poiSuggestions";
 
 type Coordinate = [number, number];
@@ -131,6 +132,8 @@ type GeocodingResponse = {
   message?: string;
   features?: GeocodingFeature[];
 };
+
+type LocationSearchMode = "manual" | "automatic";
 
 type InsertMenuOption = {
   key: string;
@@ -266,6 +269,7 @@ type RouteMapAppProps = {
   trackBindings?: TrackBindings | null;
   trackSnapshot?: TrackSnapshot | null;
   onTrackSnapshotChange?: (snapshot: TrackSnapshot) => void;
+  locationFallbackQuery?: string;
 };
 
 const STATIC_LANGUAGE_KEYS = ["de", "en", "es", "fr", "it", "pt"] as const;
@@ -295,6 +299,42 @@ const MAP_STYLE_BY_MODE: Record<MapStyleMode, string> = {
 
 function getAccessTrackLineColor(mapStyleMode: MapStyleMode): string {
   return mapStyleMode === "satellite" ? "#FFFFFF" : "#000000";
+}
+
+function moveMapToGeocodingFeature(map: mapboxgl.Map, feature: GeocodingFeature): boolean {
+  if (
+    !Array.isArray(feature.center) ||
+    feature.center.length < 2 ||
+    !Number.isFinite(feature.center[0]) ||
+    !Number.isFinite(feature.center[1])
+  ) {
+    return false;
+  }
+
+  const coordinate: Coordinate = [feature.center[0], feature.center[1]];
+  if (
+    Array.isArray(feature.bbox) &&
+    feature.bbox.length === 4 &&
+    feature.bbox.every((value) => Number.isFinite(value))
+  ) {
+    const [west, south, east, north] = feature.bbox;
+    if (west <= east && south <= north) {
+      map.fitBounds(new mapboxgl.LngLatBounds([west, south], [east, north]), {
+        padding: 80,
+        duration: 950,
+        maxZoom: 15,
+      });
+      return true;
+    }
+  }
+
+  map.flyTo({
+    center: coordinate,
+    zoom: Math.max(14, map.getZoom()),
+    duration: 950,
+    essential: true,
+  });
+  return true;
 }
 
 function TrashIcon({ className = "icon-trash" }: { className?: string }): JSX.Element {
@@ -876,6 +916,7 @@ export function RouteMapApp({
   trackBindings = null,
   trackSnapshot = null,
   onTrackSnapshotChange,
+  locationFallbackQuery = "",
 }: RouteMapAppProps): JSX.Element {
   const initialTrackState = hydrateTrackStateFromSnapshot(trackSnapshot);
   const initialActiveTrack =
@@ -906,6 +947,7 @@ export function RouteMapApp({
   const bindingsHydratedRef = useRef(false);
   const newAccessTrackCounterRef = useRef(initialTrackState.newAccessTrackCounter);
   const autoViewportAppliedForKeyRef = useRef<string>("");
+  const locationFallbackAppliedKeyRef = useRef<string>("");
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const searchDebounceTimeoutRef = useRef<number | null>(null);
   const pointsOfInterestRef = useRef<PointOfInterest[]>(pointsOfInterest);
@@ -1499,6 +1541,9 @@ export function RouteMapApp({
     trackOrder,
     tracksById,
   ]);
+  const hasViewportCoordinates = useMemo(() => {
+    return collectViewportCoordinates().length > 0;
+  }, [collectViewportCoordinates]);
 
   const zoomToCanyonBounds = useCallback(
     (durationMs = 850): boolean => {
@@ -1700,33 +1745,42 @@ export function RouteMapApp({
   }, []);
 
   const runLocationSearch = useCallback(
-    async (rawQuery: string): Promise<void> => {
+    async (rawQuery: string, mode: LocationSearchMode = "manual"): Promise<boolean> => {
       const query = rawQuery.trim();
+      const isManualSearch = mode === "manual";
       if (!query) {
-        setSearchErrorMessage("Enter a location first.");
-        return;
+        if (isManualSearch) {
+          setSearchErrorMessage("Enter a location first.");
+        }
+        return false;
       }
 
       if (!mapboxToken) {
-        setSearchErrorMessage("Map search unavailable: missing Mapbox token.");
-        return;
+        if (isManualSearch) {
+          setSearchErrorMessage("Map search unavailable: missing Mapbox token.");
+        }
+        return false;
       }
 
       const map = mapRef.current;
       if (!map) {
-        setSearchErrorMessage("Map is not ready yet.");
-        return;
+        if (isManualSearch) {
+          setSearchErrorMessage("Map is not ready yet.");
+        }
+        return false;
       }
 
       searchAbortControllerRef.current?.abort();
       const controller = new AbortController();
       searchAbortControllerRef.current = controller;
-      setIsSearching(true);
-      setSearchErrorMessage("");
+      if (isManualSearch) {
+        setIsSearching(true);
+        setSearchErrorMessage("");
+      }
 
       try {
         const encodedQuery = encodeURIComponent(query);
-        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedQuery}.json?limit=1&types=place,locality,neighborhood,address,poi&access_token=${encodeURIComponent(mapboxToken)}`;
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedQuery}.json?limit=1&types=country,region,place,locality,neighborhood,address,poi&access_token=${encodeURIComponent(mapboxToken)}`;
         const response = await fetch(url, { signal: controller.signal });
         const payload = (await response.json()) as GeocodingResponse;
         if (!response.ok) {
@@ -1734,64 +1788,34 @@ export function RouteMapApp({
         }
 
         const bestMatch = Array.isArray(payload.features) ? payload.features[0] : null;
-        if (
-          !bestMatch ||
-          !Array.isArray(bestMatch.center) ||
-          bestMatch.center.length < 2 ||
-          !Number.isFinite(bestMatch.center[0]) ||
-          !Number.isFinite(bestMatch.center[1])
-        ) {
-          setSearchErrorMessage(`No location found for "${query}".`);
-          return;
-        }
-
-        const coordinate: Coordinate = [bestMatch.center[0], bestMatch.center[1]];
-
-        if (
-          Array.isArray(bestMatch.bbox) &&
-          bestMatch.bbox.length === 4 &&
-          bestMatch.bbox.every((value) => Number.isFinite(value))
-        ) {
-          const [west, south, east, north] = bestMatch.bbox;
-          if (west <= east && south <= north) {
-            map.fitBounds(
-              new mapboxgl.LngLatBounds([west, south], [east, north]),
-              {
-                padding: 80,
-                duration: 950,
-                maxZoom: 15,
-              },
-            );
-          } else {
-            map.flyTo({
-              center: coordinate,
-              zoom: Math.max(14, map.getZoom()),
-              duration: 950,
-              essential: true,
-            });
+        if (!bestMatch || !moveMapToGeocodingFeature(map, bestMatch)) {
+          if (isManualSearch) {
+            setSearchErrorMessage(`No location found for "${query}".`);
           }
-        } else {
-          map.flyTo({
-            center: coordinate,
-            zoom: Math.max(14, map.getZoom()),
-            duration: 950,
-            essential: true,
-          });
+          return false;
         }
 
-        setSearchErrorMessage("");
+        if (isManualSearch) {
+          setSearchErrorMessage("");
+        }
+        return true;
       } catch (error) {
         if (controller.signal.aborted) {
-          return;
+          return false;
         }
 
-        const message = formatError(error);
-        setSearchErrorMessage(message ? `Search failed: ${message}` : "Search failed.");
+        if (isManualSearch) {
+          const message = formatError(error);
+          setSearchErrorMessage(message ? `Search failed: ${message}` : "Search failed.");
+        }
+        return false;
       } finally {
         if (searchAbortControllerRef.current === controller) {
           searchAbortControllerRef.current = null;
         }
-        setIsSearching(false);
+        if (isManualSearch) {
+          setIsSearching(false);
+        }
       }
     },
     [mapboxToken],
@@ -2845,6 +2869,47 @@ export function RouteMapApp({
     trackOrder,
     viewMode,
     zoomToCanyonBounds,
+  ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    const expectedTrackCount = (trackBindings?.sections.length ?? 0) + (trackBindings?.access.length ?? 0);
+    if (expectedTrackCount > 0) {
+      if (!bindingsHydratedRef.current) {
+        return;
+      }
+
+      if (trackOrder.length < expectedTrackCount) {
+        return;
+      }
+    }
+
+    const decision = getLocationFallbackDecision({
+      canyonFilePath: trackBindings?.canyonFilePath ?? null,
+      query: locationFallbackQuery,
+      hasViewportCoordinates,
+      lastAppliedKey: locationFallbackAppliedKeyRef.current,
+    });
+    if (!decision.shouldRun) {
+      locationFallbackAppliedKeyRef.current = decision.nextAppliedKey;
+      return;
+    }
+
+    locationFallbackAppliedKeyRef.current = decision.nextAppliedKey;
+    void runLocationSearch(decision.normalizedQuery, "automatic");
+  }, [
+    hasViewportCoordinates,
+    locationFallbackQuery,
+    mapReadyVersion,
+    runLocationSearch,
+    trackBindings?.access.length,
+    trackBindings?.canyonFilePath,
+    trackBindings?.sections.length,
+    trackOrder.length,
   ]);
 
   useEffect(() => {
