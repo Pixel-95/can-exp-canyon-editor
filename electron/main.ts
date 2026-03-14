@@ -9,6 +9,7 @@ import {
   getCanyonFolderPath,
   getRuntimeRootDir,
   isObjectRecord,
+  resolveWritableCanyonDataDirectory,
   normalizeAbsolutePathForCompare,
   normalizeRoutePoints,
   normalizeSectionTopoForSave,
@@ -58,14 +59,34 @@ function normalizeSectionToposForSave(canyonData: Record<string, unknown>): void
   }
 }
 
-function getAppRuntimeRootDir(): string {
-  return getRuntimeRootDir({
+function getAppRuntimeOptions() {
+  return {
     isPackaged: app.isPackaged,
     platform: process.platform,
     cwd: process.cwd(),
     execPath: app.getPath("exe"),
     portableExecutableDir: process.env.PORTABLE_EXECUTABLE_DIR,
-  });
+  } as const;
+}
+
+function getAppRuntimeRootDir(): string {
+  return getRuntimeRootDir(getAppRuntimeOptions());
+}
+
+function resolveAppWritableDataDirectory() {
+  return resolveWritableCanyonDataDirectory(getAppRuntimeOptions());
+}
+
+async function ensureAppWritableDataDirectory(): Promise<string> {
+  const resolved = resolveAppWritableDataDirectory();
+  if (resolved.unavailableReason) {
+    throw new Error(
+      `${resolved.unavailableReason} Remove the quarantine attribute from the extracted macOS folder or launch a non-translocated copy of the app.`,
+    );
+  }
+
+  await mkdir(resolved.dataDirectory, { recursive: true });
+  return resolved.dataDirectory;
 }
 
 function resolveWindowIconPath(): string | undefined {
@@ -327,7 +348,8 @@ async function resolveJsonTargetPath(
   let targetPath = currentFilePath?.trim() ? normalizeToDataJsonPath(currentFilePath.trim()) : "";
 
   if (!targetPath) {
-    const fallbackDir = currentFilePath ? path.dirname(currentFilePath) : getAppRuntimeRootDir();
+    const fallbackDir = currentFilePath ? path.dirname(currentFilePath) : await ensureAppWritableDataDirectory();
+
     const saveResult = await dialog.showSaveDialog(mainWindow, {
       title: "Save Canyon JSON",
       defaultPath: path.join(fallbackDir, CANYON_JSON_FILENAME),
@@ -615,6 +637,10 @@ async function loadJsonFromFile(filePath: string): Promise<LoadJsonResult> {
   }
 }
 
+async function ensureParentDirectory(filePath: string): Promise<void> {
+  await mkdir(path.dirname(filePath), { recursive: true });
+}
+
 process.on("unhandledRejection", (reason) => {
   console.error("Unhandled rejection in main process:", reason);
 });
@@ -727,15 +753,16 @@ ipcMain.handle(
       };
     }
 
-    const folderPath = getCanyonFolderPath(getAppRuntimeRootDir(), rawName);
-    if (existsSync(folderPath)) {
-      return {
-        canceled: false,
-        error: `Target folder already exists: ${folderPath}`,
-      };
-    }
-
     try {
+      const baseDataDirectory = await ensureAppWritableDataDirectory();
+      const folderPath = getCanyonFolderPath(baseDataDirectory, rawName);
+      if (existsSync(folderPath)) {
+        return {
+          canceled: false,
+          error: `Target folder already exists: ${folderPath}`,
+        };
+      }
+
       await mkdir(folderPath, { recursive: true });
       await Promise.all([
         mkdir(path.join(folderPath, "topos"), { recursive: true }),
@@ -775,6 +802,7 @@ ipcMain.handle("json:save", async (_event, request: SaveJsonRequest): Promise<Sa
   }
 
   try {
+    await ensureParentDirectory(target.filePath);
     await writeFile(target.filePath, request.jsonString, "utf8");
     return {
       canceled: false,
@@ -899,6 +927,7 @@ ipcMain.handle(
       const tracksAccessValue = Array.isArray(nextData.tracks_access) ? nextData.tracks_access : [];
       const currentSections = extractSectionPictureDescriptors(nextData);
 
+      await mkdir(targetJsonDirectory, { recursive: true });
       await syncSectionPictureFolders({
         canyonDirectory: targetJsonDirectory,
         currentSections,

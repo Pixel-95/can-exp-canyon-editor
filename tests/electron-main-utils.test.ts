@@ -4,14 +4,17 @@ import path from "node:path";
 
 import {
   PictureSectionDescriptor,
+  getCanyonDataDirectory,
   planSectionPictureFolderNames,
   sanitizeSectionPictureFolderName,
   getCanyonFolderPath,
   getRuntimeRootDir,
+  isMacAppTranslocatedPath,
   normalizeRoutePoints,
   normalizeSectionTopoForSave,
   normalizeTrackLink,
   parseAccessTrackIndex,
+  resolveWritableCanyonDataDirectory,
   resolveTrackPersistenceMode,
   sanitizeFileName,
   sanitizeFolderName,
@@ -136,11 +139,49 @@ test("toAbsolutePath uses runtime root for relative paths", () => {
   );
 });
 
-test("new canyon folder path resolves into runtime root data directory", () => {
-  assert.equal(
-    getCanyonFolderPath("/portable-root", "My Canyon"),
-    path.normalize(path.join("/portable-root", "data", "My_Canyon")),
+test("new canyon folder path resolves into portable sibling data directory", () => {
+  const baseDataDirectory = getCanyonDataDirectory(
+    "/portable-root",
   );
+
+  assert.equal(
+    baseDataDirectory,
+    path.normalize("/portable-root/data"),
+  );
+
+  assert.equal(
+    getCanyonFolderPath(baseDataDirectory, "My Canyon"),
+    path.normalize(path.join(baseDataDirectory, "My_Canyon")),
+  );
+});
+
+test("macOS AppTranslocation is detected for sibling data storage", () => {
+  assert.equal(
+    isMacAppTranslocatedPath(
+      "/private/var/folders/ab/cd/T/AppTranslocation/12345/d/Canyon Editor.app/Contents/MacOS/Canyon Editor",
+    ),
+    true,
+  );
+
+  assert.equal(
+    isMacAppTranslocatedPath("/Applications/Canyon Editor.app/Contents/MacOS/Canyon Editor"),
+    false,
+  );
+});
+
+test("resolveWritableCanyonDataDirectory flags translocated macOS launches", () => {
+  const resolved = resolveWritableCanyonDataDirectory({
+    isPackaged: true,
+    platform: "darwin",
+    cwd: "/Users/dev/repo/canyon-editor",
+    execPath: "/private/var/folders/ab/cd/T/AppTranslocation/12345/d/Canyon Editor.app/Contents/MacOS/Canyon Editor",
+  });
+
+  assert.equal(
+    resolved.dataDirectory,
+    path.normalize("/private/var/folders/ab/cd/T/AppTranslocation/12345/d/data"),
+  );
+  assert.equal(typeof resolved.unavailableReason, "string");
 });
 
 test("trackHasPersistableContent detects route point and geometry coordinates", () => {

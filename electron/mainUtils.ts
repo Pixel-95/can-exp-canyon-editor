@@ -67,11 +67,44 @@ export function getRuntimeRootDir(options: RuntimeRootOptions): string {
 }
 
 export function getCanyonDataDirectory(runtimeRootDir: string): string {
-  return path.join(runtimeRootDir, "data");
+  return path.join(path.normalize(runtimeRootDir), "data");
 }
 
-export function getCanyonFolderPath(runtimeRootDir: string, canyonName: string): string {
-  return path.join(getCanyonDataDirectory(runtimeRootDir), sanitizeFolderName(canyonName));
+export function getCanyonFolderPath(baseDataDirectory: string, canyonName: string): string {
+  return path.join(path.normalize(baseDataDirectory), sanitizeFolderName(canyonName));
+}
+
+export type WritableCanyonDataDirectoryResolution = {
+  dataDirectory: string;
+  unavailableReason?: string;
+};
+
+export function isMacAppTranslocatedPath(executablePath: string): boolean {
+  const normalized = path.normalize(executablePath).replace(/\\/g, "/");
+  return normalized.includes("/AppTranslocation/");
+}
+
+export function resolveWritableCanyonDataDirectory(
+  options: RuntimeRootOptions,
+): WritableCanyonDataDirectoryResolution {
+  const dataDirectory = getCanyonDataDirectory(getRuntimeRootDir(options));
+  if (
+    options.isPackaged &&
+    options.platform === "darwin" &&
+    !(options.portableExecutableDir && options.portableExecutableDir.trim()) &&
+    isMacAppTranslocatedPath(options.execPath)
+  ) {
+    return {
+      dataDirectory,
+      // This app intentionally stores canyon data in a sibling data folder next
+      // to the app. On macOS that layout only works when the app is launched
+      // from its real writable location, not from an AppTranslocation mount.
+      unavailableReason:
+        "Canyon data is configured to live in the sibling data folder next to the app, but macOS launched the app through AppTranslocation.",
+    };
+  }
+
+  return { dataDirectory };
 }
 
 export function toAbsolutePath(requestedPath: string, baseDir = process.cwd()): string {

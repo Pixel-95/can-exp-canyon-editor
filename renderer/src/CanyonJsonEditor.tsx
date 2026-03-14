@@ -3216,7 +3216,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               </button>
             </div>
             <p className="json-modal-help">
-              Enter the canyon name. A new folder will be created in <code>data/</code>.
+              Enter the canyon name. A new folder will be created in <code>data/</code> next to the app.
             </p>
             <div className="json-input-field">
               <label htmlFor="new-canyon-name-input">Canyon name</label>
