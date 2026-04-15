@@ -1,5 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { WheelEvent as ReactWheelEvent } from "react";
+import { createNewJsonTemplate } from "../../electron/canyonCore";
 import { RouteMapApp, type TrackBindings, type TrackSnapshot } from "./RouteMapApp";
 import { buildTrackBindings, withSectionTourDimensionsFromTracks } from "./json-editor/trackUtils";
 import { buildLocationFallbackQuery } from "./shared/locationFallback";
@@ -17,6 +18,7 @@ import {
   createEmptyLocalizedText,
   normalizeCanyonForEditor,
 } from "./json-editor/canyonSchemaDefaults";
+import type { EditorRuntime } from "./runtime/runtimeTypes";
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -44,6 +46,7 @@ type ParkingLot = {
   name: LocalizedText;
 };
 type CanyonJsonEditorProps = {
+  runtime: EditorRuntime;
   mapViewMode: "compact" | "expanded";
   onToggleMapView: () => void;
 };
@@ -856,7 +859,7 @@ function CopyIcon({ className = "icon-copy" }: { className?: string }): JSX.Elem
   );
 }
 
-export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEditorProps): JSX.Element {
+export function CanyonJsonEditor({ runtime, mapViewMode, onToggleMapView }: CanyonJsonEditorProps): JSX.Element {
   const trackSnapshotRef = useRef<TrackSnapshot | null>(null);
   const previousRequiredChecklistStatusByIdRef = useRef<Record<string, ChecklistStatus>>({});
   const copiedCommandTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -971,8 +974,9 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       buildRequiredDataChecklist({
         canyonData,
         trackSnapshot,
+        includeTopo: runtime.kind !== "web",
       }),
-    [canyonData, trackSnapshot],
+    [canyonData, runtime.kind, trackSnapshot],
   );
   const { requiredChecklistStatusById, requiredChecklistLeafTotal, requiredChecklistLeafPresent } = useMemo(() => {
     const statusById: Record<string, ChecklistStatus> = {};
@@ -1161,17 +1165,17 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     let canceled = false;
 
     async function loadPoiSuggestions(): Promise<void> {
-      const result = await window.api.loadJsonFromPath(POI_SUGGESTIONS_ASSET_PATH);
+      const data = await runtime.loadStaticJsonAsset(POI_SUGGESTIONS_ASSET_PATH);
       if (canceled) {
         return;
       }
 
-      if (result.canceled || !result.data) {
+      if (!data) {
         setPoiSuggestions([]);
         return;
       }
 
-      setPoiSuggestions(parsePoiSuggestionsFromAsset(result.data));
+      setPoiSuggestions(parsePoiSuggestionsFromAsset(data));
     }
 
     void loadPoiSuggestions().catch(() => {
@@ -1183,22 +1187,22 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     return () => {
       canceled = true;
     };
-  }, []);
+  }, [runtime]);
 
   useEffect(() => {
     let canceled = false;
 
     async function loadParkingLotSuggestions(): Promise<void> {
-      const result = await window.api.loadJsonFromPath(PARKING_LOT_SUGGESTIONS_ASSET_PATH);
+      const data = await runtime.loadStaticJsonAsset(PARKING_LOT_SUGGESTIONS_ASSET_PATH);
       if (canceled) {
         return;
       }
 
-      if (result.canceled || !result.data) {
+      if (!data) {
         return;
       }
 
-      setParkingLotSuggestions(parseParkingLotSuggestionsFromAsset(result.data));
+      setParkingLotSuggestions(parseParkingLotSuggestionsFromAsset(data));
     }
 
     void loadParkingLotSuggestions().catch(() => {
@@ -1210,23 +1214,23 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     return () => {
       canceled = true;
     };
-  }, []);
+  }, [runtime]);
 
   useEffect(() => {
     let canceled = false;
 
     async function loadCommandsToCopy(): Promise<void> {
-      const result = await window.api.loadJsonFromPath(COMMANDS_TO_COPY_ASSET_PATH);
+      const data = await runtime.loadStaticJsonAsset(COMMANDS_TO_COPY_ASSET_PATH);
       if (canceled) {
         return;
       }
 
-      if (result.canceled || !result.data) {
+      if (!data) {
         setCommandsToCopy([]);
         return;
       }
 
-      setCommandsToCopy(parseCommandsToCopyFromAsset(result.data));
+      setCommandsToCopy(parseCommandsToCopyFromAsset(data));
     }
 
     void loadCommandsToCopy().catch(() => {
@@ -1238,22 +1242,22 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     return () => {
       canceled = true;
     };
-  }, []);
+  }, [runtime]);
 
   useEffect(() => {
     let canceled = false;
 
     async function loadSpecialNotes(): Promise<void> {
-      const result = await window.api.loadJsonFromPath(SPECIAL_NOTES_ASSET_PATH);
+      const data = await runtime.loadStaticJsonAsset(SPECIAL_NOTES_ASSET_PATH);
       if (canceled) {
         return;
       }
 
-      if (result.canceled || !result.data) {
+      if (!data) {
         return;
       }
 
-      setSpecialNoteDefinitions(parseSpecialNoteDefinitions(result.data));
+      setSpecialNoteDefinitions(parseSpecialNoteDefinitions(data));
     }
 
     void loadSpecialNotes().catch(() => {
@@ -1265,22 +1269,22 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     return () => {
       canceled = true;
     };
-  }, []);
+  }, [runtime]);
 
   useEffect(() => {
     let canceled = false;
 
     async function loadCountries(): Promise<void> {
-      const result = await window.api.loadJsonFromPath(COUNTRY_ASSET_PATH);
+      const data = await runtime.loadStaticJsonAsset(COUNTRY_ASSET_PATH);
       if (canceled) {
         return;
       }
 
-      if (result.canceled || !result.data) {
+      if (!data) {
         return;
       }
 
-      const parsedCountries = parseCountriesFromAsset(result.data);
+      const parsedCountries = parseCountriesFromAsset(data);
       setCountries(parsedCountries);
     }
 
@@ -1293,7 +1297,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     return () => {
       canceled = true;
     };
-  }, []);
+  }, [runtime]);
 
   useEffect(() => {
     if (!canyonData) {
@@ -1319,9 +1323,9 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
   }, [canyonData, selectedCountry, selectedCountryCode, selectedRegionCode, setPathValue]);
 
   const onLoadJson = useCallback(async (): Promise<void> => {
-    const result = await window.api.loadJsonFromDialog();
+    const result = await runtime.openCanyonSource();
     if (result.canceled) {
-      setStatusMessage("Load canceled.");
+      setStatusMessage(runtime.kind === "web" ? "ZIP upload canceled." : "Load canceled.");
       return;
     }
 
@@ -1345,8 +1349,12 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     setRequiredChecklistExpansion({});
     setLanguageTabs({});
     dismissSaveFeedbackPopup();
-    setStatusMessage(result.filePath ?? "JSON file");
-  }, [dismissSaveFeedbackPopup]);
+    setStatusMessage(
+      runtime.kind === "web"
+        ? `Loaded canyon ZIP: ${result.filePath ?? "data.json"}`
+        : (result.filePath ?? "JSON file"),
+    );
+  }, [dismissSaveFeedbackPopup, runtime]);
 
   const onNewJson = useCallback((): void => {
     setIsNewCanyonModalOpen(true);
@@ -1366,22 +1374,18 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       return;
     }
 
-    const template = await window.api.createNewJsonTemplate(canyonName);
-    if (!isJsonObject(template)) {
-      setNewCanyonNameError("Could not create JSON template.");
-      return;
-    }
-
-    const nextData = createEmptyNewCanyonData(cloneJsonValue(template), canyonName);
+    const template = createNewJsonTemplate(canyonName);
+    const nextData = createEmptyNewCanyonData(cloneJsonValue(template) as JsonObject, canyonName);
     const initialSectionNames = Array.isArray(nextData.sections)
       ? nextData.sections.map((entry) =>
         isJsonObject(entry) && typeof entry.name === "string" ? entry.name : "",
       )
       : [];
 
-    const folderResult = await window.api.createCanyonFolder({
+    const folderResult = await runtime.createNewCanyonWorkspace({
       canyonName,
       initialSectionNames,
+      canyonData: nextData,
     });
     if (folderResult.error) {
       setNewCanyonNameError(folderResult.error);
@@ -1391,7 +1395,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     setCanyonData(normalizeCanyonForEditor(nextData));
     trackSnapshotRef.current = null;
     setTrackSnapshot(null);
-    setCurrentFilePath(folderResult.dataJsonPath ?? null);
+    setCurrentFilePath(folderResult.filePath ?? null);
     setValidationErrors({});
     setInputDrafts({});
     setCollapsedGroups({});
@@ -1400,8 +1404,12 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     dismissSaveFeedbackPopup();
     setIsNewCanyonModalOpen(false);
     setNewCanyonNameError("");
-    setStatusMessage(`Created new canyon folder: ${folderResult.folderPath ?? "data"}`);
-  }, [dismissSaveFeedbackPopup, newCanyonNameDraft]);
+    setStatusMessage(
+      runtime.kind === "web"
+        ? `Created new canyon ZIP workspace: ${folderResult.folderPath ?? folderResult.filePath ?? "canyon"}`
+        : `Created new canyon folder: ${folderResult.folderPath ?? "data"}`,
+    );
+  }, [dismissSaveFeedbackPopup, newCanyonNameDraft, runtime]);
 
   const onSaveJson = useCallback(async (): Promise<void> => {
     if (!canyonData) {
@@ -1433,7 +1441,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       trackSnapshot,
     );
 
-    const invalidTopoSections = collectInvalidTopoSections(canyonDataForSave);
+    const invalidTopoSections = runtime.kind === "web" ? [] : collectInvalidTopoSections(canyonDataForSave);
     if (invalidTopoSections.length > 0) {
       const visibleCount = Math.min(invalidTopoSections.length, 4);
       const listedSections = invalidTopoSections.slice(0, visibleCount).join(", ");
@@ -1447,17 +1455,19 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     const checklistForSave = buildRequiredDataChecklist({
       canyonData: canyonDataForSave,
       trackSnapshot,
+      includeTopo: runtime.kind !== "web",
     });
     const missingChecklistLeafPaths = collectMissingChecklistLeafPaths(checklistForSave);
 
     dismissSaveFeedbackPopup();
     setIsSaving(true);
     try {
-      const result = await window.api.saveCanyonWithTracks({
+      const result = await runtime.saveCanyonWorkspace({
         currentFilePath,
         canyonName: typeof canyonDataForSave.name === "string" ? canyonDataForSave.name : "canyon",
         canyonData: canyonDataForSave,
         trackSnapshot,
+        forceNullTopos: runtime.kind === "web",
       });
 
       if (result.canceled) {
@@ -1488,7 +1498,11 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
         return;
       }
 
-      setStatusMessage(`Saved ${result.filePath ?? "JSON file"}`);
+      setStatusMessage(
+        runtime.kind === "web"
+          ? `Downloaded ${result.downloadedFileName ?? "canyon.zip"}`
+          : `Saved ${result.filePath ?? "JSON file"}`,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected save error.";
       setStatusMessage(message);
@@ -1501,12 +1515,13 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     dismissSaveFeedbackPopup,
     showSaveFeedbackPopup,
     trackBindings,
+    runtime,
     validationErrors,
   ]);
 
   const onCopyCommand = useCallback(async (command: string, index: number): Promise<void> => {
     try {
-      await window.api.copyTextToClipboard(command);
+      await runtime.copyTextToClipboard(command);
       setCopiedCommandIndex(index);
 
       if (copiedCommandTimeoutRef.current) {
@@ -1521,7 +1536,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       const message = error instanceof Error ? error.message : "Unexpected clipboard error.";
       setStatusMessage(`Copy failed: ${message}`);
     }
-  }, []);
+  }, [runtime]);
 
   const onCommandStripWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>): void => {
     const container = event.currentTarget;
@@ -1779,7 +1794,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
         return;
       }
 
-      const result = await window.api.pickFile({
+      const result = await runtime.pickFile({
         baseDir: baseDirectory,
         defaultPath: topoDefaultDirectory,
         title: "Select topo file",
@@ -1803,7 +1818,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       const storedTopoPath = normalizedRelativePath;
       setPathValue(path, storedTopoPath);
     },
-    [baseDirectory, setPathValue, setStatusMessage, topoDefaultDirectory],
+    [baseDirectory, runtime, setPathValue, setStatusMessage, topoDefaultDirectory],
   );
 
   const onCountryCodeChange = useCallback(
@@ -2501,6 +2516,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               trackSnapshot={trackSnapshot}
               onTrackSnapshotChange={onTrackSnapshotChange}
               locationFallbackQuery={locationFallbackQuery}
+              runtime={runtime}
             />
           );
 
@@ -2767,7 +2783,10 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
         const maxRappelValue = isSectionPath(path) ? value.max_rappel_in_meter ?? null : null;
         const recommendedRopesValue = isSectionPath(path) ? value.recommended_ropes ?? null : null;
         const catchmentAreaValue = isSectionPath(path) ? value.catchment_area_in_km2 ?? null : null;
-        const topoValue = isSectionPath(path) && typeof value.topo === "string" ? value.topo : null;
+        const topoValue =
+          runtime.kind !== "web" && isSectionPath(path) && typeof value.topo === "string"
+            ? value.topo
+            : null;
         const maxRappelPath = isSectionPath(path) ? [...path, "max_rappel_in_meter"] : null;
         const maxRappelPathKey = maxRappelPath ? toPathKey(maxRappelPath) : "";
         const maxRappelDisplay =
@@ -2862,7 +2881,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
                 </div>
               </div>
             ) : null}
-            {isSectionPath(path) && topoValue !== null ? (
+            {isSectionPath(path) && runtime.kind !== "web" && topoValue !== null ? (
               <div className="json-field-row">
                 {renderNode(topoValue, [...path, "topo"], "topo")}
               </div>
@@ -2999,6 +3018,10 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       }
 
       if (isTopoPath(path)) {
+        if (runtime.kind === "web") {
+          return null;
+        }
+
         return (
           <div className="json-input-field">
             <label>{titleCase(label)}</label>
@@ -3052,6 +3075,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
       poiSuggestions,
       parkingLotSuggestions,
       trackBindings,
+      runtime,
       onNumberDraftChange,
       onNullableNumberDraftChange,
       onOverviewCoordinateSet,
@@ -3078,7 +3102,8 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
     ],
   );
 
-  const currentDataJsonLabel = currentFilePath ?? "No data.json loaded";
+  const currentDataJsonLabel =
+    currentFilePath ?? (runtime.kind === "web" ? "No canyon ZIP loaded" : "No data.json loaded");
 
   return (
     <div className="json-editor-shell">
@@ -3089,7 +3114,7 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               New canyon
             </button>
             <button type="button" onClick={() => void onLoadJson()}>
-              Load canyon
+              {runtime.kind === "web" ? "Upload canyon ZIP" : "Load canyon"}
             </button>
             <button type="button" disabled={!canyonData || isSaving} onClick={() => void onSaveJson()}>
               {isSaving ? "Saving..." : "Save canyon"}
@@ -3129,9 +3154,12 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
             </div>
           </section>
         </div>
-        <p className="json-current-file" title={currentDataJsonLabel}>
-          {currentDataJsonLabel}
-        </p>
+        <div className="json-toolbar-trailing">
+          <p className="json-current-file" title={currentDataJsonLabel}>
+            {currentDataJsonLabel}
+          </p>
+          {statusMessage ? <p className="json-status">{statusMessage}</p> : null}
+        </div>
       </header>
 
       {canyonData ? <section className="json-editor-body">{renderNode(canyonData, [], "Canyon")}</section> : null}
@@ -3216,7 +3244,9 @@ export function CanyonJsonEditor({ mapViewMode, onToggleMapView }: CanyonJsonEdi
               </button>
             </div>
             <p className="json-modal-help">
-              Enter the canyon name. A new folder will be created in <code>data/</code> next to the app.
+              {runtime.kind === "web"
+                ? "Enter the canyon name. Saving will download a canyon ZIP with this folder structure."
+                : "Enter the canyon name. A new folder will be created in data/ next to the app."}
             </p>
             <div className="json-input-field">
               <label htmlFor="new-canyon-name-input">Canyon name</label>

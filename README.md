@@ -32,9 +32,16 @@ Create routes with start, waypoint, and end points on the map, then export the c
 Run in development
 `npm run dev`
 
+Run web editor locally
+`npm run dev:web`
+
 Build Windows portable executable
 `npm run package:win`
 `npm run package:dist`
+
+Build static web editor
+`npm run build:web`
+`npm run preview:web`
 
 Build macOS app directory artifact (compatible with macOS 10.15 Catalina and newer)
 `npm run package:mac`
@@ -47,6 +54,48 @@ Build macOS ZIP artifact (Catalina compatible)
 Compatibility note:
 - This project is pinned to Electron 32.x so the app can run on macOS 10.15.6.
 - macOS packaging is forced to `x64` for Catalina support (`arm64` requires macOS 11+).
+
+## Web Editor
+The repo now also contains a browser-hosted version of the editor.
+
+- Local desktop app: `npm run dev`
+- Local web app: `npm run dev:web`
+- Local web URL: `http://localhost:5173/`
+- Web password: `morecanyons`
+- Default GitHub Pages URL: `https://pixel-95.github.io/can-exp-canyon-editor/`
+
+Behavior differences in the web version:
+- Existing canyons are loaded from a canyon ZIP, not from a loose `data.json`.
+- `Save canyon` downloads a ZIP of the full canyon folder.
+- Topo is hidden in the web UI and exported as `"topo": null`.
+
+### Mapbox token for web
+The web editor reads `VITE_MAPBOX_TOKEN` from the build environment.
+
+For local web development, set it in your shell before `npm run dev:web`, for example in PowerShell:
+
+```powershell
+$env:VITE_MAPBOX_TOKEN="your_public_mapbox_token"
+npm run dev:web
+```
+
+For GitHub Pages:
+- Open GitHub repository settings.
+- Go to `Settings -> Secrets and variables -> Actions -> Variables`.
+- Add a repository variable named `VITE_MAPBOX_TOKEN`.
+- Restrict that token in Mapbox to:
+  - `https://pixel-95.github.io/*`
+  - optionally `http://localhost:5173/*`
+
+### GitHub Pages deployment
+The workflow file is:
+`.github/workflows/deploy-web.yml`
+
+To enable deployment:
+1. Open your GitHub repository.
+2. Go to `Settings -> Pages`.
+3. Set `Source` to `GitHub Actions`.
+4. Push to `main` or run the workflow manually from `Actions -> Deploy Web Editor`.
 
 ## Build and Run macOS Artifact
 GitHub workflow file:

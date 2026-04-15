@@ -31,6 +31,7 @@ export type ChecklistBuildInput = {
   canyonData: JsonRecord | null;
   trackSnapshot: ChecklistTrackSnapshot | null;
   languages?: readonly LanguageCode[];
+  includeTopo?: boolean;
 };
 
 const DEFAULT_LANGUAGES: readonly LanguageCode[] = ["de", "en", "es", "fr", "it", "pt"];
@@ -159,6 +160,7 @@ function buildSectionNode(
   sectionIndex: number,
   sectionTrack: ChecklistTrack | null,
   languages: readonly LanguageCode[],
+  options: { includeTopo: boolean },
 ): ChecklistNode {
   const section = asObject(sectionValue) ?? {};
   const descriptions = asObject(section.descriptions) ?? {};
@@ -226,8 +228,11 @@ function buildSectionNode(
       "Track",
       Boolean(sectionTrack) && isTrackBoundaryComplete(sectionTrack?.routePoints ?? null),
     ),
-    createLeaf(`section/${sectionIndex}/topo`, "Topo", isValidTopoPath(section.topo)),
   ];
+
+  if (options.includeTopo) {
+    children.push(createLeaf(`section/${sectionIndex}/topo`, "Topo", isValidTopoPath(section.topo)));
+  }
 
   return createBranch(`section/${sectionIndex}`, sectionName, children);
 }
@@ -307,6 +312,7 @@ export function buildRequiredDataChecklist(input: ChecklistBuildInput): Checklis
   }
 
   const languages = input.languages && input.languages.length > 0 ? input.languages : DEFAULT_LANGUAGES;
+  const includeTopo = input.includeTopo !== false;
   const snapshotTracks = Array.isArray(trackSnapshot?.tracks) ? trackSnapshot.tracks : [];
   const sectionTracksByIndex = new Map<number, ChecklistTrack>();
   const accessTracks: ChecklistTrack[] = [];
@@ -364,7 +370,13 @@ export function buildRequiredDataChecklist(input: ChecklistBuildInput): Checklis
       createBranch("canyon/access", "Access track (at least one)", accessChildren),
     ]),
     ...sections.map((sectionValue, sectionIndex) =>
-      buildSectionNode(sectionValue, sectionIndex, sectionTracksByIndex.get(sectionIndex) ?? null, languages),
+      buildSectionNode(
+        sectionValue,
+        sectionIndex,
+        sectionTracksByIndex.get(sectionIndex) ?? null,
+        languages,
+        { includeTopo },
+      ),
     ),
   ];
 

@@ -49,6 +49,7 @@ import {
 } from "./shared/trackSnapshotState";
 import { getLocationFallbackDecision } from "./shared/locationFallback";
 import type { PoiSuggestionPreset } from "./shared/poiSuggestions";
+import type { EditorRuntime } from "./runtime/runtimeTypes";
 
 type Coordinate = [number, number];
 type RoutePointType = "start" | "waypoint" | "end";
@@ -255,6 +256,7 @@ export type TrackSnapshot = {
 };
 
 type RouteMapAppProps = {
+  runtime: EditorRuntime;
   viewMode: "compact" | "expanded";
   onRequestExpandMap?: () => void;
   defaultLanguage?: (typeof STATIC_LANGUAGE_KEYS)[number];
@@ -902,6 +904,7 @@ function RoutePointListItem({
 }
 
 export function RouteMapApp({
+  runtime,
   viewMode,
   onRequestExpandMap,
   defaultLanguage = "en",
@@ -1050,7 +1053,7 @@ export function RouteMapApp({
     let cancelled = false;
 
     async function resolveToken(): Promise<void> {
-      const token = (await window.api.getMapboxToken())?.trim() ?? "";
+      const token = (await runtime.getMapboxToken())?.trim() ?? "";
 
       if (cancelled) {
         return;
@@ -1073,7 +1076,7 @@ export function RouteMapApp({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [runtime]);
 
   useEffect(() => {
     routedSegmentCacheRef.current.clear();
@@ -1256,7 +1259,7 @@ export function RouteMapApp({
       }
 
       if (toLoad.length > 0) {
-        const result = await window.api.loadTrackFiles({
+        const result = await runtime.loadTrackFiles({
           canyonFilePath: trackBindings?.canyonFilePath ?? null,
           tracks: toLoad,
         });
@@ -1322,7 +1325,7 @@ export function RouteMapApp({
     return () => {
       canceled = true;
     };
-  }, [trackBindings]);
+  }, [runtime, trackBindings]);
 
   useEffect(() => {
     const selectedTrack = activeTrackId ? tracksById[activeTrackId] ?? null : null;

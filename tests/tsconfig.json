@@ -15,7 +15,9 @@
   "include": [
     "../tests/**/*.ts",
     "../renderer/src/shared/**/*.ts",
+    "../renderer/src/runtime/webWorkspace.ts",
     "../electron/ipcTypes.ts",
-    "../electron/mainUtils.ts"
+    "../electron/mainUtils.ts",
+    "../electron/canyonCore.ts"
   ]
 }

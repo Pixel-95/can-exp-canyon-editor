@@ -314,6 +314,16 @@ test("section topo node is missing when path is outside /topos", () => {
   assert.equal(getNodeStatus(tree, "section/0/topo"), "missing");
 });
 
+test("web checklist omits topo nodes entirely", () => {
+  const tree = buildRequiredDataChecklist({
+    canyonData: createValidCanyonData(),
+    trackSnapshot: createValidTrackSnapshot(),
+    includeTopo: false,
+  });
+
+  assert.equal(findNode(tree, "section/0/topo"), null);
+});
+
 test("normalized missing-key defaults are treated as missing in checklist", () => {
   const canyonData = normalizeCanyonForEditor({
     name: "Test canyon",

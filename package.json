@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron:build\" \"npm:dev:electron:run\"",
     "dev:renderer": "vite --config renderer/vite.config.ts",
+    "dev:web": "vite --config renderer/vite.config.ts",
     "dev:electron:build": "tsc -p electron/tsconfig.json --watch --preserveWatchOutput",
     "dev:electron:run": "wait-on tcp:5173 dist/electron/main.js && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 nodemon --watch dist/electron --ext js --exec \"electron .\"",
     "typecheck": "tsc -b --noEmit",
@@ -17,7 +18,9 @@
     "check:context-sync:staged": "node scripts/check-context-sync.mjs --staged",
     "build": "npm run build:renderer && npm run build:electron",
     "build:renderer": "vite build --config renderer/vite.config.ts",
+    "build:web": "vite build --config renderer/vite.config.ts",
     "build:electron": "tsc -p electron/tsconfig.json",
+    "preview:web": "vite preview --config renderer/vite.config.ts",
     "package": "npm run build && electron-builder",
     "package:win": "npm run build && electron-builder --win portable",
     "package:mac": "npm run build && electron-builder --mac dir --x64",
@@ -28,10 +31,11 @@
     "package:win:dist": "npm run package:win && npm run package:dist"
   },
   "dependencies": {
-    "@fontsource/inter": "^5.1.1",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@fontsource/inter": "^5.1.1",
+    "jszip": "^3.10.1",
     "mapbox-gl": "^3.10.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

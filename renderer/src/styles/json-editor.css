@@ -1975,6 +1975,13 @@
   display: none;
 }
 
+.json-toolbar-trailing {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  min-width: 160px;
+}
+
 .json-current-file {
   margin: 0;
   flex: 0 0 auto;
@@ -2024,5 +2031,9 @@
     min-width: 120px;
     max-width: min(38vw, 42ch);
     text-align: right;
+  }
+
+  .json-toolbar-trailing {
+    min-width: 120px;
   }
 }
