@@ -24,7 +24,8 @@
     "package:mac:zip": "npm run build && electron-builder --mac dir zip --x64",
     "package:mac:catalina": "npm run package:mac",
     "package:mac:catalina:zip": "npm run package:mac:zip",
-    "package:dist": "node scripts/assemble-distributions.mjs"
+    "package:dist": "node scripts/assemble-distributions.mjs",
+    "package:win:dist": "npm run package:win && npm run package:dist"
   },
   "dependencies": {
     "@fontsource/inter": "^5.1.1",

@@ -74,11 +74,10 @@ async function resolveMacAppBundle() {
   return selectLatestPath(candidates);
 }
 
-async function copyEditableData(targetDirectory) {
+async function copyEditableRuntimeFiles(targetDirectory) {
   const assetsSource = path.join(repoRoot, "assets");
   const assetsTarget = path.join(targetDirectory, "assets");
   await cp(assetsSource, assetsTarget, { recursive: true });
-  await mkdir(path.join(targetDirectory, "data"), { recursive: true });
 
   const dotEnvSource = path.join(repoRoot, ".env");
   try {
@@ -88,6 +87,20 @@ async function copyEditableData(targetDirectory) {
     if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) {
       throw error;
     }
+  }
+
+  const dataSource = path.join(repoRoot, "data");
+  const dataTarget = path.join(targetDirectory, "data");
+  try {
+    await stat(dataSource);
+    await cp(dataSource, dataTarget, { recursive: true });
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      await mkdir(dataTarget, { recursive: true });
+      return;
+    }
+
+    throw error;
   }
 }
 
@@ -107,7 +120,7 @@ async function assembleWindowsDistribution(productName) {
 
   const targetExePath = path.join(windowsTarget, `${productName}.exe`);
   await copyFile(sourceExePath, targetExePath);
-  await copyEditableData(windowsTarget);
+  await copyEditableRuntimeFiles(windowsTarget);
   console.log(`Windows distribution assembled at ${windowsTarget}`);
   return true;
 }
@@ -126,7 +139,7 @@ async function assembleMacDistribution() {
     // Preserve macOS app bundle symlinks exactly. Electron frameworks rely on this.
     verbatimSymlinks: true,
   });
-  await copyEditableData(macTarget);
+  await copyEditableRuntimeFiles(macTarget);
   console.log(`macOS distribution assembled at ${macTarget}`);
   return true;
 }

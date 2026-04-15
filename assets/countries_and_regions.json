@@ -93,9 +93,26 @@
       "name": "Italy",
       "flag": "🇮🇹",
       "regions": {
+        "ABR": "Abruzzo",
+        "BAS": "Basilicata",
+        "CAL": "Calabria",
+        "CAM": "Campania",
+        "EMR": "Emilia-Romagna",
         "FRI": "Friuli Venezia Giulia",
+        "LAZ": "Lazio",
+        "LIG": "Liguria",
         "LOM": "Lombardy",
-        "TAA": "Trentino-South Tyrol"
+        "MAR": "Marche",
+        "MOL": "Molise",
+        "PIE": "Piedmont",
+        "PUG": "Apulia",
+        "SAR": "Sardinia",
+        "SIC": "Sicily",
+        "TAA": "Trentino-South Tyrol",
+        "TOS": "Tuscany",
+        "UMB": "Umbria",
+        "VDA": "Aosta Valley",
+        "VEN": "Veneto"
       }
     },
     "MEX": {

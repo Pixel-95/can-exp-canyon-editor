@@ -70,10 +70,12 @@ cd ~/Downloads
 unzip canyon-editor-macos.zip
 tar -xzf canyon-editor-macos.tar.gz
 xattr -dr com.apple.quarantine "macos"
-cp env "macos/assets/env"
-mv "macos/assets/env" "macos/assets/.env"
-open "macos/Canyon Editor.app"
 ```
+Copy the env file into the assets folder. Then navigate into the assets folder via `cd ...` and rename the env file via
+```bash
+mv env .env
+```
+Start the application (if Mac does not trust the Developer, open via right click -> open)
 
 Notes:
 - If your browser downloaded the artifact with a different filename, replace `canyon-editor-macos.zip` with the actual ZIP filename.
