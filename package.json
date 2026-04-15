@@ -13,7 +13,7 @@
     "dev:electron:run": "wait-on tcp:5173 dist/electron/main.js && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 nodemon --watch dist/electron --ext js --exec \"electron .\"",
     "typecheck": "tsc -b --noEmit",
     "test:unit:build": "tsc -p tests/tsconfig.json",
-    "test:unit": "npm run test:unit:build && node --test \".tmp/unit-tests/**/*.test.js\"",
+    "test:unit": "npm run test:unit:build && node --test .tmp/unit-tests/tests/*.test.js",
     "check:context-sync": "node scripts/check-context-sync.mjs",
     "check:context-sync:staged": "node scripts/check-context-sync.mjs --staged",
     "build": "npm run build:renderer && npm run build:electron",
