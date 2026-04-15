@@ -27,49 +27,56 @@ function pickZipFile(): Promise<File | null> {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".zip,application/zip";
+    input.multiple = false;
     input.style.display = "none";
-    let resolved = false;
+    let settled = false;
+    let focusFallbackTimeout: number | null = null;
+
     const cleanup = (): void => {
-      if (resolved) {
-        return;
+      if (focusFallbackTimeout !== null) {
+        window.clearTimeout(focusFallbackTimeout);
+        focusFallbackTimeout = null;
       }
-      resolved = true;
+
       window.removeEventListener("focus", handleWindowFocus);
       input.remove();
     };
-    const finalize = (): void => {
-      if (resolved) {
+
+    const finish = (file: File | null): void => {
+      if (settled) {
         return;
       }
 
-      const file = input.files?.[0] ?? null;
+      settled = true;
       cleanup();
       resolve(file);
     };
+
     const handleWindowFocus = (): void => {
-      window.setTimeout(() => {
-        finalize();
-      }, 0);
+      focusFallbackTimeout = window.setTimeout(() => {
+        finish(input.files?.[0] ?? null);
+      }, 250);
     };
 
     input.addEventListener(
       "change",
       () => {
-        finalize();
+        finish(input.files?.[0] ?? null);
       },
       { once: true },
     );
     input.addEventListener(
       "cancel",
       () => {
-        cleanup();
-        resolve(null);
+        finish(null);
       },
       { once: true },
     );
     window.addEventListener("focus", handleWindowFocus, { once: true });
     document.body.appendChild(input);
-    input.click();
+    window.requestAnimationFrame(() => {
+      input.click();
+    });
   });
 }
 
@@ -131,9 +138,10 @@ export function createWebRuntime(): EditorRuntime {
           filePath: loaded.filePath,
         };
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Could not load canyon ZIP.";
         return {
           canceled: false,
-          error: error instanceof Error ? error.message : "Could not load canyon ZIP.",
+          error: `Could not import "${file.name}": ${errorMessage}`,
         };
       }
     },

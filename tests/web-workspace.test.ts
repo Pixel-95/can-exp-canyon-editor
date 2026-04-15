@@ -195,6 +195,33 @@ test("web save preserves extra files, keeps root folder, and writes topo null", 
   assert.ok(parsedZip.files["Original_Canyon/pictures/Merlins_World/Original/cover/"]);
 });
 
+test("exported web ZIP can be imported again without format changes", async () => {
+  const loaded = await loadWebWorkspaceFromZipData(
+    await buildCanyonZip("Original Canyon", createSampleCanyonData(), {
+      "docs/raw.txt": "keep me",
+    }),
+  );
+  const canyonData = loaded.data as Record<string, unknown>;
+  canyonData.name = "Original Canyon";
+
+  const saved = saveWebWorkspace({
+    workspace: loaded.workspace,
+    canyonData,
+    canyonName: "Original Canyon",
+    trackSnapshot: null,
+    forceNullTopos: true,
+  });
+  const exportedZip = await generateWorkspaceZipBytes(saved.workspace);
+  const reloaded = await loadWebWorkspaceFromZipData(exportedZip);
+  const reloadedData = reloaded.data as Record<string, unknown>;
+  const sections = reloadedData.sections as Array<Record<string, unknown>>;
+
+  assert.equal(reloaded.filePath, "Original_Canyon/data.json");
+  assert.equal(reloaded.workspace.folderName, "Original_Canyon");
+  assert.ok(reloaded.workspace.files.has("docs/raw.txt"));
+  assert.equal(sections[0].topo, null);
+});
+
 test("new web workspaces create compatible directory scaffolding", () => {
   const created = createNewWebWorkspace({
     canyonName: "My Canyon",

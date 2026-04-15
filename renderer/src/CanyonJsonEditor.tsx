@@ -895,6 +895,7 @@ export function CanyonJsonEditor({ runtime, mapViewMode, onToggleMapView }: Cany
   const [languagePasteDraft, setLanguagePasteDraft] = useState("");
   const [languagePasteError, setLanguagePasteError] = useState("");
   const [topoWarningMessage, setTopoWarningMessage] = useState("");
+  const [loadErrorMessage, setLoadErrorMessage] = useState("");
   const [isNewCanyonModalOpen, setIsNewCanyonModalOpen] = useState(false);
   const [newCanyonNameDraft, setNewCanyonNameDraft] = useState("");
   const [newCanyonNameError, setNewCanyonNameError] = useState("");
@@ -1323,6 +1324,7 @@ export function CanyonJsonEditor({ runtime, mapViewMode, onToggleMapView }: Cany
   }, [canyonData, selectedCountry, selectedCountryCode, selectedRegionCode, setPathValue]);
 
   const onLoadJson = useCallback(async (): Promise<void> => {
+    setLoadErrorMessage("");
     const result = await runtime.openCanyonSource();
     if (result.canceled) {
       setStatusMessage(runtime.kind === "web" ? "ZIP upload canceled." : "Load canceled.");
@@ -1331,11 +1333,14 @@ export function CanyonJsonEditor({ runtime, mapViewMode, onToggleMapView }: Cany
 
     if (result.error) {
       setStatusMessage(`Load failed: ${result.error}`);
+      setLoadErrorMessage(result.error);
       return;
     }
 
     if (!result.data || !isJsonObject(result.data)) {
-      setStatusMessage("Loaded file is not a valid JSON object.");
+      const message = "Loaded file is not a valid JSON object.";
+      setStatusMessage(message);
+      setLoadErrorMessage(message);
       return;
     }
 
@@ -3158,7 +3163,11 @@ export function CanyonJsonEditor({ runtime, mapViewMode, onToggleMapView }: Cany
           <p className="json-current-file" title={currentDataJsonLabel}>
             {currentDataJsonLabel}
           </p>
-          {statusMessage ? <p className="json-status">{statusMessage}</p> : null}
+          {statusMessage ? (
+            <p className="json-status" role="status" aria-live="polite" title={statusMessage}>
+              {statusMessage}
+            </p>
+          ) : null}
         </div>
       </header>
 
@@ -3332,6 +3341,35 @@ export function CanyonJsonEditor({ runtime, mapViewMode, onToggleMapView }: Cany
             <p className="json-modal-help">{topoWarningMessage}</p>
             <div className="json-modal-actions">
               <button type="button" className="json-modal-error-close" onClick={() => setTopoWarningMessage("")}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {loadErrorMessage ? (
+        <div className="json-modal-backdrop" role="presentation">
+          <div
+            className="json-modal json-modal-error"
+            role="dialog"
+            aria-modal="true"
+            aria-label={runtime.kind === "web" ? "Could not import canyon ZIP" : "Could not load canyon file"}
+          >
+            <div className="json-modal-header">
+              <h3>{runtime.kind === "web" ? "Could not import canyon ZIP" : "Could not load canyon file"}</h3>
+              <button
+                type="button"
+                className="json-modal-close"
+                onClick={() => setLoadErrorMessage("")}
+                aria-label="Close"
+              >
+                X
+              </button>
+            </div>
+            <p className="json-modal-help">{loadErrorMessage}</p>
+            <div className="json-modal-actions">
+              <button type="button" className="json-modal-error-close" onClick={() => setLoadErrorMessage("")}>
                 Close
               </button>
             </div>

@@ -1976,22 +1976,35 @@
 }
 
 .json-toolbar-trailing {
-  display: grid;
-  justify-items: end;
-  gap: 2px;
-  min-width: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(46vw, 84ch);
 }
 
 .json-current-file {
   margin: 0;
-  flex: 0 0 auto;
-  min-width: 160px;
-  max-width: min(32vw, 58ch);
-  padding-left: var(--space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: min(26vw, 42ch);
+  padding-left: 0;
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
   color: var(--color-text-muted);
   text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.json-status {
+  margin: 0;
+  flex: 0 1 34ch;
+  min-width: 0;
+  max-width: min(18vw, 34ch);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2028,12 +2041,15 @@
   }
 
   .json-current-file {
-    min-width: 120px;
-    max-width: min(38vw, 42ch);
+    max-width: min(34vw, 34ch);
     text-align: right;
   }
 
   .json-toolbar-trailing {
-    min-width: 120px;
+    max-width: min(42vw, 40ch);
+  }
+
+  .json-status {
+    max-width: min(26vw, 24ch);
   }
 }
