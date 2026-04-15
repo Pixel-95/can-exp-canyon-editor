@@ -881,7 +881,7 @@ export function CanyonJsonEditor({ runtime, mapViewMode, onToggleMapView }: Cany
   const [languageTabs, setLanguageTabs] = useState<Record<string, string>>({});
   const [defaultLanguage, setDefaultLanguage] = useState<(typeof STATIC_LANGUAGE_KEYS)[number]>(() => {
     if (typeof window === "undefined") {
-      return "en";
+      return "de";
     }
 
     const stored = window.localStorage.getItem(DEFAULT_LANGUAGE_STORAGE_KEY);
@@ -889,7 +889,7 @@ export function CanyonJsonEditor({ runtime, mapViewMode, onToggleMapView }: Cany
       return stored as (typeof STATIC_LANGUAGE_KEYS)[number];
     }
 
-    return "en";
+    return "de";
   });
   const [languagePasteTargetPath, setLanguagePasteTargetPath] = useState<PathSegment[] | null>(null);
   const [languagePasteDraft, setLanguagePasteDraft] = useState("");
