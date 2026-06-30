@@ -91,6 +91,39 @@ test("missing section keys are normalized to explicit defaults", () => {
   assert.deepEqual(images.additional, []);
 });
 
+test("section ids remain stable when display order differs from ids", () => {
+  const normalized = normalizeCanyonForEditor({
+    sections: [
+      { id: 2, name: "New upper" },
+      { id: 0, name: "Existing first" },
+      { id: 1, name: "Existing second" },
+    ],
+  });
+
+  const sections = asArray(normalized.sections);
+  assert.deepEqual(sections.map((section) => asObject(section).id), [2, 0, 1]);
+  assert.deepEqual(sections.map((section) => asObject(section).name), [
+    "New upper",
+    "Existing first",
+    "Existing second",
+  ]);
+});
+
+test("missing and duplicate section ids are assigned deterministic unused ids", () => {
+  const normalized = normalizeCanyonForEditor({
+    sections: [
+      { id: 0, name: "Existing first" },
+      { id: 1, name: "Existing second" },
+      { name: "Missing id" },
+      { id: 1, name: "Duplicate id" },
+      { id: -1, name: "Invalid id" },
+    ],
+  });
+
+  const sections = asArray(normalized.sections);
+  assert.deepEqual(sections.map((section) => asObject(section).id), [0, 1, 2, 3, 4]);
+});
+
 test("localized objects are filled with six language keys", () => {
   const normalized = normalizeCanyonForEditor({
     description: { en: "Root text" },

@@ -160,7 +160,8 @@ export function extractSectionPictureDescriptors(canyonData: Record<string, unkn
       continue;
     }
 
-    const sectionId = Number.isFinite(Number(rawSection.id)) ? Number(rawSection.id) : index;
+    const rawSectionId = Number(rawSection.id);
+    const sectionId = Number.isInteger(rawSectionId) && rawSectionId >= 0 ? rawSectionId : index;
     const name = typeof rawSection.name === "string" ? rawSection.name : "";
     descriptors.push({
       index,

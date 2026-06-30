@@ -589,9 +589,9 @@ function parseParkingLotSuggestionsFromAsset(payload: unknown): LocalizedText[] 
   return suggestions;
 }
 
-function createEditorSection(index: number, name = ""): JsonObject {
+function createEditorSection(sectionId: number, name = ""): JsonObject {
   return {
-    ...createDefaultSection(index),
+    ...createDefaultSection(sectionId),
     name,
     authors: [""],
   };
@@ -713,6 +713,29 @@ function moveArrayItem<T>(items: T[], fromIndex: number, toIndex: number): T[] {
   return clone;
 }
 
+function insertArrayItem<T>(items: T[], index: number, item: T): T[] {
+  const targetIndex = Math.min(Math.max(index, 0), items.length);
+  const clone = items.slice();
+  clone.splice(targetIndex, 0, item);
+  return clone;
+}
+
+function nextSectionId(sections: JsonValue[]): number {
+  let maxSectionId = -1;
+  for (const section of sections) {
+    if (!isJsonObject(section)) {
+      continue;
+    }
+
+    const id = section.id;
+    if (typeof id === "number" && Number.isInteger(id) && id >= 0) {
+      maxSectionId = Math.max(maxSectionId, id);
+    }
+  }
+
+  return maxSectionId + 1;
+}
+
 function areStringArraysEqual(left: string[], right: string[]): boolean {
   if (left.length !== right.length) {
     return false;
@@ -757,7 +780,7 @@ function defaultFromSample(sample: JsonValue): JsonValue {
 
 function newArrayItem(path: PathSegment[], arrayValue: JsonValue[]): JsonValue {
   if (path.length === 1 && path[0] === "sections") {
-    return createEditorSection(arrayValue.length);
+    return createEditorSection(nextSectionId(arrayValue));
   }
 
   if (arrayValue.length > 0) {
@@ -2329,6 +2352,24 @@ export function CanyonJsonEditor({ runtime, mapViewMode, onToggleMapView }: Cany
                           />
                         </div>
                         <div className="json-array-item-actions">
+                          <button
+                            type="button"
+                            className="json-array-arrow-btn"
+                            onClick={() => {
+                              const nextItem = newArrayItem(path, value);
+                              const inserted = insertArrayItem(value, index, nextItem);
+                              const nextSectionPathKey = toPathKey([...path, index]);
+                              setPathValue(path, inserted);
+                              setCollapsedGroups((current) => ({
+                                ...current,
+                                [nextSectionPathKey]: false,
+                              }));
+                            }}
+                            aria-label={`Insert section above ${itemTitle}`}
+                            title="Insert above"
+                          >
+                            +
+                          </button>
                           <button
                             type="button"
                             className="json-array-arrow-btn"

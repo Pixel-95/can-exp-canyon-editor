@@ -248,17 +248,34 @@ export function createDefaultSection(index = 0): JsonObject {
   };
 }
 
-function normalizeSection(value: unknown, index: number): JsonObject | null {
+function toValidSectionId(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    return null;
+  }
+
+  return value;
+}
+
+function nextUnusedSectionId(usedSectionIds: Set<number>): number {
+  let nextId = 0;
+  while (usedSectionIds.has(nextId)) {
+    nextId += 1;
+  }
+
+  return nextId;
+}
+
+function normalizeSection(value: unknown, sectionId: number): JsonObject | null {
   const source = asObject(value);
   if (!source) {
     return null;
   }
 
-  const defaults = createDefaultSection(index);
+  const defaults = createDefaultSection(sectionId);
   return {
     ...source,
     ...defaults,
-    id: index,
+    id: sectionId,
     name: normalizeString(source.name),
     authors: normalizeStringArray(source.authors),
     descriptions: normalizeDescriptions(source.descriptions),
@@ -283,9 +300,21 @@ function normalizeSection(value: unknown, index: number): JsonObject | null {
 export function normalizeCanyonForEditor(input: unknown): JsonObject {
   const source = asObject(input) ?? {};
   const sections: JsonObject[] = [];
+  const usedSectionIds = new Set<number>();
   if (Array.isArray(source.sections)) {
     for (const sectionValue of source.sections) {
-      const normalizedSection = normalizeSection(sectionValue, sections.length);
+      const sectionSource = asObject(sectionValue);
+      if (!sectionSource) {
+        continue;
+      }
+
+      let sectionId = toValidSectionId(sectionSource.id);
+      if (sectionId === null || usedSectionIds.has(sectionId)) {
+        sectionId = nextUnusedSectionId(usedSectionIds);
+      }
+      usedSectionIds.add(sectionId);
+
+      const normalizedSection = normalizeSection(sectionSource, sectionId);
       if (normalizedSection) {
         sections.push(normalizedSection);
       }

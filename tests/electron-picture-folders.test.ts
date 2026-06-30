@@ -145,3 +145,64 @@ test("syncSectionPictureFolders removes old folders for deleted sections", async
     await assertDirectoryExists(path.join(picturesDirectory, "_cover", "Original"));
   });
 });
+
+test("syncSectionPictureFolders preserves folders by section id when reordered", async () => {
+  await withTempCanyon(async (canyonDirectory) => {
+    const picturesDirectory = path.join(canyonDirectory, "pictures");
+    await mkdir(path.join(picturesDirectory, "Alpha", "Original", "cover"), { recursive: true });
+    await mkdir(path.join(picturesDirectory, "Alpha", "Original", "additional"), { recursive: true });
+    await mkdir(path.join(picturesDirectory, "Beta", "Original", "cover"), { recursive: true });
+    await mkdir(path.join(picturesDirectory, "Beta", "Original", "additional"), { recursive: true });
+
+    await writeFile(path.join(picturesDirectory, "Alpha", "marker.txt"), "alpha", "utf8");
+    await writeFile(path.join(picturesDirectory, "Beta", "marker.txt"), "beta", "utf8");
+
+    const result = await syncSectionPictureFolders({
+      canyonDirectory,
+      previousSections: [
+        { index: 0, sectionId: 0, name: "Alpha" },
+        { index: 1, sectionId: 1, name: "Beta" },
+      ],
+      currentSections: [
+        { index: 0, sectionId: 1, name: "Beta" },
+        { index: 1, sectionId: 0, name: "Alpha" },
+      ],
+    });
+
+    assert.deepEqual(result.sectionFolderNames, ["Beta", "Alpha"]);
+    assert.equal(await readFile(path.join(picturesDirectory, "Beta", "marker.txt"), "utf8"), "beta");
+    assert.equal(await readFile(path.join(picturesDirectory, "Alpha", "marker.txt"), "utf8"), "alpha");
+  });
+});
+
+test("syncSectionPictureFolders keeps existing folders when a new section is inserted above", async () => {
+  await withTempCanyon(async (canyonDirectory) => {
+    const picturesDirectory = path.join(canyonDirectory, "pictures");
+    await mkdir(path.join(picturesDirectory, "Alpha", "Original", "cover"), { recursive: true });
+    await mkdir(path.join(picturesDirectory, "Alpha", "Original", "additional"), { recursive: true });
+    await mkdir(path.join(picturesDirectory, "Beta", "Original", "cover"), { recursive: true });
+    await mkdir(path.join(picturesDirectory, "Beta", "Original", "additional"), { recursive: true });
+
+    await writeFile(path.join(picturesDirectory, "Alpha", "marker.txt"), "alpha", "utf8");
+    await writeFile(path.join(picturesDirectory, "Beta", "marker.txt"), "beta", "utf8");
+
+    const result = await syncSectionPictureFolders({
+      canyonDirectory,
+      previousSections: [
+        { index: 0, sectionId: 0, name: "Alpha" },
+        { index: 1, sectionId: 1, name: "Beta" },
+      ],
+      currentSections: [
+        { index: 0, sectionId: 2, name: "Gamma" },
+        { index: 1, sectionId: 0, name: "Alpha" },
+        { index: 2, sectionId: 1, name: "Beta" },
+      ],
+    });
+
+    assert.deepEqual(result.sectionFolderNames, ["Gamma", "Alpha", "Beta"]);
+    await assertDirectoryExists(path.join(picturesDirectory, "Gamma", "Original", "cover"));
+    await assertDirectoryExists(path.join(picturesDirectory, "Gamma", "Original", "additional"));
+    assert.equal(await readFile(path.join(picturesDirectory, "Alpha", "marker.txt"), "utf8"), "alpha");
+    assert.equal(await readFile(path.join(picturesDirectory, "Beta", "marker.txt"), "utf8"), "beta");
+  });
+});

@@ -989,7 +989,8 @@ ipcMain.handle(
         }
 
         const sectionName = typeof section.name === "string" ? section.name : "";
-        const sectionId = Number.isFinite(Number(section.id)) ? Number(section.id) : index;
+        const rawSectionId = Number(section.id);
+        const sectionId = Number.isInteger(rawSectionId) && rawSectionId >= 0 ? rawSectionId : index;
         const sanitized = sanitizeTrackBaseName(sectionName);
         return sanitized || `section_${sectionId}`;
       });
@@ -1039,7 +1040,8 @@ ipcMain.handle(
         }
 
         const sectionName = typeof sectionEntry.name === "string" ? sectionEntry.name : `Section ${sectionIndex + 1}`;
-        const sectionId = Number.isFinite(Number(sectionEntry.id)) ? Number(sectionEntry.id) : sectionIndex;
+        const rawSectionId = Number(sectionEntry.id);
+        const sectionId = Number.isInteger(rawSectionId) && rawSectionId >= 0 ? rawSectionId : sectionIndex;
 
         let baseName = sectionBaseNames[sectionIndex] ?? `section_${sectionId}`;
         if ((sectionBaseNameCounts.get(baseName) ?? 0) > 1) {

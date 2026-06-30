@@ -105,7 +105,8 @@ export function buildTrackBindings(canyonData, canyonFilePath) {
         if (!isJsonObject(entry)) {
             return null;
         }
-        const sectionId = Number.isFinite(Number(entry.id)) ? Number(entry.id) : index;
+        const rawSectionId = Number(entry.id);
+        const sectionId = Number.isInteger(rawSectionId) && rawSectionId >= 0 ? rawSectionId : index;
         const sectionName = typeof entry.name === "string" && entry.name.trim() ? entry.name.trim() : `Section ${index + 1}`;
         const filePath = typeof entry.track_canyon === "string" && entry.track_canyon.trim()
             ? normalizeTrackLink(entry.track_canyon)

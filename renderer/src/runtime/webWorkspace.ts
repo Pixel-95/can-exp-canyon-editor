@@ -295,7 +295,7 @@ function resolvePreviousSectionSourceFolders(options: {
   previousPlannedFolderNames: string[];
   existingFolderNames: Set<string>;
 }): Map<number, string> {
-  const sourceBySectionIndex = new Map<number, string>();
+  const sourceBySectionId = new Map<number, string>();
   const usedSourceNames = new Set<string>();
   const { previousSections, previousPlannedFolderNames, existingFolderNames } = options;
 
@@ -309,13 +309,13 @@ function resolvePreviousSectionSourceFolders(options: {
         continue;
       }
 
-      sourceBySectionIndex.set(section.index, candidate);
+      sourceBySectionId.set(section.sectionId, candidate);
       usedSourceNames.add(candidate);
       break;
     }
   }
 
-  return sourceBySectionIndex;
+  return sourceBySectionId;
 }
 
 function resolveUniqueRuntimeFolderName(baseName: string, occupiedFolderNames: Set<string>): string {
@@ -345,15 +345,15 @@ function syncWorkspacePictureFolders(options: {
   const previousSections = Array.isArray(options.previousSections) ? options.previousSections : [];
   const existingFolderNames = getImmediateDirectoryNamesUnder(workspace, "pictures");
   const previousPlannedFolderNames = planSectionPictureFolderNames(previousSections);
-  const sourceFolderBySectionIndex = resolvePreviousSectionSourceFolders({
+  const sourceFolderBySectionId = resolvePreviousSectionSourceFolders({
     previousSections,
     previousPlannedFolderNames,
     existingFolderNames,
   });
-  const currentSectionIndexes = new Set(currentSections.map((section) => section.index));
+  const currentSectionIds = new Set(currentSections.map((section) => section.sectionId));
   const mappedSourceFoldersInUse = new Set<string>();
-  for (const [sectionIndex, folderName] of sourceFolderBySectionIndex.entries()) {
-    if (currentSectionIndexes.has(sectionIndex)) {
+  for (const [sectionId, folderName] of sourceFolderBySectionId.entries()) {
+    if (currentSectionIds.has(sectionId)) {
       mappedSourceFoldersInUse.add(folderName);
     }
   }
@@ -368,20 +368,20 @@ function syncWorkspacePictureFolders(options: {
 
   const existingFolderNamesAfterPrune = getImmediateDirectoryNamesUnder(workspace, "pictures");
   const currentSectionFolderNames = planSectionPictureFolderNames(currentSections);
-  const renameOperations: Array<{ sectionIndex: number; fromFolderName: string; targetFolderName: string }> = [];
-  const currentSectionOrder: number[] = [];
+  const renameOperations: Array<{ sectionId: number; fromFolderName: string; targetFolderName: string }> = [];
+  const currentSectionIdsInOrder: number[] = [];
   for (let index = 0; index < currentSections.length; index += 1) {
     const currentSection = currentSections[index];
     const targetFolderName = currentSectionFolderNames[index] ?? `section_${currentSection.sectionId}`;
-    currentSectionOrder.push(currentSection.index);
+    currentSectionIdsInOrder.push(currentSection.sectionId);
 
-    const sourceFolderName = sourceFolderBySectionIndex.get(currentSection.index);
+    const sourceFolderName = sourceFolderBySectionId.get(currentSection.sectionId);
     if (!sourceFolderName || sourceFolderName === targetFolderName) {
       continue;
     }
 
     renameOperations.push({
-      sectionIndex: currentSection.index,
+      sectionId: currentSection.sectionId,
       fromFolderName: sourceFolderName,
       targetFolderName,
     });
@@ -389,14 +389,14 @@ function syncWorkspacePictureFolders(options: {
 
   const occupiedFolderNames = new Set(existingFolderNamesAfterPrune);
   if (renameOperations.length > 0) {
-    const sectionPositionByIndex = new Map<number, number>();
-    for (let position = 0; position < currentSectionOrder.length; position += 1) {
-      sectionPositionByIndex.set(currentSectionOrder[position], position);
+    const sectionPositionById = new Map<number, number>();
+    for (let position = 0; position < currentSectionIdsInOrder.length; position += 1) {
+      sectionPositionById.set(currentSectionIdsInOrder[position], position);
     }
 
     const tempPrefix = `.__canyon_editor_tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}_`;
     let tempCounter = 0;
-    const stagedRenames: Array<{ sectionIndex: number; tempFolderName: string; targetFolderName: string }> = [];
+    const stagedRenames: Array<{ sectionId: number; tempFolderName: string; targetFolderName: string }> = [];
 
     for (const operation of renameOperations) {
       const sourceFolderPath = joinRelativePath("pictures", operation.fromFolderName);
@@ -413,7 +413,7 @@ function syncWorkspacePictureFolders(options: {
       occupiedFolderNames.delete(operation.fromFolderName);
       occupiedFolderNames.add(tempFolderName);
       stagedRenames.push({
-        sectionIndex: operation.sectionIndex,
+        sectionId: operation.sectionId,
         tempFolderName,
         targetFolderName: operation.targetFolderName,
       });
@@ -429,7 +429,7 @@ function syncWorkspacePictureFolders(options: {
       occupiedFolderNames.delete(stagedRename.tempFolderName);
       occupiedFolderNames.add(targetFolderName);
 
-      const sectionPosition = sectionPositionByIndex.get(stagedRename.sectionIndex);
+      const sectionPosition = sectionPositionById.get(stagedRename.sectionId);
       if (typeof sectionPosition === "number") {
         currentSectionFolderNames[sectionPosition] = targetFolderName;
       }
@@ -740,7 +740,8 @@ export function saveWebWorkspace(options: SaveWorkspaceOptions): SaveWorkspaceRe
     }
 
     const sectionName = typeof section.name === "string" ? section.name : "";
-    const sectionId = Number.isFinite(Number(section.id)) ? Number(section.id) : index;
+    const rawSectionId = Number(section.id);
+    const sectionId = Number.isInteger(rawSectionId) && rawSectionId >= 0 ? rawSectionId : index;
     const sanitized = sanitizeTrackBaseName(sectionName);
     return sanitized || `section_${sectionId}`;
   });
@@ -794,7 +795,8 @@ export function saveWebWorkspace(options: SaveWorkspaceOptions): SaveWorkspaceRe
     }
 
     const sectionName = typeof sectionEntry.name === "string" ? sectionEntry.name : `Section ${sectionIndex + 1}`;
-    const sectionId = Number.isFinite(Number(sectionEntry.id)) ? Number(sectionEntry.id) : sectionIndex;
+    const rawSectionId = Number(sectionEntry.id);
+    const sectionId = Number.isInteger(rawSectionId) && rawSectionId >= 0 ? rawSectionId : sectionIndex;
 
     let baseName = sectionBaseNames[sectionIndex] ?? `section_${sectionId}`;
     if ((sectionBaseNameCounts.get(baseName) ?? 0) > 1) {

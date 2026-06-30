@@ -259,7 +259,8 @@ export function extractSectionPictureDescriptors(canyonData: Record<string, unkn
       continue;
     }
 
-    const sectionId = Number.isFinite(Number(rawSection.id)) ? Number(rawSection.id) : index;
+    const rawSectionId = Number(rawSection.id);
+    const sectionId = Number.isInteger(rawSectionId) && rawSectionId >= 0 ? rawSectionId : index;
     const name = typeof rawSection.name === "string" ? rawSection.name : "";
     descriptors.push({
       index,
@@ -456,7 +457,7 @@ function resolvePreviousSectionSourceFolders(options: {
   previousPlannedFolderNames: string[];
   existingFolderNames: Set<string>;
 }): Map<number, string> {
-  const sourceBySectionIndex = new Map<number, string>();
+  const sourceBySectionId = new Map<number, string>();
   const usedSourceNames = new Set<string>();
   const { previousSections, previousPlannedFolderNames, existingFolderNames } = options;
 
@@ -470,13 +471,13 @@ function resolvePreviousSectionSourceFolders(options: {
         continue;
       }
 
-      sourceBySectionIndex.set(section.index, candidate);
+      sourceBySectionId.set(section.sectionId, candidate);
       usedSourceNames.add(candidate);
       break;
     }
   }
 
-  return sourceBySectionIndex;
+  return sourceBySectionId;
 }
 
 async function ensurePictureFolderSubstructure(
@@ -513,7 +514,7 @@ function resolveUniqueRuntimeFolderName(
 }
 
 type PictureFolderRenameOperation = {
-  sectionIndex: number;
+  sectionId: number;
   fromFolderName: string;
   targetFolderName: string;
 };
@@ -522,22 +523,22 @@ async function applyPictureFolderRenames(options: {
   picturesDirectory: string;
   renameOperations: PictureFolderRenameOperation[];
   sectionFolderNames: string[];
-  currentSectionOrder: number[];
+  currentSectionIdsInOrder: number[];
   occupiedFolderNames: Set<string>;
 }): Promise<void> {
-  const { picturesDirectory, renameOperations, sectionFolderNames, currentSectionOrder, occupiedFolderNames } = options;
+  const { picturesDirectory, renameOperations, sectionFolderNames, currentSectionIdsInOrder, occupiedFolderNames } = options;
   if (renameOperations.length === 0) {
     return;
   }
 
-  const sectionPositionByIndex = new Map<number, number>();
-  for (let position = 0; position < currentSectionOrder.length; position += 1) {
-    sectionPositionByIndex.set(currentSectionOrder[position], position);
+  const sectionPositionById = new Map<number, number>();
+  for (let position = 0; position < currentSectionIdsInOrder.length; position += 1) {
+    sectionPositionById.set(currentSectionIdsInOrder[position], position);
   }
 
   const tempPrefix = `.__canyon_editor_tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}_`;
   let tempCounter = 0;
-  const stagedRenames: Array<{ sectionIndex: number; tempFolderName: string; targetFolderName: string }> = [];
+  const stagedRenames: Array<{ sectionId: number; tempFolderName: string; targetFolderName: string }> = [];
 
   for (const operation of renameOperations) {
     const sourcePath = path.join(picturesDirectory, operation.fromFolderName);
@@ -558,7 +559,7 @@ async function applyPictureFolderRenames(options: {
     occupiedFolderNames.delete(operation.fromFolderName);
     occupiedFolderNames.add(tempFolderName);
     stagedRenames.push({
-      sectionIndex: operation.sectionIndex,
+      sectionId: operation.sectionId,
       tempFolderName,
       targetFolderName: operation.targetFolderName,
     });
@@ -573,7 +574,7 @@ async function applyPictureFolderRenames(options: {
     occupiedFolderNames.delete(stagedRename.tempFolderName);
     occupiedFolderNames.add(targetFolderName);
 
-    const sectionPosition = sectionPositionByIndex.get(stagedRename.sectionIndex);
+    const sectionPosition = sectionPositionById.get(stagedRename.sectionId);
     if (typeof sectionPosition === "number") {
       sectionFolderNames[sectionPosition] = targetFolderName;
     }
@@ -591,15 +592,15 @@ export async function syncSectionPictureFolders(options: {
   const existingFolderNames = await readDirectoryNames(picturesDirectory);
   const previousSections = Array.isArray(options.previousSections) ? options.previousSections : [];
   const previousPlannedFolderNames = planSectionPictureFolderNames(previousSections);
-  const sourceFolderBySectionIndex = resolvePreviousSectionSourceFolders({
+  const sourceFolderBySectionId = resolvePreviousSectionSourceFolders({
     previousSections,
     previousPlannedFolderNames,
     existingFolderNames,
   });
-  const currentSectionIndexes = new Set(options.currentSections.map((section) => section.index));
+  const currentSectionIds = new Set(options.currentSections.map((section) => section.sectionId));
   const mappedSourceFoldersInUse = new Set<string>();
-  for (const [sectionIndex, folderName] of sourceFolderBySectionIndex.entries()) {
-    if (currentSectionIndexes.has(sectionIndex)) {
+  for (const [sectionId, folderName] of sourceFolderBySectionId.entries()) {
+    if (currentSectionIds.has(sectionId)) {
       mappedSourceFoldersInUse.add(folderName);
     }
   }
@@ -613,19 +614,19 @@ export async function syncSectionPictureFolders(options: {
   const existingFolderNamesAfterPrune = await readDirectoryNames(picturesDirectory);
   const currentSectionFolderNames = planSectionPictureFolderNames(options.currentSections);
   const renameOperations: PictureFolderRenameOperation[] = [];
-  const currentSectionOrder: number[] = [];
+  const currentSectionIdsInOrder: number[] = [];
   for (let index = 0; index < options.currentSections.length; index += 1) {
     const currentSection = options.currentSections[index];
     const targetFolderName = currentSectionFolderNames[index] ?? `section_${currentSection.sectionId}`;
-    currentSectionOrder.push(currentSection.index);
+    currentSectionIdsInOrder.push(currentSection.sectionId);
 
-    const sourceFolderName = sourceFolderBySectionIndex.get(currentSection.index);
+    const sourceFolderName = sourceFolderBySectionId.get(currentSection.sectionId);
     if (!sourceFolderName || sourceFolderName === targetFolderName) {
       continue;
     }
 
     renameOperations.push({
-      sectionIndex: currentSection.index,
+      sectionId: currentSection.sectionId,
       fromFolderName: sourceFolderName,
       targetFolderName,
     });
@@ -636,7 +637,7 @@ export async function syncSectionPictureFolders(options: {
     picturesDirectory,
     renameOperations,
     sectionFolderNames: currentSectionFolderNames,
-    currentSectionOrder,
+    currentSectionIdsInOrder,
     occupiedFolderNames,
   });
 

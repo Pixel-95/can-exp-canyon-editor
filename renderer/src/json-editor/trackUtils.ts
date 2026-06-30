@@ -136,7 +136,8 @@ export function buildTrackBindings(
         return null;
       }
 
-      const sectionId = Number.isFinite(Number(entry.id)) ? Number(entry.id) : index;
+      const rawSectionId = Number(entry.id);
+      const sectionId = Number.isInteger(rawSectionId) && rawSectionId >= 0 ? rawSectionId : index;
       const sectionName =
         typeof entry.name === "string" && entry.name.trim() ? entry.name.trim() : `Section ${index + 1}`;
       const filePath =
